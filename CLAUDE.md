@@ -1,0 +1,291 @@
+# CLAUDE.md
+
+Claude Code がこのリポジトリで作業する際のガイドです。
+
+---
+
+## プロジェクト概要
+
+**GC Storage** はクラウドストレージシステムです。ファイル管理、共有、チームコラボレーション機能を提供します。
+
+### 技術スタック
+
+| レイヤー | 技術 |
+|---------|------|
+| Backend | Go 1.22+ / Echo v4 / Clean Architecture |
+| Frontend | React 19 / TanStack Router & Query / Zustand / Tailwind CSS |
+| Database | PostgreSQL 16 |
+| Cache | Redis 7 |
+| Storage | MinIO (S3互換) |
+| Auth | JWT + OAuth 2.0 (Google, GitHub) |
+| Task Runner | Taskfile |
+
+### 境界づけられたコンテキスト
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│ Identity        │     │ Storage         │
+│ - User          │────▶│ - File          │
+│ - Session       │     │ - Folder        │
+│ - OAuth         │     │ - Version       │
+└─────────────────┘     └─────────────────┘
+         │                      │
+         ▼                      ▼
+┌─────────────────┐     ┌─────────────────┐
+│ Collaboration   │     │ Authorization   │
+│ - Group         │────▶│ - Permission    │
+│ - Membership    │     │ - Relationship  │
+│ - Invitation    │     │ (PBAC + ReBAC)  │
+└─────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────┐
+                        │ Sharing         │
+                        │ - ShareLink     │
+                        │ - AccessLog     │
+                        └─────────────────┘
+```
+
+---
+
+## クイックスタート
+
+```bash
+# 前提: Task がインストールされていること
+# brew install go-task
+
+# ワンコマンドで全環境起動
+task dev
+```
+
+これで以下が起動します:
+- PostgreSQL (localhost:5432)
+- Redis (localhost:6379)
+- MinIO (localhost:9000, Console: localhost:9001)
+- MailHog (localhost:8025)
+- Backend API (localhost:8080)
+- Frontend (localhost:3000)
+
+---
+
+## プロジェクト構造
+
+```
+gc-storage/
+├── backend/                  # Go バックエンド
+│   ├── cmd/api/main.go       # エントリーポイント
+│   ├── internal/
+│   │   ├── domain/           # ドメイン層（エンティティ、リポジトリIF）
+│   │   ├── usecase/          # ユースケース層（ビジネスロジック）
+│   │   ├── interface/        # インターフェース層（ハンドラ、DTO）
+│   │   └── infrastructure/   # インフラ層（リポジトリ実装）
+│   ├── pkg/                  # 共有パッケージ
+│   ├── go.mod
+│   └── .air.toml             # Hot Reload 設定
+│
+├── frontend/                 # React フロントエンド
+│   ├── src/
+│   │   ├── app/routes/       # TanStack Router
+│   │   ├── components/ui/    # UIコンポーネント
+│   │   ├── features/         # 機能モジュール
+│   │   ├── stores/           # Zustand ストア
+│   │   ├── hooks/            # カスタムフック
+│   │   └── lib/api/          # APIクライアント
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── migrations/               # DBマイグレーション (golang-migrate)
+│   ├── 000001_create_users.up.sql
+│   ├── 000002_create_groups.up.sql
+│   ├── 000003_create_folders.up.sql
+│   ├── 000004_create_files.up.sql
+│   ├── 000005_create_permissions.up.sql
+│   └── 000006_create_share_links.up.sql
+│
+├── docs/                     # ドキュメント
+│   ├── 01-policies/          # 開発ポリシー
+│   ├── 02-architecture/      # アーキテクチャ設計
+│   ├── 03-domains/           # ドメイン定義
+│   ├── 04-specs/             # 機能仕様
+│   └── 05-operations/        # 運用ドキュメント
+│
+├── docker-compose.yml        # ローカルインフラ
+├── Taskfile.yml              # タスクランナー
+├── .env.local                # ローカル環境変数（git管理）
+└── .env.sample               # 本番用テンプレート
+```
+
+---
+
+## タスクコマンド
+
+### 開発環境
+
+```bash
+task dev                 # 全環境をワンコマンド起動
+task infra:up            # インフラのみ起動
+task infra:down          # インフラ停止・ボリューム削除
+task infra:logs          # ログ確認
+```
+
+### Backend (Go)
+
+```bash
+task backend:dev         # Air で Hot Reload 起動
+task backend:test        # テスト実行
+task backend:lint        # golangci-lint
+task backend:build       # バイナリビルド
+task backend:sqlc        # SQL → Go コード生成
+```
+
+### Frontend (React)
+
+```bash
+task frontend:dev        # Vite dev server
+task frontend:test       # Vitest 実行
+task frontend:lint       # ESLint
+task frontend:build      # プロダクションビルド
+```
+
+### Database
+
+```bash
+task migrate:up          # マイグレーション適用
+task migrate:down        # ロールバック（1つ）
+task migrate:create NAME=xxx  # 新規マイグレーション作成
+task db:connect          # psql でDB接続
+task db:reset            # DB リセット（drop + create + migrate）
+```
+
+---
+
+## 環境変数
+
+| ファイル | 用途 | Git管理 |
+|---------|------|---------|
+| `.env.local` | ローカル開発用（固定値） | ✅ |
+| `.env.sample` | 本番用テンプレート | ✅ |
+| `.env` | 本番/ステージング用 | ❌ |
+
+ローカル開発では `.env.local` が Taskfile により自動で読み込まれます。
+
+---
+
+## ドキュメントガイド
+
+### 読むべきドキュメント
+
+| タスク | 参照ドキュメント |
+|-------|-----------------|
+| プロジェクト理解 | `docs/03-domains/EVENT_STORMING.md` |
+| コード実装 | `docs/01-policies/CODING_STANDARDS.md` → `docs/02-architecture/BACKEND.md` |
+| 新機能開発 | `docs/03-domains/*.md` → `docs/02-architecture/*.md` |
+| テスト作成 | `docs/01-policies/TESTING.md` |
+| 環境構築 | `docs/01-policies/SETUP.md` |
+
+### ドメイン定義（03-domains/）
+
+| ファイル | 内容 |
+|---------|------|
+| EVENT_STORMING.md | イベントストーミング結果、コンテキストマップ |
+| user.md | User, OAuthAccount, Session |
+| group.md | Group, Membership, Invitation |
+| folder.md | Folder, FolderPath |
+| file.md | File, FileVersion, UploadSession |
+| permission.md | PermissionGrant, Relationship (Zanzibar) |
+| sharing.md | ShareLink, ShareLinkAccess |
+
+---
+
+## コーディング規約
+
+### Go
+
+```go
+// ファイル名: snake_case.go
+// パッケージ名: lowercase, singular
+// 構造体/メソッド: PascalCase
+// 変数: camelCase
+// 最初の引数: ctx context.Context
+
+// テスト命名
+func TestFunctionName_Scenario_ExpectedBehavior(t *testing.T) {}
+```
+
+### TypeScript
+
+```typescript
+// ファイル名: kebab-case.tsx
+// コンポーネント: PascalCase
+// フック: useXxx
+// イベントハンドラ: handleXxxYyy
+```
+
+### SQL
+
+```sql
+-- テーブル名: 複数形 snake_case (users, file_versions)
+-- インデックス: idx_{table}_{columns}
+-- 外部キー: fk_{table}_{ref_table}
+```
+
+---
+
+## アーキテクチャ
+
+### Clean Architecture (4層)
+
+```
+HTTP Request
+     │
+     ▼
+┌─────────────────┐
+│   Interface     │  Handler, Middleware, DTO
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   UseCase       │  ビジネスロジック
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Domain        │  Entity, Repository IF, Domain Service
+└────────▲────────┘
+         │ Interface経由
+┌────────┴────────┐
+│ Infrastructure  │  Repository実装, 外部サービス
+└─────────────────┘
+```
+
+**依存関係のルール:**
+- 依存は常に内側（Domain）に向かう
+- Domain 層は外部依存を持たない
+- Infrastructure は Domain のインターフェースを実装
+
+### 状態管理（Frontend）
+
+| 状態の種類 | 解決策 |
+|-----------|--------|
+| サーバー状態 | TanStack Query |
+| URL状態 | TanStack Router |
+| グローバルUI状態 | Zustand |
+| ローカルUI状態 | useState |
+
+---
+
+## AI コーディングガイドライン
+
+1. **型安全性** - `any`, `interface{}` を避け、明示的な型を使用
+2. **副作用の最小化** - 純粋関数を優先、副作用は分離
+3. **テスタビリティ** - DI、インターフェース抽象化
+4. **YAGNI** - 過剰設計を避け、現在のタスクに必要な最小限の複雑さ
+5. **ドキュメント整合性** - 実装は設計ドキュメントに従う
+
+### 実装時のチェックリスト
+
+- [ ] ドメイン定義（`docs/03-domains/*.md`）を確認したか
+- [ ] 既存のコードパターンに従っているか
+- [ ] テストを書いたか
+- [ ] エラーハンドリングは適切か
+- [ ] セキュリティ（入力検証、認可）を考慮したか
