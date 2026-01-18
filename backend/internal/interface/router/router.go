@@ -95,4 +95,9 @@ func (r *Router) setupAuthRoutes(api *echo.Group) {
 // setupUserRoutes はユーザー関連ルートを設定します
 func (r *Router) setupUserRoutes(api *echo.Group) {
 	api.GET("/me", r.handlers.Auth.Me, r.middlewares.JWTAuth.Authenticate())
+
+	// Profile routes (authenticated)
+	meGroup := api.Group("/me", r.middlewares.JWTAuth.Authenticate())
+	meGroup.GET("/profile", r.handlers.Profile.GetProfile)
+	meGroup.PUT("/profile", r.handlers.Profile.UpdateProfile)
 }

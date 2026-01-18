@@ -5,6 +5,7 @@
 package sqlcgen
 
 import (
+	"encoding/json"
 	"net/netip"
 	"time"
 
@@ -194,4 +195,15 @@ type User struct {
 	LastLoginAt     pgtype.Timestamptz `json:"last_login_at"`
 	CreatedAt       time.Time          `json:"created_at"`
 	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type UserProfile struct {
+	UserID      uuid.UUID       `json:"user_id"`
+	DisplayName *string         `json:"display_name"`
+	AvatarUrl   *string         `json:"avatar_url"`
+	Bio         *string         `json:"bio"`
+	Locale      string          `json:"locale"`
+	Timezone    string          `json:"timezone"`
+	Settings    json.RawMessage `json:"settings"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }

@@ -42,6 +42,7 @@ func main() {
 
 	// Initialize UseCases, Handlers, and Middlewares
 	container.InitAuthUseCases()
+	container.InitProfileUseCases()
 	handlers := di.NewHandlers(container)
 	middlewares := di.NewMiddlewares(container)
 

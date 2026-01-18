@@ -6,8 +6,9 @@ import (
 
 // Handlers はアプリケーションのハンドラーを保持します
 type Handlers struct {
-	Health *handler.HealthHandler
-	Auth   *handler.AuthHandler
+	Health  *handler.HealthHandler
+	Auth    *handler.AuthHandler
+	Profile *handler.ProfileHandler
 	// 今後追加されるハンドラー:
 	// Storage *handler.StorageHandler
 	// Share   *handler.ShareHandler
@@ -41,9 +42,16 @@ func NewHandlers(c *Container) *Handlers {
 		c.Auth.GetUser,
 	)
 
+	// Profile Handler
+	profileHandler := handler.NewProfileHandler(
+		c.Profile.GetProfile,
+		c.Profile.UpdateProfile,
+	)
+
 	return &Handlers{
-		Health: healthHandler,
-		Auth:   authHandler,
+		Health:  healthHandler,
+		Auth:    authHandler,
+		Profile: profileHandler,
 	}
 }
 
@@ -64,8 +72,14 @@ func NewHandlersForTest(c *Container) *Handlers {
 		c.Auth.GetUser,
 	)
 
+	profileHandler := handler.NewProfileHandler(
+		c.Profile.GetProfile,
+		c.Profile.UpdateProfile,
+	)
+
 	return &Handlers{
-		Health: nil, // テストではHealthHandlerは不要
-		Auth:   authHandler,
+		Health:  nil, // テストではHealthHandlerは不要
+		Auth:    authHandler,
+		Profile: profileHandler,
 	}
 }

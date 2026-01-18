@@ -40,9 +40,13 @@ type Container struct {
 	EmailVerificationTokenRepo repository.EmailVerificationTokenRepository
 	PasswordResetTokenRepo     repository.PasswordResetTokenRepository
 	OAuthAccountRepo           repository.OAuthAccountRepository
+	UserProfileRepo            repository.UserProfileRepository
 
 	// Auth UseCases
 	Auth *AuthUseCases
+
+	// Profile UseCases
+	Profile *ProfileUseCases
 
 	// config
 	config *config.Config
@@ -132,6 +136,7 @@ func NewContainerWithOptions(ctx context.Context, cfg *config.Config, opts Optio
 	c.EmailVerificationTokenRepo = infraRepo.NewEmailVerificationTokenRepository(c.TxManager)
 	c.PasswordResetTokenRepo = infraRepo.NewPasswordResetTokenRepository(c.TxManager)
 	c.OAuthAccountRepo = infraRepo.NewOAuthAccountRepository(c.TxManager)
+	c.UserProfileRepo = infraRepo.NewUserProfileRepository(c.TxManager)
 
 	return c, nil
 }
@@ -139,6 +144,11 @@ func NewContainerWithOptions(ctx context.Context, cfg *config.Config, opts Optio
 // InitAuthUseCases はAuth UseCasesを初期化します
 func (c *Container) InitAuthUseCases() {
 	c.Auth = NewAuthUseCases(c, c.config.App.URL)
+}
+
+// InitProfileUseCases はProfile UseCasesを初期化します
+func (c *Container) InitProfileUseCases() {
+	c.Profile = NewProfileUseCases(c)
 }
 
 // Close はリソースをクリーンアップします

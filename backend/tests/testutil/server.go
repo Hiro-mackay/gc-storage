@@ -87,6 +87,7 @@ func NewTestServer(t *testing.T) *TestServer {
 
 	// Initialize UseCases, Handlers, and Middlewares
 	container.InitAuthUseCases()
+	container.InitProfileUseCases()
 	handlers := di.NewHandlersForTest(container)
 	middlewares := di.NewMiddlewares(container)
 
@@ -124,7 +125,7 @@ func NewTestServer(t *testing.T) *TestServer {
 // Cleanup cleans up test data
 func (ts *TestServer) Cleanup(t *testing.T) {
 	t.Helper()
-	TruncateTables(t, ts.Pool, "sessions", "oauth_accounts", "email_verification_tokens", "password_reset_tokens", "users")
+	TruncateTables(t, ts.Pool, "sessions", "oauth_accounts", "email_verification_tokens", "password_reset_tokens", "user_profiles", "users")
 	FlushRedis(t, ts.Redis)
 
 	// Reset mock OAuth clients to default state

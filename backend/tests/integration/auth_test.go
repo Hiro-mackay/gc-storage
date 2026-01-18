@@ -26,7 +26,7 @@ func (s *AuthTestSuite) SetupSuite() {
 
 // TearDownSuite runs once after all tests
 func (s *AuthTestSuite) TearDownSuite() {
-	testutil.CleanupTestEnvironment()
+	// Cleanup is handled by TestMain in main_test.go
 }
 
 // SetupTest runs before each test
