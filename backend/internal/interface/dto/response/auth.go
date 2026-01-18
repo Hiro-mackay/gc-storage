@@ -86,3 +86,8 @@ type OAuthLoginResponse struct {
 	User        *UserResponse `json:"user"`
 	IsNewUser   bool          `json:"is_new_user"`
 }
+
+// SetPasswordResponse はパスワード設定レスポンス
+type SetPasswordResponse struct {
+	Message string `json:"message"`
+}

@@ -36,6 +36,7 @@ func NewHandlers(c *Container) *Handlers {
 		c.Auth.ForgotPassword,
 		c.Auth.ResetPassword,
 		c.Auth.ChangePassword,
+		c.Auth.SetPassword,
 		c.Auth.OAuthLogin,
 		c.Auth.GetUser,
 	)
@@ -58,6 +59,7 @@ func NewHandlersForTest(c *Container) *Handlers {
 		c.Auth.ForgotPassword,
 		c.Auth.ResetPassword,
 		c.Auth.ChangePassword,
+		c.Auth.SetPassword,
 		c.Auth.OAuthLogin,
 		c.Auth.GetUser,
 	)

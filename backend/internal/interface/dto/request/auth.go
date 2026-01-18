@@ -39,3 +39,8 @@ type ChangePasswordRequest struct {
 type OAuthLoginRequest struct {
 	Code string `json:"code" validate:"required"`
 }
+
+// SetPasswordRequest はパスワード設定リクエスト（OAuth専用ユーザー向け）
+type SetPasswordRequest struct {
+	Password string `json:"password" validate:"required,password"`
+}

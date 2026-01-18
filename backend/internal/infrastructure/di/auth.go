@@ -17,6 +17,7 @@ type AuthUseCases struct {
 	ForgotPassword         *authcmd.ForgotPasswordCommand
 	ResetPassword          *authcmd.ResetPasswordCommand
 	ChangePassword         *authcmd.ChangePasswordCommand
+	SetPassword            *authcmd.SetPasswordCommand
 	OAuthLogin             *authcmd.OAuthLoginCommand
 
 	// Queries
@@ -72,6 +73,9 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 			c.TxManager,
 		),
 		ChangePassword: authcmd.NewChangePasswordCommand(
+			c.UserRepo,
+		),
+		SetPassword: authcmd.NewSetPasswordCommand(
 			c.UserRepo,
 		),
 		OAuthLogin: authcmd.NewOAuthLoginCommand(

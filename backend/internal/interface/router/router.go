@@ -85,6 +85,9 @@ func (r *Router) setupAuthRoutes(api *echo.Group) {
 	// Password change route (authenticated)
 	passwordGroup.POST("/change", r.handlers.Auth.ChangePassword, r.middlewares.JWTAuth.Authenticate())
 
+	// Password set route (authenticated, for OAuth-only users)
+	passwordGroup.POST("/set", r.handlers.Auth.SetPassword, r.middlewares.JWTAuth.Authenticate())
+
 	// Auth routes (authenticated)
 	authGroup.POST("/logout", r.handlers.Auth.Logout, r.middlewares.JWTAuth.Authenticate())
 }

@@ -1455,3 +1455,201 @@ func (s *AuthTestSuite) TestFullOAuthFlow() {
 	reLoginResp.AssertStatus(http.StatusOK).
 		AssertJSONPath("data.is_new_user", false)
 }
+
+// =============================================================================
+// Set Password Tests (for OAuth-only users)
+// =============================================================================
+
+func (s *AuthTestSuite) TestSetPassword_Success() {
+	// Create OAuth-only user and get token
+	accessToken := s.createOAuthUserAndGetToken("setpass@example.com", "Set Password User")
+
+	// Set password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/set",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"password": "NewPassword123",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "password set successfully")
+
+	// Clear rate limiter
+	testutil.FlushRedis(s.T(), s.server.Redis)
+
+	// Verify can now login with password
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "setpass@example.com",
+			"password": "NewPassword123",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token")
+}
+
+func (s *AuthTestSuite) TestSetPassword_AlreadyHasPassword() {
+	// Create user with password
+	s.registerAndActivateUser("haspass@example.com", "ExistingPass123", "Has Password User")
+	accessToken := s.loginAndGetToken("haspass@example.com", "ExistingPass123")
+
+	// Try to set password (should fail - already has password)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/set",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"password": "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "password already set, use change password instead")
+}
+
+func (s *AuthTestSuite) TestSetPassword_WeakPassword() {
+	// Create OAuth-only user and get token
+	accessToken := s.createOAuthUserAndGetToken("weaksetpass@example.com", "Weak Set Password User")
+
+	// Try to set weak password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/set",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"password": "weak",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestSetPassword_MissingPassword() {
+	// Create OAuth-only user and get token
+	accessToken := s.createOAuthUserAndGetToken("missingsetpass@example.com", "Missing Set Password User")
+
+	// Try without password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/set",
+		AccessToken: accessToken,
+		Body:        map[string]string{},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestSetPassword_Unauthorized() {
+	// Try to set password without token
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/set",
+		Body: map[string]string{
+			"password": "NewPassword123",
+		},
+	})
+
+	resp.AssertStatus(http.StatusUnauthorized)
+}
+
+func (s *AuthTestSuite) TestFullOAuthToPasswordFlow() {
+	// 1. Create OAuth-only user
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-fullset-user",
+		Email:          "oauth-to-password@example.com",
+		Name:           "OAuth To Password User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	oauthResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+	oauthResp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.is_new_user", true)
+
+	data := oauthResp.GetJSONData()
+	accessToken := data["access_token"].(string)
+
+	// 2. Verify cannot login with password (no password set)
+	testutil.FlushRedis(s.T(), s.server.Redis)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "oauth-to-password@example.com",
+			"password": "AnyPassword123",
+		},
+	}).AssertStatus(http.StatusUnauthorized).
+		AssertJSONError("UNAUTHORIZED", "please use OAuth to login")
+
+	// 3. Set password
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/set",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"password": "MyNewPassword123",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// 4. Verify can now login with password
+	testutil.FlushRedis(s.T(), s.server.Redis)
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "oauth-to-password@example.com",
+			"password": "MyNewPassword123",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token")
+
+	// 5. Verify can still login with OAuth
+	testutil.FlushRedis(s.T(), s.server.Redis)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	}).AssertStatus(http.StatusOK).
+		AssertJSONPath("data.is_new_user", false)
+}
+
+// =============================================================================
+// Additional Helper Methods for Set Password
+// =============================================================================
+
+// createOAuthUserAndGetToken creates an OAuth-only user and returns access token
+func (s *AuthTestSuite) createOAuthUserAndGetToken(email, name string) string {
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-" + email,
+		Email:          email,
+		Name:           name,
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+	resp.AssertStatus(http.StatusOK)
+
+	data := resp.GetJSONData()
+	return data["access_token"].(string)
+}

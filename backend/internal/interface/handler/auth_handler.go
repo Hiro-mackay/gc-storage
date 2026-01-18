@@ -27,6 +27,7 @@ type AuthHandler struct {
 	forgotPasswordCommand          *authcmd.ForgotPasswordCommand
 	resetPasswordCommand           *authcmd.ResetPasswordCommand
 	changePasswordCommand          *authcmd.ChangePasswordCommand
+	setPasswordCommand             *authcmd.SetPasswordCommand
 	oauthLoginCommand              *authcmd.OAuthLoginCommand
 
 	// Queries
@@ -44,6 +45,7 @@ func NewAuthHandler(
 	forgotPasswordCommand *authcmd.ForgotPasswordCommand,
 	resetPasswordCommand *authcmd.ResetPasswordCommand,
 	changePasswordCommand *authcmd.ChangePasswordCommand,
+	setPasswordCommand *authcmd.SetPasswordCommand,
 	oauthLoginCommand *authcmd.OAuthLoginCommand,
 	getUserQuery *authqry.GetUserQuery,
 ) *AuthHandler {
@@ -57,6 +59,7 @@ func NewAuthHandler(
 		forgotPasswordCommand:          forgotPasswordCommand,
 		resetPasswordCommand:           resetPasswordCommand,
 		changePasswordCommand:          changePasswordCommand,
+		setPasswordCommand:             setPasswordCommand,
 		oauthLoginCommand:              oauthLoginCommand,
 		getUserQuery:                   getUserQuery,
 	}
@@ -294,6 +297,35 @@ func (h *AuthHandler) ChangePassword(c echo.Context) error {
 	}
 
 	return presenter.OK(c, response.ChangePasswordResponse{
+		Message: output.Message,
+	})
+}
+
+// SetPassword はOAuth専用ユーザーのパスワード設定を処理します（認証必須）
+// POST /api/v1/auth/password/set
+func (h *AuthHandler) SetPassword(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
+	}
+
+	var req request.SetPasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.NewValidationError("invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	output, err := h.setPasswordCommand.Execute(c.Request().Context(), authcmd.SetPasswordInput{
+		UserID:   claims.UserID,
+		Password: req.Password,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.SetPasswordResponse{
 		Message: output.Message,
 	})
 }
