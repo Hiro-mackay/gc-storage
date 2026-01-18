@@ -230,24 +230,28 @@ func (s *JWTService) GetRefreshTokenExpiry() time.Duration {
      │◀──────────────────│                     │                    │
 ```
 
-### 2.2 登録ユースケース
+### 2.2 登録コマンド（CQRS）
 
 ```go
-// internal/usecase/auth/register.go
+// internal/usecase/auth/command/register.go
 
-package auth
+package command
 
 import (
     "context"
+    "crypto/rand"
+    "encoding/base64"
     "fmt"
+    "log/slog"
+    "time"
 
     "github.com/google/uuid"
 
-    "gc-storage/internal/domain/entity"
-    "gc-storage/internal/domain/repository"
-    "gc-storage/internal/domain/service"
-    "gc-storage/internal/domain/valueobject"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // RegisterInput は登録の入力を定義します
@@ -262,31 +266,34 @@ type RegisterOutput struct {
     UserID uuid.UUID
 }
 
-// RegisterUseCase はユーザー登録ユースケースです
-type RegisterUseCase struct {
-    userRepo             repository.UserRepository
-    verificationTokenRepo repository.VerificationTokenRepository
-    emailService         service.EmailService
-    txManager            repository.TransactionManager
+// RegisterCommand はユーザー登録コマンドです
+type RegisterCommand struct {
+    userRepo                   repository.UserRepository
+    emailVerificationTokenRepo repository.EmailVerificationTokenRepository
+    txManager                  repository.TransactionManager
+    emailSender                service.EmailSender
+    appURL                     string
 }
 
-// NewRegisterUseCase は新しいRegisterUseCaseを作成します
-func NewRegisterUseCase(
+// NewRegisterCommand は新しいRegisterCommandを作成します
+func NewRegisterCommand(
     userRepo repository.UserRepository,
-    verificationTokenRepo repository.VerificationTokenRepository,
-    emailService service.EmailService,
+    emailVerificationTokenRepo repository.EmailVerificationTokenRepository,
     txManager repository.TransactionManager,
-) *RegisterUseCase {
-    return &RegisterUseCase{
-        userRepo:              userRepo,
-        verificationTokenRepo: verificationTokenRepo,
-        emailService:          emailService,
-        txManager:             txManager,
+    emailSender service.EmailSender,
+    appURL string,
+) *RegisterCommand {
+    return &RegisterCommand{
+        userRepo:                   userRepo,
+        emailVerificationTokenRepo: emailVerificationTokenRepo,
+        txManager:                  txManager,
+        emailSender:                emailSender,
+        appURL:                     appURL,
     }
 }
 
 // Execute はユーザー登録を実行します
-func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterInput) (*RegisterOutput, error) {
+func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*RegisterOutput, error) {
     // 1. メールアドレスのバリデーション
     email, err := valueobject.NewEmail(input.Email)
     if err != nil {
@@ -300,7 +307,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterInput) (*R
     }
 
     // 3. メールアドレスの重複チェック
-    exists, err := uc.userRepo.Exists(ctx, email)
+    exists, err := c.userRepo.Exists(ctx, email)
     if err != nil {
         return nil, apperror.NewInternalError(err)
     }
@@ -309,9 +316,12 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterInput) (*R
     }
 
     var user *entity.User
+    var verificationToken *entity.EmailVerificationToken
 
     // 4. トランザクションでユーザー作成
-    err = uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+    err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        now := time.Now()
+
         // ユーザー作成
         user = &entity.User{
             ID:            uuid.New(),
@@ -320,30 +330,28 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterInput) (*R
             PasswordHash:  password.Hash(),
             Status:        entity.UserStatusPending,
             EmailVerified: false,
-            CreatedAt:     time.Now(),
-            UpdatedAt:     time.Now(),
+            CreatedAt:     now,
+            UpdatedAt:     now,
         }
 
-        if err := uc.userRepo.Create(ctx, user); err != nil {
+        if err := c.userRepo.Create(ctx, user); err != nil {
             return err
         }
 
         // 確認トークン作成
-        token := &entity.VerificationToken{
-            ID:        uuid.New(),
-            UserID:    user.ID,
-            Token:     generateSecureToken(),
-            ExpiresAt: time.Now().Add(24 * time.Hour),
-            CreatedAt: time.Now(),
-        }
+        if c.emailVerificationTokenRepo != nil {
+            verificationToken = &entity.EmailVerificationToken{
+                ID:        uuid.New(),
+                UserID:    user.ID,
+                Token:     generateSecureToken(),
+                ExpiresAt: now.Add(24 * time.Hour),
+                CreatedAt: now,
+            }
 
-        if err := uc.verificationTokenRepo.Create(ctx, token); err != nil {
-            return err
+            if err := c.emailVerificationTokenRepo.Create(ctx, verificationToken); err != nil {
+                return err
+            }
         }
-
-        // 確認メール送信（非同期）
-        verificationURL := fmt.Sprintf("https://app.gc-storage.example.com/verify?token=%s", token.Token)
-        go uc.emailService.SendVerificationEmail(ctx, input.Email, input.Name, verificationURL)
 
         return nil
     })
@@ -352,7 +360,22 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterInput) (*R
         return nil, apperror.NewInternalError(err)
     }
 
+    // 5. 確認メール送信（トランザクション外で実行、失敗しても登録は成功扱い）
+    if c.emailSender != nil && verificationToken != nil {
+        verifyURL := fmt.Sprintf("%s/auth/verify-email?token=%s", c.appURL, verificationToken.Token)
+        if err := c.emailSender.SendEmailVerification(ctx, user.Email.String(), user.Name, verifyURL); err != nil {
+            slog.Error("failed to send verification email", "error", err, "user_id", user.ID)
+        }
+    }
+
     return &RegisterOutput{UserID: user.ID}, nil
+}
+
+// generateSecureToken はセキュアなトークンを生成します
+func generateSecureToken() string {
+    b := make([]byte, 32)
+    rand.Read(b)
+    return base64.URLEncoding.EncodeToString(b)
 }
 ```
 
@@ -390,79 +413,95 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterInput) (*R
      │◀──────────────────│                     │
 ```
 
-### 3.2 確認ユースケース
+### 3.2 確認コマンド（CQRS）
 
 ```go
-// internal/usecase/auth/verify_email.go
+// internal/usecase/auth/command/verify_email.go
 
-package auth
+package command
 
 import (
     "context"
     "time"
 
-    "gc-storage/internal/domain/entity"
-    "gc-storage/internal/domain/repository"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
-// VerifyEmailUseCase はメール確認ユースケースです
-type VerifyEmailUseCase struct {
-    userRepo              repository.UserRepository
-    verificationTokenRepo repository.VerificationTokenRepository
-    txManager             repository.TransactionManager
+// VerifyEmailInput はメール確認の入力を定義します
+type VerifyEmailInput struct {
+    Token string
 }
 
-// NewVerifyEmailUseCase は新しいVerifyEmailUseCaseを作成します
-func NewVerifyEmailUseCase(
+// VerifyEmailOutput はメール確認の出力を定義します
+type VerifyEmailOutput struct {
+    Message string
+}
+
+// VerifyEmailCommand はメール確認コマンドです
+type VerifyEmailCommand struct {
+    userRepo                   repository.UserRepository
+    emailVerificationTokenRepo repository.EmailVerificationTokenRepository
+    txManager                  repository.TransactionManager
+}
+
+// NewVerifyEmailCommand は新しいVerifyEmailCommandを作成します
+func NewVerifyEmailCommand(
     userRepo repository.UserRepository,
-    verificationTokenRepo repository.VerificationTokenRepository,
+    emailVerificationTokenRepo repository.EmailVerificationTokenRepository,
     txManager repository.TransactionManager,
-) *VerifyEmailUseCase {
-    return &VerifyEmailUseCase{
-        userRepo:              userRepo,
-        verificationTokenRepo: verificationTokenRepo,
-        txManager:             txManager,
+) *VerifyEmailCommand {
+    return &VerifyEmailCommand{
+        userRepo:                   userRepo,
+        emailVerificationTokenRepo: emailVerificationTokenRepo,
+        txManager:                  txManager,
     }
 }
 
 // Execute はメール確認を実行します
-func (uc *VerifyEmailUseCase) Execute(ctx context.Context, token string) error {
+func (c *VerifyEmailCommand) Execute(ctx context.Context, input VerifyEmailInput) (*VerifyEmailOutput, error) {
     // 1. トークンを検索
-    verificationToken, err := uc.verificationTokenRepo.FindByToken(ctx, token)
+    verificationToken, err := c.emailVerificationTokenRepo.FindByToken(ctx, input.Token)
     if err != nil {
-        return apperror.NewNotFoundError("verification token")
+        return nil, apperror.NewValidationError("invalid or expired verification token", nil)
     }
 
     // 2. 有効期限チェック
-    if verificationToken.ExpiresAt.Before(time.Now()) {
-        return apperror.NewValidationError("verification token expired", nil)
+    if verificationToken.IsExpired() {
+        return nil, apperror.NewValidationError("verification token expired", nil)
     }
 
     // 3. ユーザーを取得
-    user, err := uc.userRepo.FindByID(ctx, verificationToken.UserID)
+    user, err := c.userRepo.FindByID(ctx, verificationToken.UserID)
     if err != nil {
-        return apperror.NewNotFoundError("user")
+        return nil, apperror.NewNotFoundError("user")
     }
 
     // 4. すでに確認済みの場合
     if user.EmailVerified {
-        return nil
+        return &VerifyEmailOutput{Message: "Email already verified"}, nil
     }
 
     // 5. トランザクションで更新
-    return uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+    err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
         user.EmailVerified = true
         user.Status = entity.UserStatusActive
         user.UpdatedAt = time.Now()
 
-        if err := uc.userRepo.Update(ctx, user); err != nil {
+        if err := c.userRepo.Update(ctx, user); err != nil {
             return err
         }
 
         // トークン削除
-        return uc.verificationTokenRepo.Delete(ctx, verificationToken.ID)
+        return c.emailVerificationTokenRepo.Delete(ctx, verificationToken.ID)
     })
+
+    if err != nil {
+        return nil, apperror.NewInternalError(err)
+    }
+
+    return &VerifyEmailOutput{Message: "Email verified successfully"}, nil
 }
 ```
 
@@ -505,12 +544,12 @@ func (uc *VerifyEmailUseCase) Execute(ctx context.Context, token string) error {
      │◀──────────────────│                     │                    │
 ```
 
-### 4.2 ログインユースケース
+### 4.2 ログインコマンド（CQRS）
 
 ```go
-// internal/usecase/auth/login.go
+// internal/usecase/auth/command/login.go
 
-package auth
+package command
 
 import (
     "context"
@@ -518,11 +557,12 @@ import (
 
     "github.com/google/uuid"
 
-    "gc-storage/internal/domain/entity"
-    "gc-storage/internal/domain/repository"
-    "gc-storage/internal/domain/valueobject"
-    "gc-storage/pkg/apperror"
-    "gc-storage/pkg/jwt"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
 // LoginInput はログインの入力を定義します
@@ -541,35 +581,35 @@ type LoginOutput struct {
     User         *entity.User
 }
 
-// LoginUseCase はログインユースケースです
-type LoginUseCase struct {
-    userRepo    repository.UserRepository
-    sessionRepo repository.SessionRepository
-    jwtService  *jwt.JWTService
+// LoginCommand はログインコマンドです
+type LoginCommand struct {
+    userRepo     repository.UserRepository
+    sessionStore *cache.SessionStore  // Redis SessionStore
+    jwtService   *jwt.JWTService
 }
 
-// NewLoginUseCase は新しいLoginUseCaseを作成します
-func NewLoginUseCase(
+// NewLoginCommand は新しいLoginCommandを作成します
+func NewLoginCommand(
     userRepo repository.UserRepository,
-    sessionRepo repository.SessionRepository,
+    sessionStore *cache.SessionStore,
     jwtService *jwt.JWTService,
-) *LoginUseCase {
-    return &LoginUseCase{
-        userRepo:    userRepo,
-        sessionRepo: sessionRepo,
-        jwtService:  jwtService,
+) *LoginCommand {
+    return &LoginCommand{
+        userRepo:     userRepo,
+        sessionStore: sessionStore,
+        jwtService:   jwtService,
     }
 }
 
 // Execute はログインを実行します
-func (uc *LoginUseCase) Execute(ctx context.Context, input LoginInput) (*LoginOutput, error) {
+func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOutput, error) {
     // 1. メールアドレスでユーザーを検索
     email, err := valueobject.NewEmail(input.Email)
     if err != nil {
         return nil, apperror.NewUnauthorizedError("invalid credentials")
     }
 
-    user, err := uc.userRepo.FindByEmail(ctx, email)
+    user, err := c.userRepo.FindByEmail(ctx, email)
     if err != nil {
         return nil, apperror.NewUnauthorizedError("invalid credentials")
     }
@@ -597,32 +637,35 @@ func (uc *LoginUseCase) Execute(ctx context.Context, input LoginInput) (*LoginOu
         }
     }
 
-    // 4. セッション作成
+    // 4. セッション作成（Redisに保存）
     sessionID := uuid.New().String()
-    accessToken, refreshToken, err := uc.jwtService.GenerateTokenPair(user.ID, user.Email.String(), sessionID)
+    now := time.Now()
+    expiresAt := now.Add(c.jwtService.GetRefreshTokenExpiry())
+
+    accessToken, refreshToken, err := c.jwtService.GenerateTokenPair(user.ID, user.Email.String(), sessionID)
     if err != nil {
         return nil, apperror.NewInternalError(err)
     }
 
-    session := &entity.Session{
-        ID:               sessionID,
-        UserID:           user.ID,
-        RefreshToken:     refreshToken,
-        UserAgent:        input.UserAgent,
-        IPAddress:        input.IPAddress,
-        ExpiresAt:        time.Now().Add(uc.jwtService.GetRefreshTokenExpiry()),
-        CreatedAt:        time.Now(),
-        LastUsedAt:       time.Now(),
+    session := &cache.Session{
+        ID:           sessionID,
+        UserID:       user.ID,
+        RefreshToken: refreshToken,
+        UserAgent:    input.UserAgent,
+        IPAddress:    input.IPAddress,
+        ExpiresAt:    expiresAt,
+        CreatedAt:    now,
+        LastUsedAt:   now,
     }
 
-    if err := uc.sessionRepo.Save(ctx, session); err != nil {
+    if err := c.sessionStore.Save(ctx, session); err != nil {
         return nil, apperror.NewInternalError(err)
     }
 
     return &LoginOutput{
         AccessToken:  accessToken,
         RefreshToken: refreshToken,
-        ExpiresIn:    int(uc.jwtService.GetAccessTokenExpiry().Seconds()),
+        ExpiresIn:    int(c.jwtService.GetAccessTokenExpiry().Seconds()),
         User:         user,
     }, nil
 }
@@ -634,144 +677,118 @@ func (uc *LoginUseCase) Execute(ctx context.Context, input LoginInput) (*LoginOu
 
 ### 5.1 OAuthフロー
 
+フロントエンドがOAuthプロバイダーへのリダイレクトとコールバックを処理し、取得した認可コードをバックエンドAPIに送信するフローを採用しています。
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          OAuth 2.0 Authorization Code Flow                   │
+│                    OAuth 2.0 Authorization Code Flow (SPA)                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-┌────────┐     ┌──────────┐    ┌───────────────┐     ┌────────────────┐
-│ Client │     │   API    │    │ OAuth Provider│     │    Database    │
-└────┬───┘     └────┬─────┘    │(Google/GitHub)│     └───────┬────────┘
-     │              │          └───────┬───────┘             │
-     │  1. GET      │                  │                     │
-     │  /oauth/google                  │                     │
-     │─────────────▶│                  │                     │
-     │              │                  │                     │
-     │  2. 302 Redirect to Google      │                     │
-     │◀─────────────│                  │                     │
-     │              │                  │                     │
-     │  3. User authorizes on Google   │                     │
-     │─────────────────────────────────▶                     │
-     │              │                  │                     │
-     │  4. Redirect to callback with code                    │
-     │◀────────────────────────────────│                     │
-     │              │                  │                     │
-     │  5. GET /oauth/google/callback?code=xxx               │
-     │─────────────▶│                  │                     │
-     │              │                  │                     │
-     │              │  6. Exchange code for token            │
-     │              │─────────────────▶│                     │
-     │              │                  │                     │
-     │              │  7. Access token │                     │
-     │              │◀─────────────────│                     │
-     │              │                  │                     │
-     │              │  8. Get user info│                     │
-     │              │─────────────────▶│                     │
-     │              │                  │                     │
-     │              │  9. User profile │                     │
-     │              │◀─────────────────│                     │
-     │              │                  │                     │
-     │              │  10. Find/Create user                  │
-     │              │────────────────────────────────────────▶
-     │              │                  │                     │
-     │              │  11. Generate JWT                      │
-     │              │                  │                     │
-     │  12. Redirect with tokens       │                     │
-     │◀─────────────│                  │                     │
+┌────────────┐   ┌───────────────┐   ┌──────────┐   ┌──────────┐   ┌────────┐
+│  Frontend  │   │ OAuth Provider│   │   API    │   │    DB    │   │ Redis  │
+└─────┬──────┘   │(Google/GitHub)│   └────┬─────┘   └────┬─────┘   └───┬────┘
+      │          └───────┬───────┘        │              │             │
+      │                  │                │              │             │
+      │  1. Redirect to OAuth provider    │              │             │
+      │─────────────────▶│                │              │             │
+      │                  │                │              │             │
+      │  2. User authorizes               │              │             │
+      │  3. Redirect with code            │              │             │
+      │◀─────────────────│                │              │             │
+      │                  │                │              │             │
+      │  4. POST /api/v1/auth/oauth/:provider             │             │
+      │  {code}          │                │              │             │
+      │──────────────────────────────────▶│              │             │
+      │                  │                │              │             │
+      │                  │  5. Exchange code              │             │
+      │                  │◀───────────────│              │             │
+      │                  │  6. Access token               │             │
+      │                  │───────────────▶│              │             │
+      │                  │                │              │             │
+      │                  │  7. Get user info              │             │
+      │                  │◀───────────────│              │             │
+      │                  │                │              │             │
+      │                  │                │  8. Find/Create user        │
+      │                  │                │─────────────▶│             │
+      │                  │                │              │             │
+      │                  │                │  9. Save session            │
+      │                  │                │─────────────────────────────▶
+      │                  │                │              │             │
+      │  10. Return tokens + user         │              │             │
+      │  Set-Cookie: refresh_token        │              │             │
+      │◀──────────────────────────────────│              │             │
 ```
 
-### 5.2 OAuthプロバイダー設定
+### 5.2 OAuthクライアントインターフェース
 
 ```go
-// internal/infrastructure/external/oauth/config.go
+// internal/domain/service/oauth_client.go
 
-package oauth
-
-import (
-    "golang.org/x/oauth2"
-    "golang.org/x/oauth2/github"
-    "golang.org/x/oauth2/google"
-)
-
-// ProviderConfig はOAuthプロバイダー設定を定義します
-type ProviderConfig struct {
-    Google GoogleConfig
-    GitHub GitHubConfig
-}
-
-// GoogleConfig はGoogle OAuth設定を定義します
-type GoogleConfig struct {
-    ClientID     string
-    ClientSecret string
-    RedirectURL  string
-}
-
-// GitHubConfig はGitHub OAuth設定を定義します
-type GitHubConfig struct {
-    ClientID     string
-    ClientSecret string
-    RedirectURL  string
-}
-
-// GetGoogleOAuthConfig はGoogle OAuth設定を返します
-func GetGoogleOAuthConfig(cfg GoogleConfig) *oauth2.Config {
-    return &oauth2.Config{
-        ClientID:     cfg.ClientID,
-        ClientSecret: cfg.ClientSecret,
-        RedirectURL:  cfg.RedirectURL,
-        Scopes: []string{
-            "openid",
-            "email",
-            "profile",
-        },
-        Endpoint: google.Endpoint,
-    }
-}
-
-// GetGitHubOAuthConfig はGitHub OAuth設定を返します
-func GetGitHubOAuthConfig(cfg GitHubConfig) *oauth2.Config {
-    return &oauth2.Config{
-        ClientID:     cfg.ClientID,
-        ClientSecret: cfg.ClientSecret,
-        RedirectURL:  cfg.RedirectURL,
-        Scopes: []string{
-            "user:email",
-            "read:user",
-        },
-        Endpoint: github.Endpoint,
-    }
-}
-```
-
-### 5.3 OAuthユースケース
-
-```go
-// internal/usecase/auth/oauth_login.go
-
-package auth
+package service
 
 import (
     "context"
-    "fmt"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
+)
+
+// OAuthTokens はOAuthトークンを定義します
+type OAuthTokens struct {
+    AccessToken  string
+    RefreshToken string
+    ExpiresIn    int
+}
+
+// OAuthUserInfo はOAuthユーザー情報を定義します
+type OAuthUserInfo struct {
+    ProviderUserID string
+    Email          string
+    Name           string
+    AvatarURL      string
+}
+
+// OAuthClient はOAuthクライアントインターフェースを定義します
+type OAuthClient interface {
+    ExchangeCode(ctx context.Context, code string) (*OAuthTokens, error)
+    GetUserInfo(ctx context.Context, accessToken string) (*OAuthUserInfo, error)
+    Provider() valueobject.OAuthProvider
+}
+
+// OAuthClientFactory はOAuthクライアントファクトリーインターフェースを定義します
+type OAuthClientFactory interface {
+    GetClient(provider valueobject.OAuthProvider) (OAuthClient, error)
+}
+```
+
+### 5.3 OAuthLoginコマンド（CQRS）
+
+```go
+// internal/usecase/auth/command/oauth_login.go
+
+package command
+
+import (
+    "context"
     "time"
 
     "github.com/google/uuid"
 
-    "gc-storage/internal/domain/entity"
-    "gc-storage/internal/domain/repository"
-    "gc-storage/internal/domain/valueobject"
-    "gc-storage/internal/infrastructure/external/oauth"
-    "gc-storage/pkg/apperror"
-    "gc-storage/pkg/jwt"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
 // OAuthLoginInput はOAuthログインの入力を定義します
 type OAuthLoginInput struct {
-    Provider   string
-    Code       string
-    State      string
-    UserAgent  string
-    IPAddress  string
+    Provider  string
+    Code      string
+    UserAgent string
+    IPAddress string
 }
 
 // OAuthLoginOutput はOAuthログインの出力を定義します
@@ -783,124 +800,188 @@ type OAuthLoginOutput struct {
     IsNewUser    bool
 }
 
-// OAuthLoginUseCase はOAuthログインユースケースです
-type OAuthLoginUseCase struct {
+// OAuthLoginCommand はOAuthログインコマンドです
+type OAuthLoginCommand struct {
     userRepo         repository.UserRepository
     oauthAccountRepo repository.OAuthAccountRepository
-    sessionRepo      repository.SessionRepository
-    oauthService     *oauth.OAuthService
+    oauthFactory     service.OAuthClientFactory
+    txManager        *database.TxManager
+    sessionStore     *cache.SessionStore
     jwtService       *jwt.JWTService
-    txManager        repository.TransactionManager
+}
+
+// NewOAuthLoginCommand は新しいOAuthLoginCommandを作成します
+func NewOAuthLoginCommand(
+    userRepo repository.UserRepository,
+    oauthAccountRepo repository.OAuthAccountRepository,
+    oauthFactory service.OAuthClientFactory,
+    txManager *database.TxManager,
+    sessionStore *cache.SessionStore,
+    jwtService *jwt.JWTService,
+) *OAuthLoginCommand {
+    return &OAuthLoginCommand{
+        userRepo:         userRepo,
+        oauthAccountRepo: oauthAccountRepo,
+        oauthFactory:     oauthFactory,
+        txManager:        txManager,
+        sessionStore:     sessionStore,
+        jwtService:       jwtService,
+    }
 }
 
 // Execute はOAuthログインを実行します
-func (uc *OAuthLoginUseCase) Execute(ctx context.Context, input OAuthLoginInput) (*OAuthLoginOutput, error) {
-    // 1. プロバイダーからユーザー情報を取得
+func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) (*OAuthLoginOutput, error) {
+    // 1. プロバイダーの検証
     provider := valueobject.OAuthProvider(input.Provider)
     if !provider.IsValid() {
-        return nil, apperror.NewValidationError("invalid oauth provider", nil)
+        return nil, apperror.NewValidationError("unsupported oauth provider", nil)
     }
 
-    oauthUser, err := uc.oauthService.GetUserInfo(ctx, provider, input.Code)
+    // 2. OAuthクライアントの取得
+    oauthClient, err := c.oauthFactory.GetClient(provider)
     if err != nil {
-        return nil, apperror.NewUnauthorizedError("failed to authenticate with provider")
+        return nil, apperror.NewValidationError("unsupported oauth provider", nil)
     }
 
+    // 3. 認可コードをトークンに交換
+    tokens, err := oauthClient.ExchangeCode(ctx, input.Code)
+    if err != nil {
+        return nil, apperror.NewValidationError("invalid authorization code", nil)
+    }
+
+    // 4. ユーザー情報の取得
+    userInfo, err := oauthClient.GetUserInfo(ctx, tokens.AccessToken)
+    if err != nil {
+        return nil, apperror.NewInternalError(err)
+    }
+
+    // 5. トランザクション内でユーザー処理
     var user *entity.User
     var isNewUser bool
 
-    err = uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-        // 2. 既存のOAuthアカウントを検索
-        oauthAccount, err := uc.oauthAccountRepo.FindByProviderAndUserID(ctx, provider, oauthUser.ID)
-        if err == nil && oauthAccount != nil {
-            // 既存ユーザー
-            user, err = uc.userRepo.FindByID(ctx, oauthAccount.UserID)
-            if err != nil {
-                return err
+    err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        // 5a. OAuthアカウントで検索
+        oauthAccount, txErr := c.oauthAccountRepo.FindByProviderAndUserID(ctx, provider, userInfo.ProviderUserID)
+        if txErr == nil {
+            // 既存のOAuthアカウントがある場合
+            user, txErr = c.userRepo.FindByID(ctx, oauthAccount.UserID)
+            if txErr != nil {
+                return txErr
             }
+            isNewUser = false
             return nil
         }
 
-        // 3. メールアドレスで既存ユーザーを検索
-        email, _ := valueobject.NewEmail(oauthUser.Email)
-        existingUser, err := uc.userRepo.FindByEmail(ctx, email)
-        if err == nil && existingUser != nil {
-            // 既存ユーザーにOAuthアカウントを追加
-            user = existingUser
+        // 5b. メールアドレスでユーザーを検索
+        email, _ := valueobject.NewEmail(userInfo.Email)
+        user, txErr = c.userRepo.FindByEmail(ctx, email)
+        if txErr == nil {
+            // 既存ユーザーにOAuthアカウントを紐付け
             oauthAccount = &entity.OAuthAccount{
                 ID:             uuid.New(),
                 UserID:         user.ID,
                 Provider:       provider,
-                ProviderUserID: oauthUser.ID,
+                ProviderUserID: userInfo.ProviderUserID,
+                Email:          userInfo.Email,
+                AccessToken:    tokens.AccessToken,
+                RefreshToken:   tokens.RefreshToken,
                 CreatedAt:      time.Now(),
                 UpdatedAt:      time.Now(),
             }
-            return uc.oauthAccountRepo.Create(ctx, oauthAccount)
+            if txErr = c.oauthAccountRepo.Create(ctx, oauthAccount); txErr != nil {
+                return txErr
+            }
+
+            // ユーザーがpending状態の場合、activeに変更
+            if user.Status == entity.UserStatusPending {
+                user.Status = entity.UserStatusActive
+                user.EmailVerified = true
+                user.UpdatedAt = time.Now()
+                if txErr = c.userRepo.Update(ctx, user); txErr != nil {
+                    return txErr
+                }
+            }
+
+            isNewUser = false
+            return nil
         }
 
-        // 4. 新規ユーザー作成
-        isNewUser = true
+        // 5c. 新規ユーザーを作成
+        now := time.Now()
         user = &entity.User{
             ID:            uuid.New(),
             Email:         email,
-            Name:          oauthUser.Name,
-            Status:        entity.UserStatusActive, // OAuthは即座にactive
-            EmailVerified: true,                    // OAuthは確認済み
-            CreatedAt:     time.Now(),
-            UpdatedAt:     time.Now(),
+            Name:          userInfo.Name,
+            PasswordHash:  "", // OAuthユーザーはパスワードなし
+            Status:        entity.UserStatusActive,
+            EmailVerified: true,
+            AvatarURL:     userInfo.AvatarURL,
+            CreatedAt:     now,
+            UpdatedAt:     now,
         }
 
-        if err := uc.userRepo.Create(ctx, user); err != nil {
-            return err
+        if txErr = c.userRepo.Create(ctx, user); txErr != nil {
+            return txErr
         }
 
         oauthAccount = &entity.OAuthAccount{
             ID:             uuid.New(),
             UserID:         user.ID,
             Provider:       provider,
-            ProviderUserID: oauthUser.ID,
-            CreatedAt:      time.Now(),
-            UpdatedAt:      time.Now(),
+            ProviderUserID: userInfo.ProviderUserID,
+            Email:          userInfo.Email,
+            AccessToken:    tokens.AccessToken,
+            RefreshToken:   tokens.RefreshToken,
+            CreatedAt:      now,
+            UpdatedAt:      now,
         }
 
-        return uc.oauthAccountRepo.Create(ctx, oauthAccount)
+        if txErr = c.oauthAccountRepo.Create(ctx, oauthAccount); txErr != nil {
+            return txErr
+        }
+
+        isNewUser = true
+        return nil
     })
 
     if err != nil {
-        return nil, apperror.NewInternalError(err)
+        return nil, err
     }
 
-    // 5. ユーザー状態チェック
+    // 6. ユーザー状態チェック
     if user.Status != entity.UserStatusActive {
         return nil, apperror.NewUnauthorizedError("account is not active")
     }
 
-    // 6. セッション作成
+    // 7. セッション作成
     sessionID := uuid.New().String()
-    accessToken, refreshToken, err := uc.jwtService.GenerateTokenPair(user.ID, user.Email.String(), sessionID)
+    now := time.Now()
+    expiresAt := now.Add(c.jwtService.GetRefreshTokenExpiry())
+
+    accessToken, refreshToken, err := c.jwtService.GenerateTokenPair(user.ID, user.Email.String(), sessionID)
     if err != nil {
         return nil, apperror.NewInternalError(err)
     }
 
-    session := &entity.Session{
+    session := &cache.Session{
         ID:           sessionID,
         UserID:       user.ID,
         RefreshToken: refreshToken,
         UserAgent:    input.UserAgent,
         IPAddress:    input.IPAddress,
-        ExpiresAt:    time.Now().Add(uc.jwtService.GetRefreshTokenExpiry()),
-        CreatedAt:    time.Now(),
-        LastUsedAt:   time.Now(),
+        ExpiresAt:    expiresAt,
+        CreatedAt:    now,
+        LastUsedAt:   now,
     }
 
-    if err := uc.sessionRepo.Save(ctx, session); err != nil {
+    if err := c.sessionStore.Save(ctx, session); err != nil {
         return nil, apperror.NewInternalError(err)
     }
 
     return &OAuthLoginOutput{
         AccessToken:  accessToken,
         RefreshToken: refreshToken,
-        ExpiresIn:    int(uc.jwtService.GetAccessTokenExpiry().Seconds()),
+        ExpiresIn:    int(c.jwtService.GetAccessTokenExpiry().Seconds()),
         User:         user,
         IsNewUser:    isNewUser,
     }, nil
@@ -911,20 +992,22 @@ func (uc *OAuthLoginUseCase) Execute(ctx context.Context, input OAuthLoginInput)
 
 ## 6. トークンリフレッシュ
 
-### 6.1 リフレッシュユースケース
+### 6.1 リフレッシュコマンド（CQRS）
 
 ```go
-// internal/usecase/auth/refresh_token.go
+// internal/usecase/auth/command/refresh_token.go
 
-package auth
+package command
 
 import (
     "context"
     "time"
 
-    "gc-storage/internal/domain/repository"
-    "gc-storage/pkg/apperror"
-    "gc-storage/pkg/jwt"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
 // RefreshTokenInput はトークンリフレッシュの入力を定義します
@@ -939,24 +1022,39 @@ type RefreshTokenOutput struct {
     ExpiresIn    int
 }
 
-// RefreshTokenUseCase はトークンリフレッシュユースケースです
-type RefreshTokenUseCase struct {
-    userRepo         repository.UserRepository
-    sessionRepo      repository.SessionRepository
-    jwtService       *jwt.JWTService
-    jwtBlacklist     service.JWTBlacklistService
+// RefreshTokenCommand はトークンリフレッシュコマンドです
+type RefreshTokenCommand struct {
+    userRepo     repository.UserRepository
+    sessionStore *cache.SessionStore
+    jwtService   *jwt.JWTService
+    jwtBlacklist *cache.JWTBlacklist
+}
+
+// NewRefreshTokenCommand は新しいRefreshTokenCommandを作成します
+func NewRefreshTokenCommand(
+    userRepo repository.UserRepository,
+    sessionStore *cache.SessionStore,
+    jwtService *jwt.JWTService,
+    jwtBlacklist *cache.JWTBlacklist,
+) *RefreshTokenCommand {
+    return &RefreshTokenCommand{
+        userRepo:     userRepo,
+        sessionStore: sessionStore,
+        jwtService:   jwtService,
+        jwtBlacklist: jwtBlacklist,
+    }
 }
 
 // Execute はトークンリフレッシュを実行します
-func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input RefreshTokenInput) (*RefreshTokenOutput, error) {
+func (c *RefreshTokenCommand) Execute(ctx context.Context, input RefreshTokenInput) (*RefreshTokenOutput, error) {
     // 1. リフレッシュトークンを検証
-    claims, err := uc.jwtService.ValidateRefreshToken(input.RefreshToken)
+    claims, err := c.jwtService.ValidateRefreshToken(input.RefreshToken)
     if err != nil {
         return nil, apperror.NewUnauthorizedError("invalid refresh token")
     }
 
-    // 2. セッションを検索
-    session, err := uc.sessionRepo.FindByID(ctx, claims.SessionID)
+    // 2. セッションを検索（Redis）
+    session, err := c.sessionStore.FindByID(ctx, claims.SessionID)
     if err != nil {
         return nil, apperror.NewUnauthorizedError("session not found")
     }
@@ -968,13 +1066,12 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input RefreshTokenIn
 
     if session.RefreshToken != input.RefreshToken {
         // トークンが一致しない = トークン再利用攻撃の可能性
-        // 全セッションを無効化
-        uc.sessionRepo.DeleteByUserID(ctx, session.UserID)
+        c.sessionStore.DeleteByUserID(ctx, session.UserID)
         return nil, apperror.NewUnauthorizedError("token reuse detected")
     }
 
     // 4. ユーザー取得・状態チェック
-    user, err := uc.userRepo.FindByID(ctx, session.UserID)
+    user, err := c.userRepo.FindByID(ctx, session.UserID)
     if err != nil {
         return nil, apperror.NewUnauthorizedError("user not found")
     }
@@ -984,7 +1081,7 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input RefreshTokenIn
     }
 
     // 5. 新しいトークンペアを生成（トークンローテーション）
-    newAccessToken, newRefreshToken, err := uc.jwtService.GenerateTokenPair(
+    newAccessToken, newRefreshToken, err := c.jwtService.GenerateTokenPair(
         user.ID,
         user.Email.String(),
         session.ID,
@@ -996,19 +1093,19 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input RefreshTokenIn
     // 6. セッションを更新
     session.RefreshToken = newRefreshToken
     session.LastUsedAt = time.Now()
-    session.ExpiresAt = time.Now().Add(uc.jwtService.GetRefreshTokenExpiry())
+    session.ExpiresAt = time.Now().Add(c.jwtService.GetRefreshTokenExpiry())
 
-    if err := uc.sessionRepo.Save(ctx, session); err != nil {
+    if err := c.sessionStore.Save(ctx, session); err != nil {
         return nil, apperror.NewInternalError(err)
     }
 
-    // 7. 古いアクセストークンをブラックリストに追加（オプション）
-    uc.jwtBlacklist.Add(ctx, claims.ID, claims.ExpiresAt.Time)
+    // 7. 古いアクセストークンをブラックリストに追加
+    c.jwtBlacklist.Add(ctx, claims.ID, claims.ExpiresAt.Time)
 
     return &RefreshTokenOutput{
         AccessToken:  newAccessToken,
         RefreshToken: newRefreshToken,
-        ExpiresIn:    int(uc.jwtService.GetAccessTokenExpiry().Seconds()),
+        ExpiresIn:    int(c.jwtService.GetAccessTokenExpiry().Seconds()),
     }, nil
 }
 ```
@@ -1064,69 +1161,208 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input RefreshTokenIn
      │◀──────────────────│                     │                    │
 ```
 
-### 7.2 リセット要求ユースケース
+### 7.2 パスワードリセット要求コマンド（CQRS）
 
 ```go
-// internal/usecase/auth/request_password_reset.go
+// internal/usecase/auth/command/forgot_password.go
 
-package auth
+package command
 
 import (
     "context"
     "fmt"
+    "log/slog"
     "time"
 
     "github.com/google/uuid"
 
-    "gc-storage/internal/domain/entity"
-    "gc-storage/internal/domain/repository"
-    "gc-storage/internal/domain/service"
-    "gc-storage/internal/domain/valueobject"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 )
 
-// RequestPasswordResetUseCase はパスワードリセット要求ユースケースです
-type RequestPasswordResetUseCase struct {
-    userRepo       repository.UserRepository
-    resetTokenRepo repository.PasswordResetTokenRepository
-    emailService   service.EmailService
+// ForgotPasswordInput はパスワードリセット要求の入力を定義します
+type ForgotPasswordInput struct {
+    Email string
+}
+
+// ForgotPasswordOutput はパスワードリセット要求の出力を定義します
+type ForgotPasswordOutput struct {
+    Message string
+}
+
+// ForgotPasswordCommand はパスワードリセット要求コマンドです
+type ForgotPasswordCommand struct {
+    userRepo               repository.UserRepository
+    passwordResetTokenRepo repository.PasswordResetTokenRepository
+    emailSender            service.EmailSender
+    appURL                 string
+}
+
+// NewForgotPasswordCommand は新しいForgotPasswordCommandを作成します
+func NewForgotPasswordCommand(
+    userRepo repository.UserRepository,
+    passwordResetTokenRepo repository.PasswordResetTokenRepository,
+    emailSender service.EmailSender,
+    appURL string,
+) *ForgotPasswordCommand {
+    return &ForgotPasswordCommand{
+        userRepo:               userRepo,
+        passwordResetTokenRepo: passwordResetTokenRepo,
+        emailSender:            emailSender,
+        appURL:                 appURL,
+    }
 }
 
 // Execute はパスワードリセット要求を実行します
-func (uc *RequestPasswordResetUseCase) Execute(ctx context.Context, emailStr, ipAddress string) error {
-    // 常に200を返す（ユーザー列挙防止）
-    email, err := valueobject.NewEmail(emailStr)
-    if err != nil {
-        return nil
+// ユーザー列挙攻撃を防ぐため、常に成功メッセージを返す
+func (c *ForgotPasswordCommand) Execute(ctx context.Context, input ForgotPasswordInput) (*ForgotPasswordOutput, error) {
+    successMsg := &ForgotPasswordOutput{
+        Message: "If your email is registered, you will receive a password reset link.",
     }
 
-    user, err := uc.userRepo.FindByEmail(ctx, email)
+    email, err := valueobject.NewEmail(input.Email)
     if err != nil {
-        return nil // ユーザーが存在しなくてもエラーを返さない
+        return successMsg, nil
     }
 
-    // パスワードを持っていないユーザー（OAuth専用）の場合は何もしない
+    user, err := c.userRepo.FindByEmail(ctx, email)
+    if err != nil {
+        return successMsg, nil
+    }
+
+    // pending状態のユーザーにはリセットメールを送らない
+    if user.Status == entity.UserStatusPending {
+        return successMsg, nil
+    }
+
+    // OAuthのみのユーザーにはリセットメールを送らない
     if user.PasswordHash == "" {
-        return nil
+        return successMsg, nil
     }
 
     // リセットトークン作成
+    now := time.Now()
     token := &entity.PasswordResetToken{
         ID:        uuid.New(),
         UserID:    user.ID,
         Token:     generateSecureToken(),
-        ExpiresAt: time.Now().Add(1 * time.Hour),
-        CreatedAt: time.Now(),
+        ExpiresAt: now.Add(1 * time.Hour),
+        CreatedAt: now,
     }
 
-    if err := uc.resetTokenRepo.Create(ctx, token); err != nil {
-        return nil // エラーでも200を返す
+    if err := c.passwordResetTokenRepo.Create(ctx, token); err != nil {
+        slog.Error("failed to create password reset token", "error", err)
+        return successMsg, nil
     }
 
-    // リセットメール送信（非同期）
-    resetURL := fmt.Sprintf("https://app.gc-storage.example.com/reset-password?token=%s", token.Token)
-    go uc.emailService.SendPasswordResetEmail(ctx, emailStr, user.Name, resetURL, ipAddress)
+    // リセットメール送信
+    if c.emailSender != nil {
+        resetURL := fmt.Sprintf("%s/auth/reset-password?token=%s", c.appURL, token.Token)
+        if err := c.emailSender.SendPasswordReset(ctx, user.Email.String(), user.Name, resetURL); err != nil {
+            slog.Error("failed to send password reset email", "error", err)
+        }
+    }
 
-    return nil
+    return successMsg, nil
+}
+```
+
+### 7.3 パスワードリセット実行コマンド（CQRS）
+
+```go
+// internal/usecase/auth/command/reset_password.go
+
+package command
+
+import (
+    "context"
+    "time"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
+)
+
+// ResetPasswordInput はパスワードリセットの入力を定義します
+type ResetPasswordInput struct {
+    Token    string
+    Password string
+}
+
+// ResetPasswordOutput はパスワードリセットの出力を定義します
+type ResetPasswordOutput struct {
+    Message string
+}
+
+// ResetPasswordCommand はパスワードリセットコマンドです
+type ResetPasswordCommand struct {
+    userRepo               repository.UserRepository
+    passwordResetTokenRepo repository.PasswordResetTokenRepository
+    txManager              repository.TransactionManager
+}
+
+// NewResetPasswordCommand は新しいResetPasswordCommandを作成します
+func NewResetPasswordCommand(
+    userRepo repository.UserRepository,
+    passwordResetTokenRepo repository.PasswordResetTokenRepository,
+    txManager repository.TransactionManager,
+) *ResetPasswordCommand {
+    return &ResetPasswordCommand{
+        userRepo:               userRepo,
+        passwordResetTokenRepo: passwordResetTokenRepo,
+        txManager:              txManager,
+    }
+}
+
+// Execute はパスワードリセットを実行します
+func (c *ResetPasswordCommand) Execute(ctx context.Context, input ResetPasswordInput) (*ResetPasswordOutput, error) {
+    // 1. トークンを検索
+    resetToken, err := c.passwordResetTokenRepo.FindByToken(ctx, input.Token)
+    if err != nil {
+        return nil, apperror.NewValidationError("invalid or expired reset token", nil)
+    }
+
+    // 2. トークンの有効性チェック
+    if !resetToken.IsValid() {
+        if resetToken.IsUsed() {
+            return nil, apperror.NewValidationError("reset token already used", nil)
+        }
+        return nil, apperror.NewValidationError("reset token expired", nil)
+    }
+
+    // 3. ユーザーを取得
+    user, err := c.userRepo.FindByID(ctx, resetToken.UserID)
+    if err != nil {
+        return nil, apperror.NewNotFoundError("user")
+    }
+
+    // 4. 新しいパスワードのバリデーション
+    password, err := valueobject.NewPassword(input.Password, user.Email.String())
+    if err != nil {
+        return nil, apperror.NewValidationError(err.Error(), nil)
+    }
+
+    // 5. トランザクションで更新
+    err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        // パスワード更新
+        user.PasswordHash = password.Hash()
+        user.UpdatedAt = time.Now()
+
+        if err := c.userRepo.Update(ctx, user); err != nil {
+            return err
+        }
+
+        // トークンを使用済みにする
+        return c.passwordResetTokenRepo.MarkAsUsed(ctx, resetToken.ID)
+    })
+
+    if err != nil {
+        return nil, apperror.NewInternalError(err)
+    }
+
+    return &ResetPasswordOutput{Message: "Password reset successfully"}, nil
 }
 ```
 
@@ -1134,45 +1370,63 @@ func (uc *RequestPasswordResetUseCase) Execute(ctx context.Context, emailStr, ip
 
 ## 8. ログアウト
 
-### 8.1 ログアウトユースケース
+### 8.1 ログアウトコマンド（CQRS）
 
 ```go
-// internal/usecase/auth/logout.go
+// internal/usecase/auth/command/logout.go
 
-package auth
+package command
 
 import (
     "context"
+    "time"
 
-    "gc-storage/internal/domain/repository"
-    "gc-storage/internal/domain/service"
-    "gc-storage/pkg/jwt"
+    "github.com/google/uuid"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
-// LogoutUseCase はログアウトユースケースです
-type LogoutUseCase struct {
-    sessionRepo  repository.SessionRepository
-    jwtBlacklist service.JWTBlacklistService
+// LogoutCommand はログアウトコマンドです
+type LogoutCommand struct {
+    sessionStore *cache.SessionStore
+    jwtBlacklist *cache.JWTBlacklist
+}
+
+// NewLogoutCommand は新しいLogoutCommandを作成します
+func NewLogoutCommand(
+    sessionStore *cache.SessionStore,
+    jwtBlacklist *cache.JWTBlacklist,
+) *LogoutCommand {
+    return &LogoutCommand{
+        sessionStore: sessionStore,
+        jwtBlacklist: jwtBlacklist,
+    }
 }
 
 // Execute はログアウトを実行します
-func (uc *LogoutUseCase) Execute(ctx context.Context, sessionID string, accessTokenClaims *jwt.AccessTokenClaims) error {
+func (c *LogoutCommand) Execute(ctx context.Context, sessionID string, accessTokenClaims *jwt.AccessTokenClaims) error {
     // 1. セッションを削除
-    if err := uc.sessionRepo.Delete(ctx, sessionID); err != nil {
+    if err := c.sessionStore.Delete(ctx, sessionID); err != nil {
         // エラーでも続行
     }
 
     // 2. アクセストークンをブラックリストに追加
-    if accessTokenClaims != nil {
-        uc.jwtBlacklist.Add(ctx, accessTokenClaims.ID, accessTokenClaims.ExpiresAt.Time)
+    if accessTokenClaims != nil && c.jwtBlacklist != nil {
+        if accessTokenClaims.ExpiresAt != nil {
+            c.jwtBlacklist.Add(ctx, accessTokenClaims.ID, accessTokenClaims.ExpiresAt.Time)
+        } else {
+            // 有効期限がない場合は15分後に設定
+            c.jwtBlacklist.Add(ctx, accessTokenClaims.ID, time.Now().Add(15*time.Minute))
+        }
     }
 
     return nil
 }
 
 // ExecuteAll は全セッションからログアウトを実行します
-func (uc *LogoutUseCase) ExecuteAll(ctx context.Context, userID uuid.UUID) error {
-    return uc.sessionRepo.DeleteByUserID(ctx, userID)
+func (c *LogoutCommand) ExecuteAll(ctx context.Context, userID uuid.UUID) error {
+    return c.sessionStore.DeleteByUserID(ctx, userID)
 }
 ```
 
@@ -1180,7 +1434,7 @@ func (uc *LogoutUseCase) ExecuteAll(ctx context.Context, userID uuid.UUID) error
 
 ## 9. APIハンドラー
 
-### 9.1 認証ハンドラー
+### 9.1 認証ハンドラー（CQRS）
 
 ```go
 // internal/interface/handler/auth_handler.go
@@ -1189,28 +1443,64 @@ package handler
 
 import (
     "net/http"
-    "time"
 
+    "github.com/google/uuid"
     "github.com/labstack/echo/v4"
 
-    "gc-storage/internal/interface/dto/request"
-    "gc-storage/internal/interface/dto/response"
-    "gc-storage/internal/interface/middleware"
-    "gc-storage/internal/interface/presenter"
-    "gc-storage/internal/usecase/auth"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/request"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/response"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/presenter"
+    authcmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/command"
+    authqry "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/query"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // AuthHandler は認証関連のHTTPハンドラーです
 type AuthHandler struct {
-    registerUC          *auth.RegisterUseCase
-    loginUC             *auth.LoginUseCase
-    oauthLoginUC        *auth.OAuthLoginUseCase
-    refreshTokenUC      *auth.RefreshTokenUseCase
-    logoutUC            *auth.LogoutUseCase
-    verifyEmailUC       *auth.VerifyEmailUseCase
-    requestResetUC      *auth.RequestPasswordResetUseCase
-    resetPasswordUC     *auth.ResetPasswordUseCase
+    // Commands
+    registerCommand                *authcmd.RegisterCommand
+    loginCommand                   *authcmd.LoginCommand
+    refreshTokenCommand            *authcmd.RefreshTokenCommand
+    logoutCommand                  *authcmd.LogoutCommand
+    verifyEmailCommand             *authcmd.VerifyEmailCommand
+    resendEmailVerificationCommand *authcmd.ResendEmailVerificationCommand
+    forgotPasswordCommand          *authcmd.ForgotPasswordCommand
+    resetPasswordCommand           *authcmd.ResetPasswordCommand
+    changePasswordCommand          *authcmd.ChangePasswordCommand
+    oauthLoginCommand              *authcmd.OAuthLoginCommand
+
+    // Queries
+    getUserQuery *authqry.GetUserQuery
+}
+
+// NewAuthHandler は新しいAuthHandlerを作成します
+func NewAuthHandler(
+    registerCommand *authcmd.RegisterCommand,
+    loginCommand *authcmd.LoginCommand,
+    refreshTokenCommand *authcmd.RefreshTokenCommand,
+    logoutCommand *authcmd.LogoutCommand,
+    verifyEmailCommand *authcmd.VerifyEmailCommand,
+    resendEmailVerificationCommand *authcmd.ResendEmailVerificationCommand,
+    forgotPasswordCommand *authcmd.ForgotPasswordCommand,
+    resetPasswordCommand *authcmd.ResetPasswordCommand,
+    changePasswordCommand *authcmd.ChangePasswordCommand,
+    oauthLoginCommand *authcmd.OAuthLoginCommand,
+    getUserQuery *authqry.GetUserQuery,
+) *AuthHandler {
+    return &AuthHandler{
+        registerCommand:                registerCommand,
+        loginCommand:                   loginCommand,
+        refreshTokenCommand:            refreshTokenCommand,
+        logoutCommand:                  logoutCommand,
+        verifyEmailCommand:             verifyEmailCommand,
+        resendEmailVerificationCommand: resendEmailVerificationCommand,
+        forgotPasswordCommand:          forgotPasswordCommand,
+        resetPasswordCommand:           resetPasswordCommand,
+        changePasswordCommand:          changePasswordCommand,
+        oauthLoginCommand:              oauthLoginCommand,
+        getUserQuery:                   getUserQuery,
+    }
 }
 
 // Register はユーザー登録を処理します
@@ -1224,7 +1514,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
         return err
     }
 
-    output, err := h.registerUC.Execute(c.Request().Context(), auth.RegisterInput{
+    output, err := h.registerCommand.Execute(c.Request().Context(), authcmd.RegisterInput{
         Email:    req.Email,
         Password: req.Password,
         Name:     req.Name,
@@ -1250,7 +1540,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
         return err
     }
 
-    output, err := h.loginUC.Execute(c.Request().Context(), auth.LoginInput{
+    output, err := h.loginCommand.Execute(c.Request().Context(), authcmd.LoginInput{
         Email:     req.Email,
         Password:  req.Password,
         UserAgent: c.Request().UserAgent(),
@@ -1279,7 +1569,7 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
         return apperror.NewUnauthorizedError("refresh token not found")
     }
 
-    output, err := h.refreshTokenUC.Execute(c.Request().Context(), auth.RefreshTokenInput{
+    output, err := h.refreshTokenCommand.Execute(c.Request().Context(), authcmd.RefreshTokenInput{
         RefreshToken: cookie.Value,
     })
     if err != nil {
@@ -1299,8 +1589,9 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 // POST /api/v1/auth/logout
 func (h *AuthHandler) Logout(c echo.Context) error {
     sessionID := middleware.GetSessionID(c)
+    accessClaims := middleware.GetAccessClaims(c)
 
-    if err := h.logoutUC.Execute(c.Request().Context(), sessionID, nil); err != nil {
+    if err := h.logoutCommand.Execute(c.Request().Context(), sessionID, accessClaims); err != nil {
         // エラーでも成功扱い
     }
 
@@ -1310,47 +1601,163 @@ func (h *AuthHandler) Logout(c echo.Context) error {
     return presenter.OK(c, map[string]string{"message": "logged out successfully"})
 }
 
-// OAuthRedirect はOAuth認証へリダイレクトします
-// GET /api/v1/auth/oauth/:provider
-func (h *AuthHandler) OAuthRedirect(c echo.Context) error {
-    provider := c.Param("provider")
+// Me は現在のユーザー情報を取得します
+// GET /api/v1/me
+func (h *AuthHandler) Me(c echo.Context) error {
+    claims := middleware.GetAccessClaims(c)
+    if claims == nil {
+        return apperror.NewUnauthorizedError("invalid token")
+    }
 
-    url, state, err := h.oauthLoginUC.GetAuthURL(provider)
+    output, err := h.getUserQuery.Execute(c.Request().Context(), authqry.GetUserInput{
+        UserID: uuid.MustParse(claims.UserID.String()),
+    })
     if err != nil {
         return err
     }
 
-    // stateをCookieに保存（CSRF対策）
-    c.SetCookie(&http.Cookie{
-        Name:     "oauth_state",
-        Value:    state,
-        Path:     "/",
-        HttpOnly: true,
-        Secure:   true,
-        SameSite: http.SameSiteLaxMode,
-        MaxAge:   600, // 10分
-    })
-
-    return c.Redirect(http.StatusFound, url)
+    return presenter.OK(c, response.ToUserResponse(output.User))
 }
 
-// OAuthCallback はOAuthコールバックを処理します
-// GET /api/v1/auth/oauth/:provider/callback
-func (h *AuthHandler) OAuthCallback(c echo.Context) error {
-    provider := c.Param("provider")
-    code := c.QueryParam("code")
-    state := c.QueryParam("state")
-
-    // state検証
-    stateCookie, err := c.Cookie("oauth_state")
-    if err != nil || stateCookie.Value != state {
-        return apperror.NewUnauthorizedError("invalid state parameter")
+// VerifyEmail はメール確認を処理します
+// POST /api/v1/auth/email/verify?token=xxx
+func (h *AuthHandler) VerifyEmail(c echo.Context) error {
+    token := c.QueryParam("token")
+    if token == "" {
+        return apperror.NewValidationError("token is required", nil)
     }
 
-    output, err := h.oauthLoginUC.Execute(c.Request().Context(), auth.OAuthLoginInput{
+    output, err := h.verifyEmailCommand.Execute(c.Request().Context(), authcmd.VerifyEmailInput{
+        Token: token,
+    })
+    if err != nil {
+        return err
+    }
+
+    return presenter.OK(c, response.VerifyEmailResponse{
+        Message: output.Message,
+    })
+}
+
+// ResendEmailVerification は確認メール再送を処理します
+// POST /api/v1/auth/email/resend
+func (h *AuthHandler) ResendEmailVerification(c echo.Context) error {
+    var req request.ResendEmailVerificationRequest
+    if err := c.Bind(&req); err != nil {
+        return apperror.NewValidationError("invalid request body", nil)
+    }
+    if err := c.Validate(&req); err != nil {
+        return err
+    }
+
+    output, err := h.resendEmailVerificationCommand.Execute(c.Request().Context(), authcmd.ResendEmailVerificationInput{
+        Email: req.Email,
+    })
+    if err != nil {
+        return err
+    }
+
+    return presenter.OK(c, response.ResendEmailVerificationResponse{
+        Message: output.Message,
+    })
+}
+
+// ForgotPassword はパスワードリセットリクエストを処理します
+// POST /api/v1/auth/password/forgot
+func (h *AuthHandler) ForgotPassword(c echo.Context) error {
+    var req request.ForgotPasswordRequest
+    if err := c.Bind(&req); err != nil {
+        return apperror.NewValidationError("invalid request body", nil)
+    }
+    if err := c.Validate(&req); err != nil {
+        return err
+    }
+
+    output, err := h.forgotPasswordCommand.Execute(c.Request().Context(), authcmd.ForgotPasswordInput{
+        Email: req.Email,
+    })
+    if err != nil {
+        return err
+    }
+
+    return presenter.OK(c, response.ForgotPasswordResponse{
+        Message: output.Message,
+    })
+}
+
+// ResetPassword はパスワードリセットを処理します
+// POST /api/v1/auth/password/reset
+func (h *AuthHandler) ResetPassword(c echo.Context) error {
+    var req request.ResetPasswordRequest
+    if err := c.Bind(&req); err != nil {
+        return apperror.NewValidationError("invalid request body", nil)
+    }
+    if err := c.Validate(&req); err != nil {
+        return err
+    }
+
+    output, err := h.resetPasswordCommand.Execute(c.Request().Context(), authcmd.ResetPasswordInput{
+        Token:    req.Token,
+        Password: req.Password,
+    })
+    if err != nil {
+        return err
+    }
+
+    return presenter.OK(c, response.ResetPasswordResponse{
+        Message: output.Message,
+    })
+}
+
+// ChangePassword はパスワード変更を処理します（認証必須）
+// POST /api/v1/auth/password/change
+func (h *AuthHandler) ChangePassword(c echo.Context) error {
+    claims := middleware.GetAccessClaims(c)
+    if claims == nil {
+        return apperror.NewUnauthorizedError("invalid token")
+    }
+
+    var req request.ChangePasswordRequest
+    if err := c.Bind(&req); err != nil {
+        return apperror.NewValidationError("invalid request body", nil)
+    }
+    if err := c.Validate(&req); err != nil {
+        return err
+    }
+
+    output, err := h.changePasswordCommand.Execute(c.Request().Context(), authcmd.ChangePasswordInput{
+        UserID:          claims.UserID,
+        CurrentPassword: req.CurrentPassword,
+        NewPassword:     req.NewPassword,
+    })
+    if err != nil {
+        return err
+    }
+
+    return presenter.OK(c, response.ChangePasswordResponse{
+        Message: output.Message,
+    })
+}
+
+// OAuthLogin はOAuthログインを処理します
+// POST /api/v1/auth/oauth/:provider
+func (h *AuthHandler) OAuthLogin(c echo.Context) error {
+    provider := c.Param("provider")
+    if provider == "" {
+        return apperror.NewValidationError("provider is required", nil)
+    }
+
+    var req request.OAuthLoginRequest
+    if err := c.Bind(&req); err != nil {
+        return apperror.NewValidationError("invalid request body", nil)
+    }
+    if err := c.Validate(&req); err != nil {
+        return err
+    }
+
+    output, err := h.oauthLoginCommand.Execute(c.Request().Context(), authcmd.OAuthLoginInput{
         Provider:  provider,
-        Code:      code,
-        State:     state,
+        Code:      req.Code,
         UserAgent: c.Request().UserAgent(),
         IPAddress: c.RealIP(),
     })
@@ -1358,26 +1765,15 @@ func (h *AuthHandler) OAuthCallback(c echo.Context) error {
         return err
     }
 
-    // state Cookieを削除
-    c.SetCookie(&http.Cookie{
-        Name:   "oauth_state",
-        Value:  "",
-        Path:   "/",
-        MaxAge: -1,
-    })
-
-    // リフレッシュトークンをCookieに設定
+    // リフレッシュトークンをHttpOnly Cookieに設定
     h.setRefreshTokenCookie(c, output.RefreshToken)
 
-    // フロントエンドにリダイレクト
-    redirectURL := fmt.Sprintf(
-        "https://app.gc-storage.example.com/oauth/callback?access_token=%s&expires_in=%d&is_new_user=%t",
-        output.AccessToken,
-        output.ExpiresIn,
-        output.IsNewUser,
-    )
-
-    return c.Redirect(http.StatusFound, redirectURL)
+    return presenter.OK(c, response.OAuthLoginResponse{
+        AccessToken: output.AccessToken,
+        ExpiresIn:   output.ExpiresIn,
+        User:        response.ToUserResponse(output.User),
+        IsNewUser:   output.IsNewUser,
+    })
 }
 
 func (h *AuthHandler) setRefreshTokenCookie(c echo.Context, token string) {
@@ -1415,12 +1811,14 @@ func (h *AuthHandler) clearRefreshTokenCookie(c echo.Context) {
 |------|------|
 | ユーザー登録 | メールアドレス・パスワードで登録できる |
 | メール確認 | 確認メールのリンクで認証完了できる |
+| 確認メール再送 | 未確認ユーザーに確認メールを再送できる |
 | ログイン | メール/パスワードでログインできる |
-| OAuth認証 | Google/GitHubでログインできる |
+| OAuth認証 | Google/GitHubでログインできる（POST /oauth/:provider） |
 | トークンリフレッシュ | リフレッシュトークンで新しいトークンを取得できる |
 | ログアウト | セッションを終了できる |
 | パスワードリセット | メールでリセットリンクを受け取り、パスワードを変更できる |
-| セッション管理 | アクティブセッション一覧表示・個別失効ができる |
+| パスワード変更 | 認証済みユーザーがパスワードを変更できる |
+| ユーザー情報取得 | GET /me で現在のユーザー情報を取得できる |
 
 ### 10.2 セキュリティ要件
 
@@ -1432,25 +1830,26 @@ func (h *AuthHandler) clearRefreshTokenCookie(c echo.Context) {
 | Refresh Token保存 | HttpOnly Cookie + Redis |
 | トークンローテーション | リフレッシュ時に新しいペアを発行 |
 | セッション上限 | 1ユーザー最大10セッション |
-| CSRF対策 | OAuth state検証 |
-| レート制限 | ログイン: 10 req/min/IP |
+| レート制限 | ログイン/登録: 10 req/min/IP |
 
 ### 10.3 チェックリスト
 
-- [ ] ユーザー登録が正常に動作する
-- [ ] メール確認が正常に動作する
-- [ ] メール/パスワードログインが正常に動作する
-- [ ] Google OAuthログインが正常に動作する
-- [ ] GitHub OAuthログインが正常に動作する
-- [ ] トークンリフレッシュが正常に動作する
-- [ ] トークンローテーションが実装されている
-- [ ] ログアウトでセッションが削除される
-- [ ] パスワードリセット要求でメールが送信される
-- [ ] パスワードリセット完了で全セッションが失効する
-- [ ] 無効なトークンが拒否される
-- [ ] ブラックリストに追加されたトークンが拒否される
-- [ ] レート制限が正しく動作する
-- [ ] CSRF対策（state検証）が動作する
+- [x] ユーザー登録が正常に動作する
+- [x] メール確認が正常に動作する
+- [x] 確認メール再送が正常に動作する
+- [x] メール/パスワードログインが正常に動作する
+- [x] Google OAuthログインが正常に動作する
+- [x] GitHub OAuthログインが正常に動作する
+- [x] トークンリフレッシュが正常に動作する
+- [x] トークンローテーションが実装されている
+- [x] ログアウトでセッションが削除される
+- [x] パスワードリセット要求でメールが送信される
+- [x] パスワードリセットでパスワードが更新される
+- [x] パスワード変更が正常に動作する
+- [x] GET /me でユーザー情報が取得できる
+- [x] 無効なトークンが拒否される
+- [x] ブラックリストに追加されたトークンが拒否される
+- [x] レート制限が正しく動作する
 
 ---
 
