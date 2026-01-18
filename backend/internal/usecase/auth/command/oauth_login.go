@@ -35,6 +35,7 @@ type OAuthLoginOutput struct {
 // OAuthLoginCommand はOAuthログインコマンドです
 type OAuthLoginCommand struct {
 	userRepo         repository.UserRepository
+	profileRepo      repository.UserProfileRepository
 	oauthAccountRepo repository.OAuthAccountRepository
 	oauthFactory     service.OAuthClientFactory
 	txManager        *database.TxManager
@@ -45,6 +46,7 @@ type OAuthLoginCommand struct {
 // NewOAuthLoginCommand は新しいOAuthLoginCommandを作成します
 func NewOAuthLoginCommand(
 	userRepo repository.UserRepository,
+	profileRepo repository.UserProfileRepository,
 	oauthAccountRepo repository.OAuthAccountRepository,
 	oauthFactory service.OAuthClientFactory,
 	txManager *database.TxManager,
@@ -53,6 +55,7 @@ func NewOAuthLoginCommand(
 ) *OAuthLoginCommand {
 	return &OAuthLoginCommand{
 		userRepo:         userRepo,
+		profileRepo:      profileRepo,
 		oauthAccountRepo: oauthAccountRepo,
 		oauthFactory:     oauthFactory,
 		txManager:        txManager,
@@ -170,12 +173,19 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 			PasswordHash:  "", // OAuthユーザーはパスワードなし
 			Status:        entity.UserStatusActive,
 			EmailVerified: true, // OAuthはメール確認済みとみなす
-			AvatarURL:     userInfo.AvatarURL,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
 
 		if txErr = c.userRepo.Create(ctx, user); txErr != nil {
+			return txErr
+		}
+
+		// UserProfileを作成（AvatarURLを含む）
+		profile := entity.NewUserProfile(user.ID)
+		profile.DisplayName = userInfo.Name
+		profile.AvatarURL = userInfo.AvatarURL
+		if txErr = c.profileRepo.Upsert(ctx, profile); txErr != nil {
 			return txErr
 		}
 

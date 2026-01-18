@@ -28,7 +28,4 @@ type UserRepository interface {
 
 	// Delete はユーザーを削除します
 	Delete(ctx context.Context, id uuid.UUID) error
-
-	// UpdateStorageUsed はストレージ使用量を更新します
-	UpdateStorageUsed(ctx context.Context, id uuid.UUID, bytesUsed int64) error
 }

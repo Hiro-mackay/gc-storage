@@ -61,6 +61,7 @@ Identity Contextの中核となるドメインで、他のすべてのコンテ�
 | user_id | UUID | Yes | 紐付くユーザーID |
 | provider | OAuthProvider | Yes | プロバイダー種別 |
 | provider_user_id | string | Yes | プロバイダー側のユーザーID |
+| email | string | Yes | プロバイダーから取得したメールアドレス |
 | access_token | string | No | アクセストークン（暗号化保存） |
 | refresh_token | string | No | リフレッシュトークン（暗号化保存） |
 | token_expires_at | timestamp | No | トークン有効期限 |
@@ -76,20 +77,21 @@ Identity Contextの中核となるドメインで、他のすべてのコンテ�
 
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
-| id | UUID | Yes | セッションID |
+| id | string | Yes | セッションID（UUID文字列） |
 | user_id | UUID | Yes | ユーザーID |
-| refresh_token_hash | string | Yes | リフレッシュトークンのハッシュ |
+| refresh_token | string | Yes | リフレッシュトークン |
 | user_agent | string | No | クライアントのUser-Agent |
 | ip_address | string | No | 接続元IPアドレス |
 | expires_at | timestamp | Yes | 有効期限 |
-| revoked_at | timestamp | No | 失効日時 |
 | created_at | timestamp | Yes | 作成日時 |
+| last_used_at | timestamp | Yes | 最終使用日時 |
 
 **ビジネスルール:**
-- R-S001: expires_atを過ぎたセッションは無効
-- R-S002: revoked_atが設定されている場合は無効
-- R-S003: 同一ユーザーの有効セッションは最大10個まで
-- R-S004: 新規セッション作成時、最古のセッションを自動失効
+- R-S001: expires_atを過ぎたセッションは無効（Redis TTLにより自動削除）
+- R-S002: 同一ユーザーの有効セッションは最大10個まで
+- R-S003: 新規セッション作成時、最古のセッションを自動失効
+
+**注記:** セッションはRedisに保存され、expires_at到達時にTTLにより自動削除されます。
 
 ### UserProfile
 
@@ -263,28 +265,37 @@ type UserRepository interface {
     FindByID(ctx context.Context, id uuid.UUID) (*User, error)
     FindByEmail(ctx context.Context, email Email) (*User, error)
     Update(ctx context.Context, user *User) error
-
-    // OAuth関連
-    FindByOAuthAccount(ctx context.Context, provider OAuthProvider, providerUserID string) (*User, error)
+    Delete(ctx context.Context, id uuid.UUID) error
 
     // 検索
     Exists(ctx context.Context, email Email) (bool, error)
 }
 ```
 
+**注記:** OAuth経由のユーザー検索はOAuthAccountRepositoryのFindByProviderAndUserIDを使用します。
+
 ### SessionRepository
 
 ```go
 type SessionRepository interface {
-    Create(ctx context.Context, session *Session) error
-    FindByID(ctx context.Context, id uuid.UUID) (*Session, error)
-    FindByRefreshTokenHash(ctx context.Context, hash string) (*Session, error)
-    FindActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*Session, error)
-    Revoke(ctx context.Context, id uuid.UUID) error
-    RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error
-    DeleteExpired(ctx context.Context) (int64, error)
+    // Save はセッションを保存します
+    Save(ctx context.Context, session *Session) error
+
+    // FindByID はIDでセッションを検索します
+    FindByID(ctx context.Context, sessionID string) (*Session, error)
+
+    // FindByUserID はユーザーIDでセッション一覧を取得します
+    FindByUserID(ctx context.Context, userID uuid.UUID) ([]*Session, error)
+
+    // Delete はセッションを削除します
+    Delete(ctx context.Context, sessionID string) error
+
+    // DeleteByUserID はユーザーの全セッションを削除します
+    DeleteByUserID(ctx context.Context, userID uuid.UUID) error
 }
 ```
+
+**注記:** セッションはRedisに保存されるため、expiredセッションはTTLにより自動削除されます。DeleteExpiredメソッドは不要です。
 
 ### OAuthAccountRepository
 
@@ -325,18 +336,19 @@ type OAuthAccountRepository interface {
               ┌───────────────────┼───────────────────┐
               │                   │                   │
               ▼                   ▼                   ▼
-    ┌──────────────────┐ ┌──────────────┐ ┌──────────────────┐
-    │  oauth_accounts  │ │   sessions   │ │  user_profiles   │
-    ├──────────────────┤ ├──────────────┤ ├──────────────────┤
-    │ id               │ │ id           │ │ user_id (PK)     │
-    │ user_id (FK)     │ │ user_id (FK) │ │ display_name     │
-    │ provider         │ │ refresh_hash │ │ avatar_url       │
-    │ provider_user_id │ │ user_agent   │ │ bio              │
-    │ access_token     │ │ ip_address   │ │ locale           │
-    │ refresh_token    │ │ expires_at   │ │ timezone         │
-    │ token_expires_at │ │ revoked_at   │ │ settings         │
-    │ created_at       │ │ created_at   │ │ updated_at       │
-    │ updated_at       │ └──────────────┘ └──────────────────┘
+    ┌──────────────────┐ ┌────────────────┐ ┌──────────────────┐
+    │  oauth_accounts  │ │    sessions    │ │  user_profiles   │
+    ├──────────────────┤ │   (Redis)      │ ├──────────────────┤
+    │ id               │ ├────────────────┤ │ user_id (PK)     │
+    │ user_id (FK)     │ │ id             │ │ display_name     │
+    │ provider         │ │ user_id (FK)   │ │ avatar_url       │
+    │ provider_user_id │ │ refresh_token  │ │ bio              │
+    │ email            │ │ user_agent     │ │ locale           │
+    │ access_token     │ │ ip_address     │ │ timezone         │
+    │ refresh_token    │ │ expires_at     │ │ settings         │
+    │ token_expires_at │ │ created_at     │ │ updated_at       │
+    │ created_at       │ │ last_used_at   │ └──────────────────┘
+    │ updated_at       │ └────────────────┘
     └──────────────────┘
 ```
 

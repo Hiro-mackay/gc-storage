@@ -26,10 +26,10 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
-    id, email, password_hash, display_name, avatar_url, status, email_verified_at, created_at, updated_at
+    id, email, password_hash, display_name, status, email_verified_at, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
-) RETURNING id, email, password_hash, display_name, avatar_url, status, email_verified_at, last_login_at, created_at, updated_at
+    $1, $2, $3, $4, $5, $6, $7, $8
+) RETURNING id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -37,7 +37,6 @@ type CreateUserParams struct {
 	Email           string             `json:"email"`
 	PasswordHash    *string            `json:"password_hash"`
 	DisplayName     string             `json:"display_name"`
-	AvatarUrl       *string            `json:"avatar_url"`
 	Status          string             `json:"status"`
 	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
 	CreatedAt       time.Time          `json:"created_at"`
@@ -50,7 +49,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Email,
 		arg.PasswordHash,
 		arg.DisplayName,
-		arg.AvatarUrl,
 		arg.Status,
 		arg.EmailVerifiedAt,
 		arg.CreatedAt,
@@ -62,7 +60,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Email,
 		&i.PasswordHash,
 		&i.DisplayName,
-		&i.AvatarUrl,
 		&i.Status,
 		&i.EmailVerifiedAt,
 		&i.LastLoginAt,
@@ -82,7 +79,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, avatar_url, status, email_verified_at, last_login_at, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -93,7 +90,6 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Email,
 		&i.PasswordHash,
 		&i.DisplayName,
-		&i.AvatarUrl,
 		&i.Status,
 		&i.EmailVerifiedAt,
 		&i.LastLoginAt,
@@ -104,7 +100,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, display_name, avatar_url, status, email_verified_at, last_login_at, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -115,7 +111,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Email,
 		&i.PasswordHash,
 		&i.DisplayName,
-		&i.AvatarUrl,
 		&i.Status,
 		&i.EmailVerifiedAt,
 		&i.LastLoginAt,
@@ -126,7 +121,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, display_name, avatar_url, status, email_verified_at, last_login_at, created_at, updated_at FROM users
+SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at FROM users
 WHERE status != 'deleted'
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -151,7 +146,6 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.Email,
 			&i.PasswordHash,
 			&i.DisplayName,
-			&i.AvatarUrl,
 			&i.Status,
 			&i.EmailVerifiedAt,
 			&i.LastLoginAt,
@@ -171,20 +165,18 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 const updateUser = `-- name: UpdateUser :one
 UPDATE users SET
     display_name = COALESCE($2, display_name),
-    avatar_url = COALESCE($3, avatar_url),
-    password_hash = COALESCE($4, password_hash),
-    status = COALESCE($5, status),
-    email_verified_at = COALESCE($6, email_verified_at),
-    last_login_at = COALESCE($7, last_login_at),
+    password_hash = COALESCE($3, password_hash),
+    status = COALESCE($4, status),
+    email_verified_at = COALESCE($5, email_verified_at),
+    last_login_at = COALESCE($6, last_login_at),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, status, email_verified_at, last_login_at, created_at, updated_at
+RETURNING id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at
 `
 
 type UpdateUserParams struct {
 	ID              uuid.UUID          `json:"id"`
 	DisplayName     *string            `json:"display_name"`
-	AvatarUrl       *string            `json:"avatar_url"`
 	PasswordHash    *string            `json:"password_hash"`
 	Status          *string            `json:"status"`
 	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
@@ -195,7 +187,6 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 	row := q.db.QueryRow(ctx, updateUser,
 		arg.ID,
 		arg.DisplayName,
-		arg.AvatarUrl,
 		arg.PasswordHash,
 		arg.Status,
 		arg.EmailVerifiedAt,
@@ -207,7 +198,6 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Email,
 		&i.PasswordHash,
 		&i.DisplayName,
-		&i.AvatarUrl,
 		&i.Status,
 		&i.EmailVerifiedAt,
 		&i.LastLoginAt,

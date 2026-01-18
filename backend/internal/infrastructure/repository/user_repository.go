@@ -44,17 +44,11 @@ func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
 		passwordHash = &user.PasswordHash
 	}
 
-	var avatarURL *string
-	if user.AvatarURL != "" {
-		avatarURL = &user.AvatarURL
-	}
-
 	_, err := queries.CreateUser(ctx, sqlcgen.CreateUserParams{
 		ID:              user.ID,
 		Email:           user.Email.String(),
 		PasswordHash:    passwordHash,
 		DisplayName:     user.Name,
-		AvatarUrl:       avatarURL,
 		Status:          string(user.Status),
 		EmailVerifiedAt: emailVerifiedAt,
 		CreatedAt:       user.CreatedAt,
@@ -78,7 +72,6 @@ func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
 	_, err := queries.UpdateUser(ctx, sqlcgen.UpdateUserParams{
 		ID:              user.ID,
 		DisplayName:     &user.Name,
-		AvatarUrl:       &user.AvatarURL,
 		PasswordHash:    &user.PasswordHash,
 		Status:          &status,
 		EmailVerifiedAt: emailVerifiedAt,
@@ -141,13 +134,6 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.HandleError(err)
 }
 
-// UpdateStorageUsed はストレージ使用量を更新します
-func (r *UserRepository) UpdateStorageUsed(ctx context.Context, id uuid.UUID, bytesUsed int64) error {
-	// Note: sqlcクエリに追加が必要
-	// 現在は未実装
-	return nil
-}
-
 // toEntity はsqlcgen.Userをentity.Userに変換します
 func (r *UserRepository) toEntity(row sqlcgen.User) (*entity.User, error) {
 	email, err := valueobject.NewEmail(row.Email)
@@ -160,11 +146,6 @@ func (r *UserRepository) toEntity(row sqlcgen.User) (*entity.User, error) {
 		passwordHash = *row.PasswordHash
 	}
 
-	var avatarURL string
-	if row.AvatarUrl != nil {
-		avatarURL = *row.AvatarUrl
-	}
-
 	return &entity.User{
 		ID:            row.ID,
 		Email:         email,
@@ -172,7 +153,6 @@ func (r *UserRepository) toEntity(row sqlcgen.User) (*entity.User, error) {
 		PasswordHash:  passwordHash,
 		Status:        entity.UserStatus(row.Status),
 		EmailVerified: row.EmailVerifiedAt.Valid,
-		AvatarURL:     avatarURL,
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
 	}, nil

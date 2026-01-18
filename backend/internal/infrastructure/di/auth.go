@@ -80,6 +80,7 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 		),
 		OAuthLogin: authcmd.NewOAuthLoginCommand(
 			c.UserRepo,
+			c.UserProfileRepo,
 			c.OAuthAccountRepo,
 			c.OAuthFactory,
 			c.TxManager,

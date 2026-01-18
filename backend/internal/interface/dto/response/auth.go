@@ -26,11 +26,11 @@ type RefreshResponse struct {
 }
 
 // UserResponse はユーザー情報レスポンス
+// Note: avatar_urlはProfileResponseから取得してください
 type UserResponse struct {
 	ID            string    `json:"id"`
 	Email         string    `json:"email"`
 	Name          string    `json:"name"`
-	AvatarURL     string    `json:"avatar_url,omitempty"`
 	Status        string    `json:"status"`
 	EmailVerified bool      `json:"email_verified"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -46,7 +46,6 @@ func ToUserResponse(user *entity.User) *UserResponse {
 		ID:            user.ID.String(),
 		Email:         user.Email.String(),
 		Name:          user.Name,
-		AvatarURL:     user.AvatarURL,
 		Status:        string(user.Status),
 		EmailVerified: user.EmailVerified,
 		CreatedAt:     user.CreatedAt,

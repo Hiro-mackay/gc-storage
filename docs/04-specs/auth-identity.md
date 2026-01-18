@@ -560,7 +560,6 @@ import (
     "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
     "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
     "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
@@ -583,21 +582,21 @@ type LoginOutput struct {
 
 // LoginCommand はログインコマンドです
 type LoginCommand struct {
-    userRepo     repository.UserRepository
-    sessionStore *cache.SessionStore  // Redis SessionStore
-    jwtService   *jwt.JWTService
+    userRepo    repository.UserRepository
+    sessionRepo repository.SessionRepository
+    jwtService  *jwt.JWTService
 }
 
 // NewLoginCommand は新しいLoginCommandを作成します
 func NewLoginCommand(
     userRepo repository.UserRepository,
-    sessionStore *cache.SessionStore,
+    sessionRepo repository.SessionRepository,
     jwtService *jwt.JWTService,
 ) *LoginCommand {
     return &LoginCommand{
-        userRepo:     userRepo,
-        sessionStore: sessionStore,
-        jwtService:   jwtService,
+        userRepo:    userRepo,
+        sessionRepo: sessionRepo,
+        jwtService:  jwtService,
     }
 }
 
@@ -647,7 +646,7 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
         return nil, apperror.NewInternalError(err)
     }
 
-    session := &cache.Session{
+    session := &entity.Session{
         ID:           sessionID,
         UserID:       user.ID,
         RefreshToken: refreshToken,
@@ -658,7 +657,7 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
         LastUsedAt:   now,
     }
 
-    if err := c.sessionStore.Save(ctx, session); err != nil {
+    if err := c.sessionRepo.Save(ctx, session); err != nil {
         return nil, apperror.NewInternalError(err)
     }
 
@@ -777,7 +776,6 @@ import (
     "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
     "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
     "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
     "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
@@ -803,28 +801,31 @@ type OAuthLoginOutput struct {
 // OAuthLoginCommand はOAuthログインコマンドです
 type OAuthLoginCommand struct {
     userRepo         repository.UserRepository
+    profileRepo      repository.UserProfileRepository
     oauthAccountRepo repository.OAuthAccountRepository
     oauthFactory     service.OAuthClientFactory
     txManager        *database.TxManager
-    sessionStore     *cache.SessionStore
+    sessionRepo      repository.SessionRepository
     jwtService       *jwt.JWTService
 }
 
 // NewOAuthLoginCommand は新しいOAuthLoginCommandを作成します
 func NewOAuthLoginCommand(
     userRepo repository.UserRepository,
+    profileRepo repository.UserProfileRepository,
     oauthAccountRepo repository.OAuthAccountRepository,
     oauthFactory service.OAuthClientFactory,
     txManager *database.TxManager,
-    sessionStore *cache.SessionStore,
+    sessionRepo repository.SessionRepository,
     jwtService *jwt.JWTService,
 ) *OAuthLoginCommand {
     return &OAuthLoginCommand{
         userRepo:         userRepo,
+        profileRepo:      profileRepo,
         oauthAccountRepo: oauthAccountRepo,
         oauthFactory:     oauthFactory,
         txManager:        txManager,
-        sessionStore:     sessionStore,
+        sessionRepo:      sessionRepo,
         jwtService:       jwtService,
     }
 }
@@ -914,13 +915,20 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
             Name:          userInfo.Name,
             PasswordHash:  "", // OAuthユーザーはパスワードなし
             Status:        entity.UserStatusActive,
-            EmailVerified: true,
-            AvatarURL:     userInfo.AvatarURL,
+            EmailVerified: true, // OAuthはメール確認済みとみなす
             CreatedAt:     now,
             UpdatedAt:     now,
         }
 
         if txErr = c.userRepo.Create(ctx, user); txErr != nil {
+            return txErr
+        }
+
+        // UserProfileを作成（AvatarURLを含む）
+        profile := entity.NewUserProfile(user.ID)
+        profile.DisplayName = userInfo.Name
+        profile.AvatarURL = userInfo.AvatarURL
+        if txErr = c.profileRepo.Upsert(ctx, profile); txErr != nil {
             return txErr
         }
 
@@ -963,7 +971,7 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
         return nil, apperror.NewInternalError(err)
     }
 
-    session := &cache.Session{
+    session := &entity.Session{
         ID:           sessionID,
         UserID:       user.ID,
         RefreshToken: refreshToken,
@@ -974,7 +982,7 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
         LastUsedAt:   now,
     }
 
-    if err := c.sessionStore.Save(ctx, session); err != nil {
+    if err := c.sessionRepo.Save(ctx, session); err != nil {
         return nil, apperror.NewInternalError(err)
     }
 

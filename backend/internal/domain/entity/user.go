@@ -36,9 +36,6 @@ type User struct {
 	PasswordHash  string
 	Status        UserStatus
 	EmailVerified bool
-	AvatarURL     string
-	StorageUsed   int64
-	StorageQuota  int64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -61,18 +58,4 @@ func (u *User) CanLogin() bool {
 // HasPassword はユーザーがパスワードを持っているかを判定します
 func (u *User) HasPassword() bool {
 	return u.PasswordHash != ""
-}
-
-// CanUseStorage はストレージ使用可能かを判定します
-func (u *User) CanUseStorage(additionalBytes int64) bool {
-	return u.StorageUsed+additionalBytes <= u.StorageQuota
-}
-
-// RemainingStorage は残りストレージ容量を返します
-func (u *User) RemainingStorage() int64 {
-	remaining := u.StorageQuota - u.StorageUsed
-	if remaining < 0 {
-		return 0
-	}
-	return remaining
 }

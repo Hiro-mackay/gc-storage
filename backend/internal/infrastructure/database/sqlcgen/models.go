@@ -189,7 +189,6 @@ type User struct {
 	Email           string             `json:"email"`
 	PasswordHash    *string            `json:"password_hash"`
 	DisplayName     string             `json:"display_name"`
-	AvatarUrl       *string            `json:"avatar_url"`
 	Status          string             `json:"status"`
 	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
 	LastLoginAt     pgtype.Timestamptz `json:"last_login_at"`
