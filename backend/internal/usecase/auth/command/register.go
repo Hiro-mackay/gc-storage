@@ -4,12 +4,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
@@ -28,21 +31,27 @@ type RegisterOutput struct {
 
 // RegisterCommand はユーザー登録コマンドです
 type RegisterCommand struct {
-	userRepo              repository.UserRepository
-	verificationTokenRepo repository.VerificationTokenRepository
-	txManager             repository.TransactionManager
+	userRepo                   repository.UserRepository
+	emailVerificationTokenRepo repository.EmailVerificationTokenRepository
+	txManager                  repository.TransactionManager
+	emailSender                service.EmailSender
+	appURL                     string
 }
 
 // NewRegisterCommand は新しいRegisterCommandを作成します
 func NewRegisterCommand(
 	userRepo repository.UserRepository,
-	verificationTokenRepo repository.VerificationTokenRepository,
+	emailVerificationTokenRepo repository.EmailVerificationTokenRepository,
 	txManager repository.TransactionManager,
+	emailSender service.EmailSender,
+	appURL string,
 ) *RegisterCommand {
 	return &RegisterCommand{
-		userRepo:              userRepo,
-		verificationTokenRepo: verificationTokenRepo,
-		txManager:             txManager,
+		userRepo:                   userRepo,
+		emailVerificationTokenRepo: emailVerificationTokenRepo,
+		txManager:                  txManager,
+		emailSender:                emailSender,
+		appURL:                     appURL,
 	}
 }
 
@@ -70,6 +79,7 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 	}
 
 	var user *entity.User
+	var verificationToken *entity.EmailVerificationToken
 
 	// 4. トランザクションでユーザー作成
 	err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
@@ -91,9 +101,9 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 			return err
 		}
 
-		// 確認トークン作成（verificationTokenRepoが設定されている場合のみ）
-		if c.verificationTokenRepo != nil {
-			token := &entity.VerificationToken{
+		// 確認トークン作成（emailVerificationTokenRepoが設定されている場合のみ）
+		if c.emailVerificationTokenRepo != nil {
+			verificationToken = &entity.EmailVerificationToken{
 				ID:        uuid.New(),
 				UserID:    user.ID,
 				Token:     generateSecureToken(),
@@ -101,7 +111,7 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 				CreatedAt: now,
 			}
 
-			if err := c.verificationTokenRepo.Create(ctx, token); err != nil {
+			if err := c.emailVerificationTokenRepo.Create(ctx, verificationToken); err != nil {
 				return err
 			}
 		}
@@ -111,6 +121,15 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 
 	if err != nil {
 		return nil, apperror.NewInternalError(err)
+	}
+
+	// 5. 確認メール送信（トランザクション外で実行、失敗しても登録は成功扱い）
+	if c.emailSender != nil && verificationToken != nil {
+		verifyURL := fmt.Sprintf("%s/auth/verify-email?token=%s", c.appURL, verificationToken.Token)
+		if err := c.emailSender.SendEmailVerification(ctx, user.Email.String(), user.Name, verifyURL); err != nil {
+			// メール送信失敗はログに記録するが、エラーは返さない
+			slog.Error("failed to send verification email", "error", err, "user_id", user.ID)
+		}
 	}
 
 	return &RegisterOutput{UserID: user.ID}, nil
