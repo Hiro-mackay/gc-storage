@@ -65,18 +65,38 @@ tasks:
       - go build -o bin/api cmd/api/main.go
 
   backend:test:
-    desc: Run backend tests
+    desc: Run backend unit tests
     dir: "{{.BACKEND_DIR}}"
     cmds:
-      - go test -v ./...
+      - go test -v ./internal/...
 
   backend:test-coverage:
     desc: Run backend tests with coverage
     dir: "{{.BACKEND_DIR}}"
     cmds:
-      - go test -coverprofile=coverage.out ./...
+      - go test -coverprofile=coverage.out ./internal/...
       - go tool cover -html=coverage.out -o coverage.html
       - echo "Coverage report generated at coverage.html"
+
+  backend:test-integration:
+    desc: Run backend integration tests (requires running infra)
+    dir: "{{.BACKEND_DIR}}"
+    env:
+      INTEGRATION_TEST: "true"
+      TEST_DATABASE_URL: "{{.DATABASE_URL}}"
+      TEST_REDIS_URL: "{{.REDIS_URL}}"
+    cmds:
+      - go test -v -count=1 ./tests/integration/...
+
+  backend:test-all:
+    desc: Run all backend tests (unit + integration)
+    dir: "{{.BACKEND_DIR}}"
+    env:
+      INTEGRATION_TEST: "true"
+      TEST_DATABASE_URL: "{{.DATABASE_URL}}"
+      TEST_REDIS_URL: "{{.REDIS_URL}}"
+    cmds:
+      - go test -v -count=1 ./...
 
   backend:lint:
     desc: Run golangci-lint
@@ -101,6 +121,22 @@ tasks:
     dir: "{{.BACKEND_DIR}}"
     cmds:
       - go generate ./...
+
+  test:
+    desc: Run all tests (starts infra, runs tests, stops infra)
+    cmds:
+      - task: infra:up
+      - defer: { task: infra:down }
+      - task: migrate:up
+      - task: backend:test-all
+
+  test:integration:
+    desc: Run integration tests only (starts infra, runs tests, stops infra)
+    cmds:
+      - task: infra:up
+      - defer: { task: infra:down }
+      - task: migrate:up
+      - task: backend:test-integration
 
   # =============================================================================
   # Frontend

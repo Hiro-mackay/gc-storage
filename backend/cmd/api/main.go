@@ -3,49 +3,138 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
+	infraRepo "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/repository"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/handler"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/presenter"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/server"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/validator"
+	authcmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/command"
+	authqry "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/query"
+	"github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
+	"github.com/Hiro-mackay/gc-storage/backend/pkg/logger"
 )
 
 func main() {
-	e := echo.New()
-
-	// Middleware
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
-
-	// Health check endpoint
-	e.GET("/health", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"status": "ok",
-		})
-	})
-
-	// API v1 routes
-	v1 := e.Group("/api/v1")
-	v1.GET("/", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"message": "GC Storage API v1",
-		})
-	})
-
-	// Get port from environment variable or use default
-	port := os.Getenv("SERVER_PORT")
-	if port == "" {
-		port = "8080"
+	// Logger setup
+	if err := logger.Setup(logger.DefaultConfig()); err != nil {
+		slog.Error("failed to setup logger", "error", err)
+		os.Exit(1)
 	}
 
+	ctx := context.Background()
+
+	// Configuration
+	config := loadConfig()
+
+	// PostgreSQL
+	slog.Info("connecting to PostgreSQL...")
+	pgClient, err := database.NewPostgresClient(ctx, config.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect to PostgreSQL", "error", err)
+		os.Exit(1)
+	}
+	defer pgClient.Close()
+	slog.Info("connected to PostgreSQL")
+
+	// Redis
+	slog.Info("connecting to Redis...")
+	redisConfig := cache.DefaultConfig()
+	redisConfig.URL = config.RedisURL
+	redisClient, err := cache.NewRedisClient(redisConfig)
+	if err != nil {
+		slog.Error("failed to connect to Redis", "error", err)
+		os.Exit(1)
+	}
+	defer redisClient.Close()
+	slog.Info("connected to Redis")
+
+	// Transaction Manager
+	txManager := database.NewTxManager(pgClient.Pool())
+
+	// JWT Service
+	jwtConfig := jwt.Config{
+		SecretKey:          config.JWTSecretKey,
+		Issuer:             "gc-storage",
+		Audience:           []string{"gc-storage-api"},
+		AccessTokenExpiry:  15 * time.Minute,
+		RefreshTokenExpiry: 7 * 24 * time.Hour,
+	}
+	jwtService := jwt.NewJWTService(jwtConfig)
+
+	// Cache Services
+	sessionStore := cache.NewSessionStore(redisClient.Client(), 7*24*time.Hour)
+	jwtBlacklist := cache.NewJWTBlacklist(redisClient.Client())
+	rateLimiter := cache.NewRateLimiter(redisClient.Client())
+
+	// Repositories
+	userRepo := infraRepo.NewUserRepository(txManager)
+
+	// Commands
+	registerCommand := authcmd.NewRegisterCommand(userRepo, nil, txManager) // verificationTokenRepo is nil for now
+	loginCommand := authcmd.NewLoginCommand(userRepo, sessionStore, jwtService)
+	refreshTokenCommand := authcmd.NewRefreshTokenCommand(userRepo, sessionStore, jwtService, jwtBlacklist)
+	logoutCommand := authcmd.NewLogoutCommand(sessionStore, jwtBlacklist)
+
+	// Queries
+	getUserQuery := authqry.NewGetUserQuery(userRepo)
+
+	// Handlers
+	healthHandler := handler.NewHealthHandler()
+	healthHandler.RegisterChecker("postgres", pgClient)
+	healthHandler.RegisterChecker("redis", redisClient)
+
+	authHandler := handler.NewAuthHandler(
+		registerCommand,
+		loginCommand,
+		refreshTokenCommand,
+		logoutCommand,
+		getUserQuery,
+	)
+
+	// Middleware
+	jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(jwtService, jwtBlacklist)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(rateLimiter)
+
+	// Server
+	serverConfig := server.DefaultConfig()
+	serverConfig.Port = config.ServerPort
+	serverConfig.Debug = config.Debug
+	srv := server.NewServer(serverConfig)
+
+	e := srv.Echo()
+
+	// Setup validator
+	e.Validator = validator.NewCustomValidator()
+
+	// Setup error handler
+	e.HTTPErrorHandler = middleware.CustomHTTPErrorHandler
+
+	// Global middleware
+	e.Use(middleware.RequestID())
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(middleware.SecurityHeaders())
+	e.Use(middleware.CORS())
+
+	// Routes
+	setupRoutes(e, healthHandler, authHandler, jwtAuthMiddleware, rateLimitMiddleware)
+
 	// Start server
+	slog.Info("starting server", "port", config.ServerPort)
 	go func() {
-		if err := e.Start(fmt.Sprintf(":%s", port)); err != nil && err != http.ErrServerClosed {
-			e.Logger.Fatal("shutting down the server")
+		if err := srv.Start(); err != nil {
+			slog.Error("server error", "error", err)
 		}
 	}()
 
@@ -54,10 +143,78 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	slog.Info("shutting down server...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := e.Shutdown(ctx); err != nil {
-		e.Logger.Fatal(err)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("server shutdown error", "error", err)
 	}
+	slog.Info("server stopped")
+}
+
+type Config struct {
+	ServerPort   int
+	Debug        bool
+	DatabaseURL  string
+	RedisURL     string
+	JWTSecretKey string
+}
+
+func loadConfig() Config {
+	port := 8080
+	if p := os.Getenv("SERVER_PORT"); p != "" {
+		fmt.Sscanf(p, "%d", &port)
+	}
+
+	return Config{
+		ServerPort:   port,
+		Debug:        os.Getenv("DEBUG") == "true",
+		DatabaseURL:  getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/gc_storage?sslmode=disable"),
+		RedisURL:     getEnv("REDIS_URL", "redis://localhost:6379/0"),
+		JWTSecretKey: getEnv("JWT_SECRET_KEY", "your-secret-key-change-in-production"),
+	}
+}
+
+func getEnv(key, defaultValue string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultValue
+}
+
+func setupRoutes(
+	e *echo.Echo,
+	healthHandler *handler.HealthHandler,
+	authHandler *handler.AuthHandler,
+	jwtAuthMiddleware *middleware.JWTAuthMiddleware,
+	rateLimitMiddleware *middleware.RateLimitMiddleware,
+) {
+	// Health check
+	e.GET("/health", healthHandler.Check)
+	e.GET("/ready", healthHandler.Ready)
+
+	// API v1
+	api := e.Group("/api/v1")
+
+	// Auth routes (public)
+	authGroup := api.Group("/auth")
+	authGroup.POST("/register", authHandler.Register,
+		rateLimitMiddleware.ByIP(middleware.RateLimitAuthSignup))
+	authGroup.POST("/login", authHandler.Login,
+		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
+	authGroup.POST("/refresh", authHandler.Refresh)
+
+	// Auth routes (authenticated)
+	authGroup.POST("/logout", authHandler.Logout, jwtAuthMiddleware.Authenticate())
+
+	// User routes (authenticated)
+	api.GET("/me", authHandler.Me, jwtAuthMiddleware.Authenticate())
+
+	// Debug route
+	api.GET("/", func(c echo.Context) error {
+		return presenter.OK(c, map[string]string{
+			"message": "GC Storage API v1",
+		})
+	})
 }

@@ -8,7 +8,7 @@ CREATE TABLE users (
     password_hash VARCHAR(255),
     display_name VARCHAR(100) NOT NULL,
     avatar_url TEXT,
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'deleted')),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'suspended', 'deactivated')),
     email_verified_at TIMESTAMPTZ,
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
