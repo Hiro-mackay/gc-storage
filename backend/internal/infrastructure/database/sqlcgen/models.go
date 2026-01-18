@@ -102,6 +102,15 @@ type OauthAccount struct {
 	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
+type PasswordResetToken struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	Token     string             `json:"token"`
+	ExpiresAt time.Time          `json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
 type PermissionGrant struct {
 	ID           uuid.UUID          `json:"id"`
 	ResourceType string             `json:"resource_type"`
