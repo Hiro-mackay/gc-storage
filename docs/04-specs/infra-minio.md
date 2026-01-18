@@ -1,0 +1,1599 @@
+# MinIO インフラストラクチャ仕様書
+
+## 概要
+
+本ドキュメントでは、GC StorageにおけるMinIO（S3互換オブジェクトストレージ）の接続管理、Presigned URL生成、マルチパートアップロードの実装仕様を定義します。
+
+**関連アーキテクチャ:**
+- [SYSTEM.md](../02-architecture/SYSTEM.md) - アップロード/ダウンロードフロー
+- [file.md](../03-domains/file.md) - Fileドメイン定義
+
+---
+
+## 1. MinIO接続管理
+
+### 1.1 クライアント構成
+
+```go
+// internal/infrastructure/storage/minio/client.go
+
+package minio
+
+import (
+    "context"
+    "fmt"
+    "net/url"
+    "time"
+
+    "github.com/minio/minio-go/v7"
+    "github.com/minio/minio-go/v7/pkg/credentials"
+)
+
+// Config はMinIO接続設定を定義します
+type Config struct {
+    Endpoint        string // MinIOエンドポイント (例: localhost:9000)
+    AccessKeyID     string // アクセスキーID
+    SecretAccessKey string // シークレットアクセスキー
+    BucketName      string // バケット名
+    UseSSL          bool   // SSL使用有無
+    Region          string // リージョン (default: us-east-1)
+}
+
+// DefaultConfig はデフォルト設定を返します
+func DefaultConfig() Config {
+    return Config{
+        UseSSL: false,
+        Region: "us-east-1",
+    }
+}
+
+// MinIOClient はMinIO操作を提供します
+type MinIOClient struct {
+    client *minio.Client
+    config Config
+}
+
+// NewMinIOClient は新しいMinIOClientを作成します
+func NewMinIOClient(cfg Config) (*MinIOClient, error) {
+    client, err := minio.New(cfg.Endpoint, &minio.Options{
+        Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+        Secure: cfg.UseSSL,
+        Region: cfg.Region,
+    })
+    if err != nil {
+        return nil, fmt.Errorf("failed to create minio client: %w", err)
+    }
+
+    return &MinIOClient{
+        client: client,
+        config: cfg,
+    }, nil
+}
+
+// Client は内部のminio.Clientを返します
+func (m *MinIOClient) Client() *minio.Client {
+    return m.client
+}
+
+// BucketName はバケット名を返します
+func (m *MinIOClient) BucketName() string {
+    return m.config.BucketName
+}
+
+// HealthCheck はMinIOの接続状態を確認します
+func (m *MinIOClient) HealthCheck(ctx context.Context) error {
+    _, err := m.client.BucketExists(ctx, m.config.BucketName)
+    return err
+}
+```
+
+### 1.2 環境変数設定
+
+```bash
+# .env.local
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=gc-storage
+MINIO_USE_SSL=false
+
+# 本番環境 (.env.sample)
+MINIO_ENDPOINT=
+MINIO_ACCESS_KEY=
+MINIO_SECRET_KEY=
+MINIO_BUCKET=
+MINIO_USE_SSL=true
+```
+
+### 1.3 ディレクトリ構成
+
+```
+backend/internal/infrastructure/storage/minio/
+├── client.go             # MinIO接続管理
+├── storage.go            # ストレージサービス実装
+├── presigned.go          # Presigned URL生成
+├── multipart.go          # マルチパートアップロード
+├── lifecycle.go          # ライフサイクル管理
+└── keys.go               # オブジェクトキー生成
+```
+
+---
+
+## 2. オブジェクトキー設計
+
+### 2.1 キー形式
+
+```go
+// internal/infrastructure/storage/minio/keys.go
+
+package minio
+
+import (
+    "fmt"
+    "strings"
+
+    "github.com/google/uuid"
+)
+
+// OwnerType はオーナータイプを表します
+type OwnerType string
+
+const (
+    OwnerTypeUser  OwnerType = "user"
+    OwnerTypeGroup OwnerType = "group"
+)
+
+// StorageKey はMinIO内のオブジェクトキーを表します
+type StorageKey struct {
+    OwnerType OwnerType
+    OwnerID   uuid.UUID
+    FileID    uuid.UUID
+    Version   int
+}
+
+// NewStorageKey は新しいStorageKeyを作成します
+func NewStorageKey(ownerType OwnerType, ownerID, fileID uuid.UUID, version int) StorageKey {
+    return StorageKey{
+        OwnerType: ownerType,
+        OwnerID:   ownerID,
+        FileID:    fileID,
+        Version:   version,
+    }
+}
+
+// String はキー文字列を返します
+// 形式: {owner_type}/{owner_id}/{file_id}/v{version}
+func (k StorageKey) String() string {
+    return fmt.Sprintf("%s/%s/%s/v%d", k.OwnerType, k.OwnerID, k.FileID, k.Version)
+}
+
+// ParseStorageKey はキー文字列をパースします
+func ParseStorageKey(key string) (StorageKey, error) {
+    parts := strings.Split(key, "/")
+    if len(parts) != 4 {
+        return StorageKey{}, fmt.Errorf("invalid storage key format: %s", key)
+    }
+
+    ownerID, err := uuid.Parse(parts[1])
+    if err != nil {
+        return StorageKey{}, fmt.Errorf("invalid owner_id: %w", err)
+    }
+
+    fileID, err := uuid.Parse(parts[2])
+    if err != nil {
+        return StorageKey{}, fmt.Errorf("invalid file_id: %w", err)
+    }
+
+    var version int
+    if _, err := fmt.Sscanf(parts[3], "v%d", &version); err != nil {
+        return StorageKey{}, fmt.Errorf("invalid version: %w", err)
+    }
+
+    return StorageKey{
+        OwnerType: OwnerType(parts[0]),
+        OwnerID:   ownerID,
+        FileID:    fileID,
+        Version:   version,
+    }, nil
+}
+
+// ThumbnailKey はサムネイルのキーを返します
+func (k StorageKey) ThumbnailKey(size string) string {
+    return fmt.Sprintf("%s/%s/%s/thumbnails/%s/v%d", k.OwnerType, k.OwnerID, k.FileID, size, k.Version)
+}
+```
+
+### 2.2 キー命名ガイドライン
+
+| パターン | 形式 | 例 |
+|---------|------|-----|
+| ファイル本体 | `{owner_type}/{owner_id}/{file_id}/v{version}` | `user/550e8400.../abc123.../v1` |
+| サムネイル | `{owner_type}/{owner_id}/{file_id}/thumbnails/{size}/v{version}` | `user/550e8400.../abc123.../thumbnails/256x256/v1` |
+
+---
+
+## 3. Presigned URL生成
+
+### 3.1 Presigned URL 設定値
+
+| 用途 | 有効期限 | HTTPメソッド |
+|------|---------|------------|
+| アップロード（通常） | 15分 | PUT |
+| アップロード（マルチパート） | 1時間 | PUT |
+| ダウンロード | 1時間 | GET |
+| プレビュー | 15分 | GET |
+
+### 3.2 Presigned URL 実装
+
+```go
+// internal/infrastructure/storage/minio/presigned.go
+
+package minio
+
+import (
+    "context"
+    "fmt"
+    "net/url"
+    "time"
+
+    "github.com/minio/minio-go/v7"
+)
+
+// PresignedURLOptions はPresigned URL生成のオプションを定義します
+type PresignedURLOptions struct {
+    ContentType        string            // Content-Type (PUT時のみ)
+    ContentDisposition string            // Content-Disposition (GET時のダウンロード名)
+    Metadata           map[string]string // カスタムメタデータ
+}
+
+const (
+    // Presigned URL有効期限
+    PresignedUploadExpiry         = 15 * time.Minute
+    PresignedMultipartExpiry      = 1 * time.Hour
+    PresignedDownloadExpiry       = 1 * time.Hour
+    PresignedPreviewExpiry        = 15 * time.Minute
+
+    // 最大ファイルサイズ
+    MaxFileSize           int64 = 5 * 1024 * 1024 * 1024 // 5GB
+    MultipartThreshold    int64 = 100 * 1024 * 1024      // 100MB
+    MultipartPartSize     int64 = 64 * 1024 * 1024       // 64MB
+    MaxMultipartParts     int   = 10000
+    MaxConcurrentUploads  int   = 5
+)
+
+// PresignedURLService はPresigned URL生成を提供します
+type PresignedURLService struct {
+    client     *minio.Client
+    bucketName string
+}
+
+// NewPresignedURLService は新しいPresignedURLServiceを作成します
+func NewPresignedURLService(client *MinIOClient) *PresignedURLService {
+    return &PresignedURLService{
+        client:     client.Client(),
+        bucketName: client.BucketName(),
+    }
+}
+
+// GeneratePutURL はアップロード用Presigned URLを生成します
+func (s *PresignedURLService) GeneratePutURL(
+    ctx context.Context,
+    objectKey string,
+    expiry time.Duration,
+    opts *PresignedURLOptions,
+) (string, error) {
+    reqParams := make(url.Values)
+
+    if opts != nil && opts.ContentType != "" {
+        reqParams.Set("Content-Type", opts.ContentType)
+    }
+
+    presignedURL, err := s.client.PresignedPutObject(
+        ctx,
+        s.bucketName,
+        objectKey,
+        expiry,
+    )
+    if err != nil {
+        return "", fmt.Errorf("failed to generate presigned put URL: %w", err)
+    }
+
+    return presignedURL.String(), nil
+}
+
+// GenerateGetURL はダウンロード用Presigned URLを生成します
+func (s *PresignedURLService) GenerateGetURL(
+    ctx context.Context,
+    objectKey string,
+    expiry time.Duration,
+    opts *PresignedURLOptions,
+) (string, error) {
+    reqParams := make(url.Values)
+
+    if opts != nil && opts.ContentDisposition != "" {
+        reqParams.Set("response-content-disposition", opts.ContentDisposition)
+    }
+
+    presignedURL, err := s.client.PresignedGetObject(
+        ctx,
+        s.bucketName,
+        objectKey,
+        expiry,
+        reqParams,
+    )
+    if err != nil {
+        return "", fmt.Errorf("failed to generate presigned get URL: %w", err)
+    }
+
+    return presignedURL.String(), nil
+}
+
+// GenerateDownloadURL はダウンロード用URLを生成します（ファイル名付き）
+func (s *PresignedURLService) GenerateDownloadURL(
+    ctx context.Context,
+    objectKey string,
+    filename string,
+) (string, error) {
+    opts := &PresignedURLOptions{
+        ContentDisposition: fmt.Sprintf(`attachment; filename="%s"`, filename),
+    }
+    return s.GenerateGetURL(ctx, objectKey, PresignedDownloadExpiry, opts)
+}
+
+// GeneratePreviewURL はプレビュー用URLを生成します（インライン表示）
+func (s *PresignedURLService) GeneratePreviewURL(
+    ctx context.Context,
+    objectKey string,
+    filename string,
+) (string, error) {
+    opts := &PresignedURLOptions{
+        ContentDisposition: fmt.Sprintf(`inline; filename="%s"`, filename),
+    }
+    return s.GenerateGetURL(ctx, objectKey, PresignedPreviewExpiry, opts)
+}
+```
+
+### 3.3 ストレージサービスインターフェース
+
+```go
+// internal/domain/service/storage.go
+
+package service
+
+import (
+    "context"
+    "io"
+    "time"
+)
+
+// ObjectInfo はオブジェクト情報を表します
+type ObjectInfo struct {
+    Key          string
+    Size         int64
+    ContentType  string
+    ETag         string
+    MD5          string
+    SHA256       string
+    LastModified time.Time
+    Metadata     map[string]string
+}
+
+// StorageService はオブジェクトストレージ操作のインターフェースを定義します
+type StorageService interface {
+    // Presigned URL
+    GeneratePutURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error)
+    GenerateGetURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error)
+    GenerateDownloadURL(ctx context.Context, objectKey string, filename string) (string, error)
+    GeneratePreviewURL(ctx context.Context, objectKey string, filename string) (string, error)
+
+    // オブジェクト操作
+    ObjectExists(ctx context.Context, objectKey string) (bool, error)
+    GetObjectInfo(ctx context.Context, objectKey string) (*ObjectInfo, error)
+    DeleteObject(ctx context.Context, objectKey string) error
+    CopyObject(ctx context.Context, srcKey, dstKey string) error
+
+    // マルチパートアップロード
+    CreateMultipartUpload(ctx context.Context, objectKey string) (uploadID string, err error)
+    GeneratePartUploadURL(ctx context.Context, objectKey, uploadID string, partNumber int) (string, error)
+    CompleteMultipartUpload(ctx context.Context, objectKey, uploadID string, parts []CompletedPart) error
+    AbortMultipartUpload(ctx context.Context, objectKey, uploadID string) error
+    ListParts(ctx context.Context, objectKey, uploadID string) ([]PartInfo, error)
+}
+
+// CompletedPart は完了したパート情報を表します
+type CompletedPart struct {
+    PartNumber int
+    ETag       string
+}
+
+// PartInfo はパート情報を表します
+type PartInfo struct {
+    PartNumber   int
+    Size         int64
+    ETag         string
+    LastModified time.Time
+}
+```
+
+---
+
+## 4. マルチパートアップロード
+
+### 4.1 マルチパートアップロードの流れ
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      Multipart Upload Flow                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+【Phase 1: 初期化】
+┌────────┐          ┌──────────┐          ┌──────────┐          ┌───────┐
+│ Client │          │   API    │          │   DB     │          │ MinIO │
+└────┬───┘          └────┬─────┘          └────┬─────┘          └───┬───┘
+     │  1. POST /upload/multipart/init         │                    │
+     │─────────────────▶│                      │                    │
+     │                  │  2. CreateMultipartUpload                 │
+     │                  │─────────────────────────────────────────▶│
+     │                  │                      │                    │
+     │                  │  3. uploadId                              │
+     │                  │◀─────────────────────────────────────────│
+     │                  │                      │                    │
+     │                  │  4. Save UploadSession                   │
+     │                  │─────────────────────▶│                    │
+     │                  │                      │                    │
+     │  5. Return uploadId, partCount         │                    │
+     │◀─────────────────│                      │                    │
+
+【Phase 2: パートアップロード】（並列5つまで）
+     │  6. GET /upload/multipart/part-url?part=N                   │
+     │─────────────────▶│                      │                    │
+     │                  │  7. GeneratePartUploadURL                │
+     │                  │─────────────────────────────────────────▶│
+     │  8. Presigned PUT URL                   │                    │
+     │◀─────────────────│                      │                    │
+     │                  │                      │                    │
+     │  9. PUT to MinIO directly                                    │
+     │──────────────────────────────────────────────────────────────▶
+     │                  │                      │                    │
+     │  10. 200 OK + ETag                                           │
+     │◀──────────────────────────────────────────────────────────────
+     │                  │                      │                    │
+     │  (Repeat for each part)                 │                    │
+
+【Phase 3: 完了】
+     │  11. POST /upload/multipart/complete    │                    │
+     │      {uploadId, parts: [{partNumber, eTag},...]}            │
+     │─────────────────▶│                      │                    │
+     │                  │  12. CompleteMultipartUpload             │
+     │                  │─────────────────────────────────────────▶│
+     │                  │                      │                    │
+     │                  │  13. Final ETag                           │
+     │                  │◀─────────────────────────────────────────│
+     │                  │                      │                    │
+     │                  │  14. Update File status                   │
+     │                  │─────────────────────▶│                    │
+     │  15. Success                            │                    │
+     │◀─────────────────│                      │                    │
+```
+
+### 4.2 マルチパートアップロード実装
+
+```go
+// internal/infrastructure/storage/minio/multipart.go
+
+package minio
+
+import (
+    "context"
+    "fmt"
+    "net/url"
+    "sort"
+    "time"
+
+    "github.com/minio/minio-go/v7"
+
+    "gc-storage/internal/domain/service"
+)
+
+// MultipartService はマルチパートアップロードを提供します
+type MultipartService struct {
+    client     *minio.Client
+    bucketName string
+}
+
+// NewMultipartService は新しいMultipartServiceを作成します
+func NewMultipartService(client *MinIOClient) *MultipartService {
+    return &MultipartService{
+        client:     client.Client(),
+        bucketName: client.BucketName(),
+    }
+}
+
+// CreateMultipartUpload はマルチパートアップロードを開始します
+func (s *MultipartService) CreateMultipartUpload(
+    ctx context.Context,
+    objectKey string,
+    opts *minio.PutObjectOptions,
+) (string, error) {
+    if opts == nil {
+        opts = &minio.PutObjectOptions{}
+    }
+
+    uploadID, err := s.client.NewMultipartUpload(ctx, s.bucketName, objectKey, *opts)
+    if err != nil {
+        return "", fmt.Errorf("failed to create multipart upload: %w", err)
+    }
+
+    return uploadID, nil
+}
+
+// GeneratePartUploadURL はパートアップロード用Presigned URLを生成します
+func (s *MultipartService) GeneratePartUploadURL(
+    ctx context.Context,
+    objectKey string,
+    uploadID string,
+    partNumber int,
+) (string, error) {
+    // MinIO SDKにはパート用のPresigned URL生成がないため、
+    // 手動でURLを構築する必要があります
+    reqParams := make(url.Values)
+    reqParams.Set("uploadId", uploadID)
+    reqParams.Set("partNumber", fmt.Sprintf("%d", partNumber))
+
+    presignedURL, err := s.client.Presign(
+        ctx,
+        "PUT",
+        s.bucketName,
+        objectKey,
+        PresignedMultipartExpiry,
+        reqParams,
+    )
+    if err != nil {
+        return "", fmt.Errorf("failed to generate part upload URL: %w", err)
+    }
+
+    return presignedURL.String(), nil
+}
+
+// CompleteMultipartUpload はマルチパートアップロードを完了します
+func (s *MultipartService) CompleteMultipartUpload(
+    ctx context.Context,
+    objectKey string,
+    uploadID string,
+    parts []service.CompletedPart,
+) (string, error) {
+    // パート番号でソート
+    sort.Slice(parts, func(i, j int) bool {
+        return parts[i].PartNumber < parts[j].PartNumber
+    })
+
+    // minio.CompletePart に変換
+    completeParts := make([]minio.CompletePart, len(parts))
+    for i, p := range parts {
+        completeParts[i] = minio.CompletePart{
+            PartNumber: p.PartNumber,
+            ETag:       p.ETag,
+        }
+    }
+
+    uploadInfo, err := s.client.CompleteMultipartUpload(
+        ctx,
+        s.bucketName,
+        objectKey,
+        uploadID,
+        completeParts,
+        minio.PutObjectOptions{},
+    )
+    if err != nil {
+        return "", fmt.Errorf("failed to complete multipart upload: %w", err)
+    }
+
+    return uploadInfo.ETag, nil
+}
+
+// AbortMultipartUpload はマルチパートアップロードを中止します
+func (s *MultipartService) AbortMultipartUpload(
+    ctx context.Context,
+    objectKey string,
+    uploadID string,
+) error {
+    err := s.client.AbortMultipartUpload(ctx, s.bucketName, objectKey, uploadID)
+    if err != nil {
+        return fmt.Errorf("failed to abort multipart upload: %w", err)
+    }
+    return nil
+}
+
+// ListParts はアップロード済みのパートを一覧します
+func (s *MultipartService) ListParts(
+    ctx context.Context,
+    objectKey string,
+    uploadID string,
+) ([]service.PartInfo, error) {
+    result, err := s.client.ListObjectParts(
+        ctx,
+        s.bucketName,
+        objectKey,
+        uploadID,
+        0,
+        MaxMultipartParts,
+    )
+    if err != nil {
+        return nil, fmt.Errorf("failed to list parts: %w", err)
+    }
+
+    parts := make([]service.PartInfo, len(result.ObjectParts))
+    for i, p := range result.ObjectParts {
+        parts[i] = service.PartInfo{
+            PartNumber:   p.PartNumber,
+            Size:         p.Size,
+            ETag:         p.ETag,
+            LastModified: p.LastModified,
+        }
+    }
+
+    return parts, nil
+}
+
+// ListIncompleteUploads は未完了のマルチパートアップロードを一覧します
+func (s *MultipartService) ListIncompleteUploads(
+    ctx context.Context,
+    prefix string,
+) ([]IncompleteUpload, error) {
+    var uploads []IncompleteUpload
+
+    for upload := range s.client.ListIncompleteUploads(ctx, s.bucketName, prefix, true) {
+        if upload.Err != nil {
+            return nil, fmt.Errorf("error listing incomplete uploads: %w", upload.Err)
+        }
+        uploads = append(uploads, IncompleteUpload{
+            ObjectKey: upload.Key,
+            UploadID:  upload.UploadID,
+            Initiated: upload.Initiated,
+        })
+    }
+
+    return uploads, nil
+}
+
+// IncompleteUpload は未完了のアップロード情報を表します
+type IncompleteUpload struct {
+    ObjectKey string
+    UploadID  string
+    Initiated time.Time
+}
+
+// CalculatePartCount はファイルサイズからパート数を計算します
+func CalculatePartCount(fileSize int64) int {
+    if fileSize <= MultipartPartSize {
+        return 1
+    }
+
+    partCount := int(fileSize / MultipartPartSize)
+    if fileSize%MultipartPartSize > 0 {
+        partCount++
+    }
+
+    if partCount > MaxMultipartParts {
+        partCount = MaxMultipartParts
+    }
+
+    return partCount
+}
+
+// CalculatePartSize は各パートのサイズを計算します
+func CalculatePartSize(fileSize int64, partNumber, totalParts int) int64 {
+    if partNumber < totalParts {
+        return MultipartPartSize
+    }
+    // 最後のパートは残りサイズ
+    return fileSize - MultipartPartSize*int64(totalParts-1)
+}
+```
+
+---
+
+## 5. オブジェクト操作
+
+### 5.1 ストレージサービス実装
+
+```go
+// internal/infrastructure/storage/minio/storage.go
+
+package minio
+
+import (
+    "context"
+    "fmt"
+    "io"
+    "time"
+
+    "github.com/minio/minio-go/v7"
+
+    "gc-storage/internal/domain/service"
+)
+
+// StorageServiceImpl はStorageServiceの実装です
+type StorageServiceImpl struct {
+    client     *minio.Client
+    bucketName string
+    presigned  *PresignedURLService
+    multipart  *MultipartService
+}
+
+// NewStorageService は新しいStorageServiceを作成します
+func NewStorageService(client *MinIOClient) *StorageServiceImpl {
+    return &StorageServiceImpl{
+        client:     client.Client(),
+        bucketName: client.BucketName(),
+        presigned:  NewPresignedURLService(client),
+        multipart:  NewMultipartService(client),
+    }
+}
+
+// GeneratePutURL はアップロード用Presigned URLを生成します
+func (s *StorageServiceImpl) GeneratePutURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
+    return s.presigned.GeneratePutURL(ctx, objectKey, expiry, nil)
+}
+
+// GenerateGetURL はダウンロード用Presigned URLを生成します
+func (s *StorageServiceImpl) GenerateGetURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
+    return s.presigned.GenerateGetURL(ctx, objectKey, expiry, nil)
+}
+
+// GenerateDownloadURL はダウンロード用URLを生成します
+func (s *StorageServiceImpl) GenerateDownloadURL(ctx context.Context, objectKey string, filename string) (string, error) {
+    return s.presigned.GenerateDownloadURL(ctx, objectKey, filename)
+}
+
+// GeneratePreviewURL はプレビュー用URLを生成します
+func (s *StorageServiceImpl) GeneratePreviewURL(ctx context.Context, objectKey string, filename string) (string, error) {
+    return s.presigned.GeneratePreviewURL(ctx, objectKey, filename)
+}
+
+// ObjectExists はオブジェクトが存在するか確認します
+func (s *StorageServiceImpl) ObjectExists(ctx context.Context, objectKey string) (bool, error) {
+    _, err := s.client.StatObject(ctx, s.bucketName, objectKey, minio.StatObjectOptions{})
+    if err != nil {
+        errResponse := minio.ToErrorResponse(err)
+        if errResponse.Code == "NoSuchKey" {
+            return false, nil
+        }
+        return false, fmt.Errorf("failed to check object existence: %w", err)
+    }
+    return true, nil
+}
+
+// GetObjectInfo はオブジェクト情報を取得します
+func (s *StorageServiceImpl) GetObjectInfo(ctx context.Context, objectKey string) (*service.ObjectInfo, error) {
+    info, err := s.client.StatObject(ctx, s.bucketName, objectKey, minio.StatObjectOptions{})
+    if err != nil {
+        return nil, fmt.Errorf("failed to get object info: %w", err)
+    }
+
+    return &service.ObjectInfo{
+        Key:          info.Key,
+        Size:         info.Size,
+        ContentType:  info.ContentType,
+        ETag:         info.ETag,
+        MD5:          info.ETag, // ETagはMD5の場合が多いが、マルチパートの場合は異なる
+        LastModified: info.LastModified,
+        Metadata:     info.UserMetadata,
+    }, nil
+}
+
+// DeleteObject はオブジェクトを削除します
+func (s *StorageServiceImpl) DeleteObject(ctx context.Context, objectKey string) error {
+    err := s.client.RemoveObject(ctx, s.bucketName, objectKey, minio.RemoveObjectOptions{})
+    if err != nil {
+        return fmt.Errorf("failed to delete object: %w", err)
+    }
+    return nil
+}
+
+// DeleteObjects は複数オブジェクトを一括削除します
+func (s *StorageServiceImpl) DeleteObjects(ctx context.Context, objectKeys []string) error {
+    objectsCh := make(chan minio.ObjectInfo, len(objectKeys))
+
+    go func() {
+        defer close(objectsCh)
+        for _, key := range objectKeys {
+            objectsCh <- minio.ObjectInfo{Key: key}
+        }
+    }()
+
+    errorCh := s.client.RemoveObjects(ctx, s.bucketName, objectsCh, minio.RemoveObjectsOptions{})
+
+    var errors []error
+    for e := range errorCh {
+        if e.Err != nil {
+            errors = append(errors, fmt.Errorf("failed to delete %s: %w", e.ObjectName, e.Err))
+        }
+    }
+
+    if len(errors) > 0 {
+        return fmt.Errorf("failed to delete some objects: %v", errors)
+    }
+
+    return nil
+}
+
+// CopyObject はオブジェクトをコピーします
+func (s *StorageServiceImpl) CopyObject(ctx context.Context, srcKey, dstKey string) error {
+    src := minio.CopySrcOptions{
+        Bucket: s.bucketName,
+        Object: srcKey,
+    }
+
+    dst := minio.CopyDestOptions{
+        Bucket: s.bucketName,
+        Object: dstKey,
+    }
+
+    _, err := s.client.CopyObject(ctx, dst, src)
+    if err != nil {
+        return fmt.Errorf("failed to copy object: %w", err)
+    }
+
+    return nil
+}
+
+// GetObject はオブジェクトを直接取得します（内部使用のみ）
+func (s *StorageServiceImpl) GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+    object, err := s.client.GetObject(ctx, s.bucketName, objectKey, minio.GetObjectOptions{})
+    if err != nil {
+        return nil, fmt.Errorf("failed to get object: %w", err)
+    }
+    return object, nil
+}
+
+// PutObject はオブジェクトを直接アップロードします（内部使用のみ、小さなファイル向け）
+func (s *StorageServiceImpl) PutObject(ctx context.Context, objectKey string, reader io.Reader, size int64, contentType string) error {
+    _, err := s.client.PutObject(ctx, s.bucketName, objectKey, reader, size, minio.PutObjectOptions{
+        ContentType: contentType,
+    })
+    if err != nil {
+        return fmt.Errorf("failed to put object: %w", err)
+    }
+    return nil
+}
+
+// マルチパート操作の委譲
+func (s *StorageServiceImpl) CreateMultipartUpload(ctx context.Context, objectKey string) (string, error) {
+    return s.multipart.CreateMultipartUpload(ctx, objectKey, nil)
+}
+
+func (s *StorageServiceImpl) GeneratePartUploadURL(ctx context.Context, objectKey, uploadID string, partNumber int) (string, error) {
+    return s.multipart.GeneratePartUploadURL(ctx, objectKey, uploadID, partNumber)
+}
+
+func (s *StorageServiceImpl) CompleteMultipartUpload(ctx context.Context, objectKey, uploadID string, parts []service.CompletedPart) error {
+    _, err := s.multipart.CompleteMultipartUpload(ctx, objectKey, uploadID, parts)
+    return err
+}
+
+func (s *StorageServiceImpl) AbortMultipartUpload(ctx context.Context, objectKey, uploadID string) error {
+    return s.multipart.AbortMultipartUpload(ctx, objectKey, uploadID)
+}
+
+func (s *StorageServiceImpl) ListParts(ctx context.Context, objectKey, uploadID string) ([]service.PartInfo, error) {
+    return s.multipart.ListParts(ctx, objectKey, uploadID)
+}
+
+// Verify interface compliance
+var _ service.StorageService = (*StorageServiceImpl)(nil)
+```
+
+---
+
+## 6. バケットセットアップ
+
+### 6.1 バケット初期化
+
+```go
+// internal/infrastructure/storage/minio/setup.go
+
+package minio
+
+import (
+    "context"
+    "fmt"
+
+    "github.com/minio/minio-go/v7"
+)
+
+// BucketSetup はバケットの初期化を行います
+type BucketSetup struct {
+    client     *minio.Client
+    bucketName string
+    region     string
+}
+
+// NewBucketSetup は新しいBucketSetupを作成します
+func NewBucketSetup(client *MinIOClient, region string) *BucketSetup {
+    return &BucketSetup{
+        client:     client.Client(),
+        bucketName: client.BucketName(),
+        region:     region,
+    }
+}
+
+// Setup はバケットを作成し初期設定を行います
+func (s *BucketSetup) Setup(ctx context.Context) error {
+    // バケット存在確認
+    exists, err := s.client.BucketExists(ctx, s.bucketName)
+    if err != nil {
+        return fmt.Errorf("failed to check bucket existence: %w", err)
+    }
+
+    // バケットが存在しない場合は作成
+    if !exists {
+        err = s.client.MakeBucket(ctx, s.bucketName, minio.MakeBucketOptions{
+            Region: s.region,
+        })
+        if err != nil {
+            return fmt.Errorf("failed to create bucket: %w", err)
+        }
+    }
+
+    // バケットポリシーの設定（必要に応じて）
+    // s.setBucketPolicy(ctx)
+
+    return nil
+}
+
+// SetVersioning はバージョニングを有効にします
+func (s *BucketSetup) SetVersioning(ctx context.Context, enabled bool) error {
+    config := minio.BucketVersioningConfiguration{}
+    if enabled {
+        config.Status = "Enabled"
+    } else {
+        config.Status = "Suspended"
+    }
+
+    err := s.client.SetBucketVersioning(ctx, s.bucketName, config)
+    if err != nil {
+        return fmt.Errorf("failed to set versioning: %w", err)
+    }
+
+    return nil
+}
+```
+
+### 6.2 ライフサイクル管理
+
+```go
+// internal/infrastructure/storage/minio/lifecycle.go
+
+package minio
+
+import (
+    "context"
+    "fmt"
+
+    "github.com/minio/minio-go/v7/pkg/lifecycle"
+)
+
+// LifecycleManager はライフサイクルポリシーを管理します
+type LifecycleManager struct {
+    client     *MinIOClient
+    bucketName string
+}
+
+// NewLifecycleManager は新しいLifecycleManagerを作成します
+func NewLifecycleManager(client *MinIOClient) *LifecycleManager {
+    return &LifecycleManager{
+        client:     client,
+        bucketName: client.BucketName(),
+    }
+}
+
+// SetIncompleteUploadExpiration は未完了のマルチパートアップロードの有効期限を設定します
+func (m *LifecycleManager) SetIncompleteUploadExpiration(ctx context.Context, days int) error {
+    config := lifecycle.NewConfiguration()
+
+    config.Rules = []lifecycle.Rule{
+        {
+            ID:     "abort-incomplete-multipart-uploads",
+            Status: "Enabled",
+            AbortIncompleteMultipartUpload: lifecycle.AbortIncompleteMultipartUpload{
+                DaysAfterInitiation: lifecycle.ExpirationDays(days),
+            },
+        },
+    }
+
+    err := m.client.Client().SetBucketLifecycle(ctx, m.bucketName, config)
+    if err != nil {
+        return fmt.Errorf("failed to set lifecycle policy: %w", err)
+    }
+
+    return nil
+}
+
+// SetObjectExpiration はオブジェクトの有効期限を設定します（プレフィックス指定可）
+func (m *LifecycleManager) SetObjectExpiration(ctx context.Context, prefix string, days int) error {
+    config := lifecycle.NewConfiguration()
+
+    rule := lifecycle.Rule{
+        ID:     fmt.Sprintf("expire-%s-%d-days", prefix, days),
+        Status: "Enabled",
+        Expiration: lifecycle.Expiration{
+            Days: lifecycle.ExpirationDays(days),
+        },
+    }
+
+    if prefix != "" {
+        rule.RuleFilter = lifecycle.Filter{
+            Prefix: prefix,
+        }
+    }
+
+    config.Rules = []lifecycle.Rule{rule}
+
+    err := m.client.Client().SetBucketLifecycle(ctx, m.bucketName, config)
+    if err != nil {
+        return fmt.Errorf("failed to set lifecycle policy: %w", err)
+    }
+
+    return nil
+}
+```
+
+---
+
+## 7. クリーンアップジョブ
+
+### 7.1 孤立オブジェクトクリーンアップ
+
+```go
+// internal/infrastructure/storage/minio/cleanup.go
+
+package minio
+
+import (
+    "context"
+    "fmt"
+    "log/slog"
+    "time"
+
+    "github.com/minio/minio-go/v7"
+
+    "gc-storage/internal/domain/repository"
+)
+
+// CleanupService は不要オブジェクトのクリーンアップを提供します
+type CleanupService struct {
+    client     *minio.Client
+    bucketName string
+    fileRepo   repository.FileRepository
+    logger     *slog.Logger
+}
+
+// NewCleanupService は新しいCleanupServiceを作成します
+func NewCleanupService(
+    client *MinIOClient,
+    fileRepo repository.FileRepository,
+    logger *slog.Logger,
+) *CleanupService {
+    return &CleanupService{
+        client:     client.Client(),
+        bucketName: client.BucketName(),
+        fileRepo:   fileRepo,
+        logger:     logger,
+    }
+}
+
+// CleanupOrphanedObjects は孤立オブジェクト（DBに対応するレコードがない）を削除します
+func (s *CleanupService) CleanupOrphanedObjects(ctx context.Context) (int, error) {
+    deleted := 0
+
+    opts := minio.ListObjectsOptions{
+        Recursive: true,
+    }
+
+    for object := range s.client.ListObjects(ctx, s.bucketName, opts) {
+        if object.Err != nil {
+            s.logger.Error("error listing objects", "error", object.Err)
+            continue
+        }
+
+        // storage_keyからファイルを検索
+        storageKey, err := ParseStorageKey(object.Key)
+        if err != nil {
+            // 不正なキー形式のオブジェクトは削除候補
+            s.logger.Warn("found object with invalid key format", "key", object.Key)
+            continue
+        }
+
+        // DBにファイルが存在するか確認
+        exists, err := s.fileRepo.ExistsByStorageKey(ctx, object.Key)
+        if err != nil {
+            s.logger.Error("error checking file existence", "key", object.Key, "error", err)
+            continue
+        }
+
+        if !exists {
+            // 孤立オブジェクトを削除
+            err = s.client.RemoveObject(ctx, s.bucketName, object.Key, minio.RemoveObjectOptions{})
+            if err != nil {
+                s.logger.Error("error deleting orphaned object", "key", object.Key, "error", err)
+                continue
+            }
+
+            s.logger.Info("deleted orphaned object", "key", object.Key)
+            deleted++
+        }
+    }
+
+    return deleted, nil
+}
+
+// CleanupIncompleteUploads は未完了のマルチパートアップロードをクリーンアップします
+func (s *CleanupService) CleanupIncompleteUploads(ctx context.Context, olderThan time.Duration) (int, error) {
+    deleted := 0
+
+    threshold := time.Now().Add(-olderThan)
+
+    multipartSvc := NewMultipartService(&MinIOClient{client: s.client, config: Config{BucketName: s.bucketName}})
+
+    uploads, err := multipartSvc.ListIncompleteUploads(ctx, "")
+    if err != nil {
+        return 0, err
+    }
+
+    for _, upload := range uploads {
+        if upload.Initiated.Before(threshold) {
+            err := multipartSvc.AbortMultipartUpload(ctx, upload.ObjectKey, upload.UploadID)
+            if err != nil {
+                s.logger.Error("error aborting incomplete upload",
+                    "key", upload.ObjectKey,
+                    "uploadId", upload.UploadID,
+                    "error", err,
+                )
+                continue
+            }
+
+            s.logger.Info("aborted incomplete upload",
+                "key", upload.ObjectKey,
+                "uploadId", upload.UploadID,
+                "initiated", upload.Initiated,
+            )
+            deleted++
+        }
+    }
+
+    return deleted, nil
+}
+
+// CleanupDeletedFiles は削除済みファイルのオブジェクトをクリーンアップします
+func (s *CleanupService) CleanupDeletedFiles(ctx context.Context) (int, error) {
+    deleted := 0
+
+    // 削除済みファイルを取得
+    files, err := s.fileRepo.FindDeletedWithStorageKeys(ctx)
+    if err != nil {
+        return 0, fmt.Errorf("failed to find deleted files: %w", err)
+    }
+
+    for _, file := range files {
+        // MinIOオブジェクトを削除
+        err := s.client.RemoveObject(ctx, s.bucketName, file.StorageKey, minio.RemoveObjectOptions{})
+        if err != nil {
+            s.logger.Error("error deleting object for deleted file",
+                "fileId", file.ID,
+                "storageKey", file.StorageKey,
+                "error", err,
+            )
+            continue
+        }
+
+        s.logger.Info("deleted object for deleted file",
+            "fileId", file.ID,
+            "storageKey", file.StorageKey,
+        )
+        deleted++
+    }
+
+    return deleted, nil
+}
+```
+
+---
+
+## 8. エラーハンドリング
+
+### 8.1 MinIOエラーの分類
+
+```go
+// pkg/apperror/minio.go
+
+package apperror
+
+import (
+    "errors"
+    "fmt"
+
+    "github.com/minio/minio-go/v7"
+)
+
+// MinIO関連エラー
+var (
+    ErrMinIOConnection     = errors.New("minio connection error")
+    ErrMinIOObjectNotFound = errors.New("object not found")
+    ErrMinIOAccessDenied   = errors.New("access denied")
+    ErrMinIOBucketNotFound = errors.New("bucket not found")
+    ErrMinIOUploadFailed   = errors.New("upload failed")
+    ErrMinIOInvalidKey     = errors.New("invalid storage key")
+)
+
+// WrapMinIOError はMinIOエラーをアプリケーションエラーにラップします
+func WrapMinIOError(err error) error {
+    if err == nil {
+        return nil
+    }
+
+    errResponse := minio.ToErrorResponse(err)
+
+    switch errResponse.Code {
+    case "NoSuchKey":
+        return fmt.Errorf("%w: %v", ErrMinIOObjectNotFound, err)
+    case "NoSuchBucket":
+        return fmt.Errorf("%w: %v", ErrMinIOBucketNotFound, err)
+    case "AccessDenied":
+        return fmt.Errorf("%w: %v", ErrMinIOAccessDenied, err)
+    default:
+        return fmt.Errorf("minio error: %w", err)
+    }
+}
+
+// IsNotFound はオブジェクトが見つからないエラーかどうかを判定します
+func IsNotFound(err error) bool {
+    return errors.Is(err, ErrMinIOObjectNotFound)
+}
+```
+
+---
+
+## 9. 初期化とDI
+
+### 9.1 MinIO依存関係の初期化
+
+```go
+// internal/infrastructure/di/minio.go
+
+package di
+
+import (
+    "gc-storage/internal/infrastructure/storage/minio"
+)
+
+// MinIOComponents はMinIO関連の依存関係を保持します
+type MinIOComponents struct {
+    Client          *minio.MinIOClient
+    StorageService  *minio.StorageServiceImpl
+    PresignedService *minio.PresignedURLService
+    MultipartService *minio.MultipartService
+    CleanupService   *minio.CleanupService
+}
+
+// NewMinIOComponents はMinIO関連の依存関係を初期化します
+func NewMinIOComponents(cfg minio.Config, fileRepo repository.FileRepository, logger *slog.Logger) (*MinIOComponents, error) {
+    client, err := minio.NewMinIOClient(cfg)
+    if err != nil {
+        return nil, err
+    }
+
+    // バケットセットアップ
+    setup := minio.NewBucketSetup(client, cfg.Region)
+    if err := setup.Setup(context.Background()); err != nil {
+        return nil, fmt.Errorf("failed to setup bucket: %w", err)
+    }
+
+    // ライフサイクル設定（未完了アップロードは7日で自動削除）
+    lifecycle := minio.NewLifecycleManager(client)
+    if err := lifecycle.SetIncompleteUploadExpiration(context.Background(), 7); err != nil {
+        logger.Warn("failed to set lifecycle policy", "error", err)
+    }
+
+    return &MinIOComponents{
+        Client:           client,
+        StorageService:   minio.NewStorageService(client),
+        PresignedService: minio.NewPresignedURLService(client),
+        MultipartService: minio.NewMultipartService(client),
+        CleanupService:   minio.NewCleanupService(client, fileRepo, logger),
+    }, nil
+}
+```
+
+---
+
+## 10. テストヘルパー
+
+### 10.1 MinIO Testcontainer
+
+```go
+// internal/infrastructure/storage/minio/testhelper/minio.go
+
+package testhelper
+
+import (
+    "context"
+    "fmt"
+    "testing"
+
+    "github.com/testcontainers/testcontainers-go"
+    "github.com/testcontainers/testcontainers-go/wait"
+
+    minioinfra "gc-storage/internal/infrastructure/storage/minio"
+)
+
+// MinIOContainer はテスト用MinIOコンテナを管理します
+type MinIOContainer struct {
+    Container  testcontainers.Container
+    Client     *minioinfra.MinIOClient
+    Config     minioinfra.Config
+    Endpoint   string
+}
+
+// NewMinIOContainer はテスト用MinIOコンテナを起動します
+func NewMinIOContainer(t *testing.T, bucketName string) *MinIOContainer {
+    t.Helper()
+
+    ctx := context.Background()
+
+    accessKey := "minioadmin"
+    secretKey := "minioadmin"
+
+    req := testcontainers.ContainerRequest{
+        Image:        "minio/minio:latest",
+        ExposedPorts: []string{"9000/tcp"},
+        Env: map[string]string{
+            "MINIO_ROOT_USER":     accessKey,
+            "MINIO_ROOT_PASSWORD": secretKey,
+        },
+        Cmd: []string{"server", "/data"},
+        WaitingFor: wait.ForHTTP("/minio/health/live").
+            WithPort("9000/tcp"),
+    }
+
+    container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+        ContainerRequest: req,
+        Started:          true,
+    })
+    if err != nil {
+        t.Fatalf("failed to start minio container: %v", err)
+    }
+
+    host, err := container.Host(ctx)
+    if err != nil {
+        t.Fatalf("failed to get container host: %v", err)
+    }
+
+    port, err := container.MappedPort(ctx, "9000")
+    if err != nil {
+        t.Fatalf("failed to get container port: %v", err)
+    }
+
+    endpoint := fmt.Sprintf("%s:%s", host, port.Port())
+
+    cfg := minioinfra.Config{
+        Endpoint:        endpoint,
+        AccessKeyID:     accessKey,
+        SecretAccessKey: secretKey,
+        BucketName:      bucketName,
+        UseSSL:          false,
+        Region:          "us-east-1",
+    }
+
+    client, err := minioinfra.NewMinIOClient(cfg)
+    if err != nil {
+        t.Fatalf("failed to create minio client: %v", err)
+    }
+
+    // バケット作成
+    setup := minioinfra.NewBucketSetup(client, cfg.Region)
+    if err := setup.Setup(ctx); err != nil {
+        t.Fatalf("failed to setup bucket: %v", err)
+    }
+
+    t.Cleanup(func() {
+        container.Terminate(ctx)
+    })
+
+    return &MinIOContainer{
+        Container: container,
+        Client:    client,
+        Config:    cfg,
+        Endpoint:  endpoint,
+    }
+}
+
+// ClearBucket はバケット内の全オブジェクトを削除します
+func (c *MinIOContainer) ClearBucket(ctx context.Context) error {
+    client := c.Client.Client()
+
+    objectsCh := make(chan minio.ObjectInfo)
+    go func() {
+        defer close(objectsCh)
+        for object := range client.ListObjects(ctx, c.Config.BucketName, minio.ListObjectsOptions{Recursive: true}) {
+            if object.Err != nil {
+                continue
+            }
+            objectsCh <- object
+        }
+    }()
+
+    for err := range client.RemoveObjects(ctx, c.Config.BucketName, objectsCh, minio.RemoveObjectsOptions{}) {
+        if err.Err != nil {
+            return err.Err
+        }
+    }
+
+    return nil
+}
+```
+
+### 10.2 ストレージサービステスト例
+
+```go
+// internal/infrastructure/storage/minio/storage_test.go
+
+package minio_test
+
+import (
+    "bytes"
+    "context"
+    "testing"
+
+    "github.com/google/uuid"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+
+    minioinfra "gc-storage/internal/infrastructure/storage/minio"
+    "gc-storage/internal/infrastructure/storage/minio/testhelper"
+)
+
+func TestStorageService_PutAndGet(t *testing.T) {
+    container := testhelper.NewMinIOContainer(t, "test-bucket")
+    service := minioinfra.NewStorageService(container.Client)
+    ctx := context.Background()
+
+    // テストデータ
+    objectKey := minioinfra.NewStorageKey(
+        minioinfra.OwnerTypeUser,
+        uuid.New(),
+        uuid.New(),
+        1,
+    ).String()
+    content := []byte("Hello, MinIO!")
+
+    // アップロード
+    err := service.PutObject(ctx, objectKey, bytes.NewReader(content), int64(len(content)), "text/plain")
+    require.NoError(t, err)
+
+    // 存在確認
+    exists, err := service.ObjectExists(ctx, objectKey)
+    require.NoError(t, err)
+    assert.True(t, exists)
+
+    // 情報取得
+    info, err := service.GetObjectInfo(ctx, objectKey)
+    require.NoError(t, err)
+    assert.Equal(t, int64(len(content)), info.Size)
+    assert.Equal(t, "text/plain", info.ContentType)
+
+    // 削除
+    err = service.DeleteObject(ctx, objectKey)
+    require.NoError(t, err)
+
+    // 削除確認
+    exists, err = service.ObjectExists(ctx, objectKey)
+    require.NoError(t, err)
+    assert.False(t, exists)
+}
+
+func TestStorageService_PresignedURL(t *testing.T) {
+    container := testhelper.NewMinIOContainer(t, "test-bucket")
+    service := minioinfra.NewStorageService(container.Client)
+    ctx := context.Background()
+
+    objectKey := minioinfra.NewStorageKey(
+        minioinfra.OwnerTypeUser,
+        uuid.New(),
+        uuid.New(),
+        1,
+    ).String()
+
+    // PUT URL生成
+    putURL, err := service.GeneratePutURL(ctx, objectKey, minioinfra.PresignedUploadExpiry)
+    require.NoError(t, err)
+    assert.Contains(t, putURL, objectKey)
+    assert.Contains(t, putURL, "X-Amz-Signature")
+
+    // GET URL生成
+    getURL, err := service.GenerateGetURL(ctx, objectKey, minioinfra.PresignedDownloadExpiry)
+    require.NoError(t, err)
+    assert.Contains(t, getURL, objectKey)
+    assert.Contains(t, getURL, "X-Amz-Signature")
+}
+
+func TestStorageService_MultipartUpload(t *testing.T) {
+    container := testhelper.NewMinIOContainer(t, "test-bucket")
+    service := minioinfra.NewStorageService(container.Client)
+    ctx := context.Background()
+
+    objectKey := minioinfra.NewStorageKey(
+        minioinfra.OwnerTypeUser,
+        uuid.New(),
+        uuid.New(),
+        1,
+    ).String()
+
+    // マルチパートアップロード開始
+    uploadID, err := service.CreateMultipartUpload(ctx, objectKey)
+    require.NoError(t, err)
+    assert.NotEmpty(t, uploadID)
+
+    // パートURL生成
+    partURL, err := service.GeneratePartUploadURL(ctx, objectKey, uploadID, 1)
+    require.NoError(t, err)
+    assert.Contains(t, partURL, "uploadId")
+    assert.Contains(t, partURL, "partNumber")
+
+    // アボート
+    err = service.AbortMultipartUpload(ctx, objectKey, uploadID)
+    require.NoError(t, err)
+}
+```
+
+---
+
+## 11. 受け入れ基準
+
+### 11.1 機能要件
+
+| 項目 | 基準 |
+|------|------|
+| Presigned PUT URL | 有効期限内でアップロードできる |
+| Presigned GET URL | 有効期限内でダウンロードできる |
+| マルチパート初期化 | uploadIDが取得できる |
+| マルチパート完了 | 全パートが結合される |
+| マルチパート中止 | アップロード済みパートが削除される |
+| オブジェクト存在確認 | 存在有無を正しく判定できる |
+| オブジェクト情報取得 | サイズ、Content-Type、ETagが取得できる |
+| オブジェクト削除 | 削除後に存在確認でfalseになる |
+| オブジェクトコピー | 同一バケット内でコピーできる |
+
+### 11.2 非機能要件
+
+| 項目 | 基準 |
+|------|------|
+| Presigned URL有効期限 | PUT: 15分, GET: 1時間 |
+| 最大ファイルサイズ | 5GB |
+| マルチパート閾値 | 100MB以上でマルチパート |
+| パートサイズ | 64MB |
+| 最大並列アップロード | 5 |
+| 未完了アップロード自動削除 | 7日 |
+
+### 11.3 チェックリスト
+
+- [ ] MinIO接続が確立できる
+- [ ] バケットが自動作成される
+- [ ] Presigned PUT URLでアップロードできる
+- [ ] Presigned GET URLでダウンロードできる
+- [ ] マルチパートアップロードが完了できる
+- [ ] マルチパートアップロードを中止できる
+- [ ] オブジェクト情報（サイズ、ETag）が取得できる
+- [ ] オブジェクトの削除・コピーができる
+- [ ] ライフサイクルポリシーが設定される
+- [ ] 孤立オブジェクトのクリーンアップが動作する
+- [ ] テストコンテナでのテストが通過する
+
+---
+
+## 関連ドキュメント
+
+- [infra-database.md](./infra-database.md) - PostgreSQL基盤仕様
+- [storage-core.md](./storage-core.md) - ストレージコア仕様（ファイル管理）
+- [SYSTEM.md](../02-architecture/SYSTEM.md) - アップロード/ダウンロードフロー
+- [file.md](../03-domains/file.md) - Fileドメイン定義
