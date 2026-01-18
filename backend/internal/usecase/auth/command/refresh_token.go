@@ -26,7 +26,7 @@ type RefreshTokenOutput struct {
 // RefreshTokenCommand はトークンリフレッシュコマンドです
 type RefreshTokenCommand struct {
 	userRepo     repository.UserRepository
-	sessionStore *cache.SessionStore
+	sessionRepo  repository.SessionRepository
 	jwtService   *jwt.JWTService
 	jwtBlacklist *cache.JWTBlacklist
 }
@@ -34,13 +34,13 @@ type RefreshTokenCommand struct {
 // NewRefreshTokenCommand は新しいRefreshTokenCommandを作成します
 func NewRefreshTokenCommand(
 	userRepo repository.UserRepository,
-	sessionStore *cache.SessionStore,
+	sessionRepo repository.SessionRepository,
 	jwtService *jwt.JWTService,
 	jwtBlacklist *cache.JWTBlacklist,
 ) *RefreshTokenCommand {
 	return &RefreshTokenCommand{
 		userRepo:     userRepo,
-		sessionStore: sessionStore,
+		sessionRepo:  sessionRepo,
 		jwtService:   jwtService,
 		jwtBlacklist: jwtBlacklist,
 	}
@@ -55,7 +55,7 @@ func (c *RefreshTokenCommand) Execute(ctx context.Context, input RefreshTokenInp
 	}
 
 	// 2. セッションを検索
-	session, err := c.sessionStore.FindByID(ctx, claims.SessionID)
+	session, err := c.sessionRepo.FindByID(ctx, claims.SessionID)
 	if err != nil {
 		return nil, apperror.NewUnauthorizedError("session not found")
 	}
@@ -68,7 +68,7 @@ func (c *RefreshTokenCommand) Execute(ctx context.Context, input RefreshTokenInp
 	if session.RefreshToken != input.RefreshToken {
 		// トークンが一致しない = トークン再利用攻撃の可能性
 		// セッションを無効化
-		c.sessionStore.DeleteByUserID(ctx, session.UserID)
+		c.sessionRepo.DeleteByUserID(ctx, session.UserID)
 		return nil, apperror.NewUnauthorizedError("token reuse detected")
 	}
 
@@ -98,7 +98,7 @@ func (c *RefreshTokenCommand) Execute(ctx context.Context, input RefreshTokenInp
 	session.LastUsedAt = now
 	session.ExpiresAt = now.Add(c.jwtService.GetRefreshTokenExpiry())
 
-	if err := c.sessionStore.Save(ctx, session); err != nil {
+	if err := c.sessionRepo.Save(ctx, session); err != nil {
 		return nil, apperror.NewInternalError(err)
 	}
 

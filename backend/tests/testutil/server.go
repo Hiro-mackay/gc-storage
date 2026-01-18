@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,115 +9,86 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/di"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/oauth"
 	infraRepo "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/handler"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/router"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/validator"
-	authcmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/command"
-	authqry "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/query"
+	"github.com/Hiro-mackay/gc-storage/backend/pkg/config"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
 // TestServer holds all test server dependencies
 type TestServer struct {
-	Echo              *echo.Echo
-	Pool              *pgxpool.Pool
-	Redis             *redis.Client
-	TxManager         *database.TxManager
-	JWTService        *jwt.JWTService
-	SessionStore      *cache.SessionStore
-	JWTBlacklist      *cache.JWTBlacklist
-	RateLimiter       *cache.RateLimiter
-	UserRepo          *infraRepo.UserRepository
-	OAuthAccountRepo  *infraRepo.OAuthAccountRepository
-	OAuthFactory      *oauth.ClientFactory
-	MockGoogleClient  *oauth.MockOAuthClient
-	MockGitHubClient  *oauth.MockOAuthClient
-	AuthHandler       *handler.AuthHandler
+	Echo             *echo.Echo
+	Pool             *pgxpool.Pool
+	Redis            *redis.Client
+	Container        *di.Container
+	TxManager        *database.TxManager
+	JWTService       *jwt.JWTService
+	SessionRepo      repository.SessionRepository
+	JWTBlacklist     *cache.JWTBlacklist
+	RateLimiter      *cache.RateLimiter
+	UserRepo         *infraRepo.UserRepository
+	OAuthAccountRepo *infraRepo.OAuthAccountRepository
+	OAuthFactory     *oauth.ClientFactory
+	MockGoogleClient *oauth.MockOAuthClient
+	MockGitHubClient *oauth.MockOAuthClient
+	AuthHandler      *handler.AuthHandler
 }
 
 // NewTestServer creates a fully configured test server
 func NewTestServer(t *testing.T) *TestServer {
 	t.Helper()
 
-	config := DefaultTestConfig()
+	testCfg := DefaultTestConfig()
 	pool, redisClient := SetupTestEnvironment(t)
 
-	// Transaction Manager
-	txManager := database.NewTxManager(pool)
-
-	// JWT Service
-	jwtConfig := jwt.Config{
-		SecretKey:          config.JWTSecretKey,
-		Issuer:             "gc-storage-test",
-		Audience:           []string{"gc-storage-api-test"},
-		AccessTokenExpiry:  15 * time.Minute,
-		RefreshTokenExpiry: 7 * 24 * time.Hour,
-	}
-	jwtService := jwt.NewJWTService(jwtConfig)
-
-	// Cache Services
-	sessionStore := cache.NewSessionStore(redisClient, 7*24*time.Hour)
-	jwtBlacklist := cache.NewJWTBlacklist(redisClient)
-	rateLimiter := cache.NewRateLimiter(redisClient)
-
-	// Mock OAuth Clients
+	// Create mock OAuth clients
 	mockGoogleClient := oauth.NewMockOAuthClient(valueobject.OAuthProviderGoogle)
 	mockGitHubClient := oauth.NewMockOAuthClient(valueobject.OAuthProviderGitHub)
 
-	// OAuth Factory with mock clients
+	// Create OAuth factory with mock clients
 	oauthFactory := oauth.NewClientFactory(oauth.Config{})
 	oauthFactory.RegisterClient(valueobject.OAuthProviderGoogle, mockGoogleClient)
 	oauthFactory.RegisterClient(valueobject.OAuthProviderGitHub, mockGitHubClient)
 
-	// Repositories
-	userRepo := infraRepo.NewUserRepository(txManager)
-	oauthAccountRepo := infraRepo.NewOAuthAccountRepository(txManager)
+	// Create config for DI container
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			SecretKey:          testCfg.JWTSecretKey,
+			Issuer:             "gc-storage-test",
+			Audience:           []string{"gc-storage-api-test"},
+			AccessTokenExpiry:  15 * time.Minute,
+			RefreshTokenExpiry: 7 * 24 * time.Hour,
+		},
+		App: config.AppConfig{
+			URL: "http://localhost:3000",
+		},
+	}
 
-	// Repositories (Email Verification)
-	emailVerificationTokenRepo := infraRepo.NewEmailVerificationTokenRepository(txManager)
+	// Create DI container with options
+	container, err := di.NewContainerWithOptions(context.Background(), cfg, di.Options{
+		PostgresPool: pool,
+		RedisClient:  redisClient,
+		EmailService: nil, // nil for tests (email sending is not needed)
+		OAuthFactory: oauthFactory,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create DI container: %v", err)
+	}
 
-	// Repositories (Password Reset)
-	passwordResetTokenRepo := infraRepo.NewPasswordResetTokenRepository(txManager)
-
-	// Commands
-	registerCommand := authcmd.NewRegisterCommand(userRepo, emailVerificationTokenRepo, txManager, nil, "http://localhost:3000")
-	loginCommand := authcmd.NewLoginCommand(userRepo, sessionStore, jwtService)
-	refreshTokenCommand := authcmd.NewRefreshTokenCommand(userRepo, sessionStore, jwtService, jwtBlacklist)
-	logoutCommand := authcmd.NewLogoutCommand(sessionStore, jwtBlacklist)
-	verifyEmailCommand := authcmd.NewVerifyEmailCommand(userRepo, emailVerificationTokenRepo, txManager)
-	resendEmailVerificationCommand := authcmd.NewResendEmailVerificationCommand(userRepo, emailVerificationTokenRepo, nil, "http://localhost:3000")
-	forgotPasswordCommand := authcmd.NewForgotPasswordCommand(userRepo, passwordResetTokenRepo, nil, "http://localhost:3000")
-	resetPasswordCommand := authcmd.NewResetPasswordCommand(userRepo, passwordResetTokenRepo, txManager)
-	changePasswordCommand := authcmd.NewChangePasswordCommand(userRepo)
-	oauthLoginCommand := authcmd.NewOAuthLoginCommand(userRepo, oauthAccountRepo, oauthFactory, txManager, sessionStore, jwtService)
-
-	// Queries
-	getUserQuery := authqry.NewGetUserQuery(userRepo)
-
-	// Handlers
-	authHandler := handler.NewAuthHandler(
-		registerCommand,
-		loginCommand,
-		refreshTokenCommand,
-		logoutCommand,
-		verifyEmailCommand,
-		resendEmailVerificationCommand,
-		forgotPasswordCommand,
-		resetPasswordCommand,
-		changePasswordCommand,
-		oauthLoginCommand,
-		getUserQuery,
-	)
-
-	// Middleware
-	jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(jwtService, jwtBlacklist)
-	rateLimitMiddleware := middleware.NewRateLimitMiddleware(rateLimiter)
+	// Initialize UseCases, Handlers, and Middlewares
+	container.InitAuthUseCases()
+	handlers := di.NewHandlersForTest(container)
+	middlewares := di.NewMiddlewares(container)
 
 	// Echo instance
 	e := echo.New()
@@ -124,69 +96,29 @@ func NewTestServer(t *testing.T) *TestServer {
 	e.HTTPErrorHandler = middleware.CustomHTTPErrorHandler
 
 	// Setup routes
-	setupTestRoutes(e, authHandler, jwtAuthMiddleware, rateLimitMiddleware)
+	router.NewRouter(e, handlers, middlewares).Setup()
+
+	// Type assertions for repositories (they implement interfaces but we need concrete types)
+	userRepo, _ := container.UserRepo.(*infraRepo.UserRepository)
+	oauthAccountRepo, _ := container.OAuthAccountRepo.(*infraRepo.OAuthAccountRepository)
 
 	return &TestServer{
-		Echo:              e,
-		Pool:              pool,
-		Redis:             redisClient,
-		TxManager:         txManager,
-		JWTService:        jwtService,
-		SessionStore:      sessionStore,
-		JWTBlacklist:      jwtBlacklist,
-		RateLimiter:       rateLimiter,
-		UserRepo:          userRepo,
-		OAuthAccountRepo:  oauthAccountRepo,
-		OAuthFactory:      oauthFactory,
-		MockGoogleClient:  mockGoogleClient,
-		MockGitHubClient:  mockGitHubClient,
-		AuthHandler:       authHandler,
+		Echo:             e,
+		Pool:             pool,
+		Redis:            redisClient,
+		Container:        container,
+		TxManager:        container.TxManager,
+		JWTService:       container.JWTService,
+		SessionRepo:      container.SessionRepo,
+		JWTBlacklist:     container.JWTBlacklist,
+		RateLimiter:      container.RateLimiter,
+		UserRepo:         userRepo,
+		OAuthAccountRepo: oauthAccountRepo,
+		OAuthFactory:     oauthFactory,
+		MockGoogleClient: mockGoogleClient,
+		MockGitHubClient: mockGitHubClient,
+		AuthHandler:      handlers.Auth,
 	}
-}
-
-// setupTestRoutes configures routes for testing
-func setupTestRoutes(
-	e *echo.Echo,
-	authHandler *handler.AuthHandler,
-	jwtAuthMiddleware *middleware.JWTAuthMiddleware,
-	rateLimitMiddleware *middleware.RateLimitMiddleware,
-) {
-	// API v1
-	api := e.Group("/api/v1")
-
-	// Auth routes (public)
-	authGroup := api.Group("/auth")
-	authGroup.POST("/register", authHandler.Register,
-		rateLimitMiddleware.ByIP(middleware.RateLimitAuthSignup))
-	authGroup.POST("/login", authHandler.Login,
-		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
-	authGroup.POST("/refresh", authHandler.Refresh)
-
-	// OAuth routes (public)
-	authGroup.POST("/oauth/:provider", authHandler.OAuthLogin,
-		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
-
-	// Email verification routes (public)
-	emailGroup := authGroup.Group("/email")
-	emailGroup.POST("/verify", authHandler.VerifyEmail)
-	emailGroup.POST("/resend", authHandler.ResendEmailVerification,
-		rateLimitMiddleware.ByIP(middleware.RateLimitAuthSignup))
-
-	// Password reset routes (public)
-	passwordGroup := authGroup.Group("/password")
-	passwordGroup.POST("/forgot", authHandler.ForgotPassword,
-		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
-	passwordGroup.POST("/reset", authHandler.ResetPassword,
-		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
-
-	// Password change route (authenticated)
-	passwordGroup.POST("/change", authHandler.ChangePassword, jwtAuthMiddleware.Authenticate())
-
-	// Auth routes (authenticated)
-	authGroup.POST("/logout", authHandler.Logout, jwtAuthMiddleware.Authenticate())
-
-	// User routes (authenticated)
-	api.GET("/me", authHandler.Me, jwtAuthMiddleware.Authenticate())
 }
 
 // Cleanup cleans up test data

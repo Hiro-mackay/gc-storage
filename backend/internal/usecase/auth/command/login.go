@@ -9,7 +9,6 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
@@ -32,21 +31,21 @@ type LoginOutput struct {
 
 // LoginCommand はログインコマンドです
 type LoginCommand struct {
-	userRepo     repository.UserRepository
-	sessionStore *cache.SessionStore
-	jwtService   *jwt.JWTService
+	userRepo    repository.UserRepository
+	sessionRepo repository.SessionRepository
+	jwtService  *jwt.JWTService
 }
 
 // NewLoginCommand は新しいLoginCommandを作成します
 func NewLoginCommand(
 	userRepo repository.UserRepository,
-	sessionStore *cache.SessionStore,
+	sessionRepo repository.SessionRepository,
 	jwtService *jwt.JWTService,
 ) *LoginCommand {
 	return &LoginCommand{
-		userRepo:     userRepo,
-		sessionStore: sessionStore,
-		jwtService:   jwtService,
+		userRepo:    userRepo,
+		sessionRepo: sessionRepo,
+		jwtService:  jwtService,
 	}
 }
 
@@ -98,7 +97,7 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
 		return nil, apperror.NewInternalError(err)
 	}
 
-	session := &cache.Session{
+	session := &entity.Session{
 		ID:           sessionID,
 		UserID:       user.ID,
 		RefreshToken: refreshToken,
@@ -109,7 +108,7 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
 		LastUsedAt:   now,
 	}
 
-	if err := c.sessionStore.Save(ctx, session); err != nil {
+	if err := c.sessionRepo.Save(ctx, session); err != nil {
 		return nil, apperror.NewInternalError(err)
 	}
 

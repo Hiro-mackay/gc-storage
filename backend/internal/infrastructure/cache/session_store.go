@@ -9,13 +9,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 )
 
 // ErrSessionNotFound はセッションが見つからないエラーを表します
 var ErrSessionNotFound = errors.New("session not found")
 
-// Session はセッションデータを表します
-type Session struct {
+// sessionData はRedisに保存するセッションデータを表します（内部用）
+type sessionData struct {
 	ID           string    `json:"id"`
 	UserID       uuid.UUID `json:"user_id"`
 	RefreshToken string    `json:"refresh_token"`
@@ -24,6 +27,34 @@ type Session struct {
 	CreatedAt    time.Time `json:"created_at"`
 	ExpiresAt    time.Time `json:"expires_at"`
 	LastUsedAt   time.Time `json:"last_used_at"`
+}
+
+// toSessionData はentity.SessionからsessionDataに変換します
+func toSessionData(s *entity.Session) *sessionData {
+	return &sessionData{
+		ID:           s.ID,
+		UserID:       s.UserID,
+		RefreshToken: s.RefreshToken,
+		UserAgent:    s.UserAgent,
+		IPAddress:    s.IPAddress,
+		CreatedAt:    s.CreatedAt,
+		ExpiresAt:    s.ExpiresAt,
+		LastUsedAt:   s.LastUsedAt,
+	}
+}
+
+// toEntity はsessionDataからentity.Sessionに変換します
+func (d *sessionData) toEntity() *entity.Session {
+	return &entity.Session{
+		ID:           d.ID,
+		UserID:       d.UserID,
+		RefreshToken: d.RefreshToken,
+		UserAgent:    d.UserAgent,
+		IPAddress:    d.IPAddress,
+		CreatedAt:    d.CreatedAt,
+		ExpiresAt:    d.ExpiresAt,
+		LastUsedAt:   d.LastUsedAt,
+	}
 }
 
 // SessionStore はセッションの永続化を提供します
@@ -41,8 +72,8 @@ func NewSessionStore(client *redis.Client, ttl time.Duration) *SessionStore {
 }
 
 // Save はセッションを保存します
-func (s *SessionStore) Save(ctx context.Context, session *Session) error {
-	data, err := json.Marshal(session)
+func (s *SessionStore) Save(ctx context.Context, session *entity.Session) error {
+	data, err := json.Marshal(toSessionData(session))
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
@@ -73,7 +104,7 @@ func (s *SessionStore) Save(ctx context.Context, session *Session) error {
 }
 
 // FindByID はセッションIDでセッションを取得します
-func (s *SessionStore) FindByID(ctx context.Context, sessionID string) (*Session, error) {
+func (s *SessionStore) FindByID(ctx context.Context, sessionID string) (*entity.Session, error) {
 	key := SessionKey(sessionID)
 
 	data, err := s.client.Get(ctx, key).Bytes()
@@ -84,16 +115,16 @@ func (s *SessionStore) FindByID(ctx context.Context, sessionID string) (*Session
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
-	var session Session
-	if err := json.Unmarshal(data, &session); err != nil {
+	var sd sessionData
+	if err := json.Unmarshal(data, &sd); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal session: %w", err)
 	}
 
-	return &session, nil
+	return sd.toEntity(), nil
 }
 
 // FindByUserID はユーザーIDで全セッションを取得します
-func (s *SessionStore) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*Session, error) {
+func (s *SessionStore) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*entity.Session, error) {
 	userSessionsKey := UserSessionsKey(userID)
 
 	sessionIDs, err := s.client.SMembers(ctx, userSessionsKey).Result()
@@ -102,7 +133,7 @@ func (s *SessionStore) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*S
 	}
 
 	if len(sessionIDs) == 0 {
-		return []*Session{}, nil
+		return []*entity.Session{}, nil
 	}
 
 	// パイプラインで一括取得
@@ -117,7 +148,7 @@ func (s *SessionStore) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*S
 		return nil, fmt.Errorf("failed to get sessions: %w", err)
 	}
 
-	sessions := make([]*Session, 0, len(sessionIDs))
+	sessions := make([]*entity.Session, 0, len(sessionIDs))
 	expiredIDs := make([]string, 0)
 
 	for i, cmd := range cmds {
@@ -131,11 +162,11 @@ func (s *SessionStore) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*S
 			continue
 		}
 
-		var session Session
-		if err := json.Unmarshal(data, &session); err != nil {
+		var sd sessionData
+		if err := json.Unmarshal(data, &sd); err != nil {
 			continue
 		}
-		sessions = append(sessions, &session)
+		sessions = append(sessions, sd.toEntity())
 	}
 
 	// 期限切れセッションをユーザーセッション一覧から削除（非同期）
@@ -151,17 +182,6 @@ func (s *SessionStore) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*S
 	}
 
 	return sessions, nil
-}
-
-// UpdateLastUsed はセッションの最終使用時刻を更新します
-func (s *SessionStore) UpdateLastUsed(ctx context.Context, sessionID string) error {
-	session, err := s.FindByID(ctx, sessionID)
-	if err != nil {
-		return err
-	}
-
-	session.LastUsedAt = time.Now()
-	return s.Save(ctx, session)
 }
 
 // Delete はセッションを削除します
@@ -213,3 +233,6 @@ func (s *SessionStore) DeleteByUserID(ctx context.Context, userID uuid.UUID) err
 func (s *SessionStore) CountByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	return s.client.SCard(ctx, UserSessionsKey(userID)).Result()
 }
+
+// インターフェースの実装を保証
+var _ repository.SessionRepository = (*SessionStore)(nil)

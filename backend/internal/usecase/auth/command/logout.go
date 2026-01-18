@@ -6,23 +6,24 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
 // LogoutCommand はログアウトコマンドです
 type LogoutCommand struct {
-	sessionStore *cache.SessionStore
+	sessionRepo  repository.SessionRepository
 	jwtBlacklist *cache.JWTBlacklist
 }
 
 // NewLogoutCommand は新しいLogoutCommandを作成します
 func NewLogoutCommand(
-	sessionStore *cache.SessionStore,
+	sessionRepo repository.SessionRepository,
 	jwtBlacklist *cache.JWTBlacklist,
 ) *LogoutCommand {
 	return &LogoutCommand{
-		sessionStore: sessionStore,
+		sessionRepo:  sessionRepo,
 		jwtBlacklist: jwtBlacklist,
 	}
 }
@@ -30,7 +31,7 @@ func NewLogoutCommand(
 // Execute はログアウトを実行します
 func (c *LogoutCommand) Execute(ctx context.Context, sessionID string, accessTokenClaims *jwt.AccessTokenClaims) error {
 	// 1. セッションを削除
-	if err := c.sessionStore.Delete(ctx, sessionID); err != nil {
+	if err := c.sessionRepo.Delete(ctx, sessionID); err != nil {
 		// エラーでも続行
 	}
 
@@ -49,5 +50,5 @@ func (c *LogoutCommand) Execute(ctx context.Context, sessionID string, accessTok
 
 // ExecuteAll は全セッションからログアウトを実行します
 func (c *LogoutCommand) ExecuteAll(ctx context.Context, userID uuid.UUID) error {
-	return c.sessionStore.DeleteByUserID(ctx, userID)
+	return c.sessionRepo.DeleteByUserID(ctx, userID)
 }
