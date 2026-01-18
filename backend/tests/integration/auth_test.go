@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/tests/testutil"
 )
 
@@ -652,4 +653,805 @@ func (s *AuthTestSuite) getVerificationToken(email string) string {
 		return ""
 	}
 	return token
+}
+
+// getPasswordResetToken gets the password reset token for a user from the database
+func (s *AuthTestSuite) getPasswordResetToken(email string) string {
+	var token string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT t.token FROM password_reset_tokens t
+		 JOIN users u ON t.user_id = u.id
+		 WHERE u.email = $1
+		 ORDER BY t.created_at DESC LIMIT 1`,
+		email,
+	).Scan(&token)
+	if err != nil {
+		return ""
+	}
+	return token
+}
+
+// =============================================================================
+// Forgot Password Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestForgotPassword_Success() {
+	// Register and activate user
+	s.registerAndActivateUser("forgot@example.com", "Password123", "Forgot User")
+
+	// Request password reset
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "forgot@example.com",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "If your email address is registered, a password reset email has been sent.")
+
+	// Verify token was created
+	token := s.getPasswordResetToken("forgot@example.com")
+	s.NotEmpty(token)
+}
+
+func (s *AuthTestSuite) TestForgotPassword_NonExistentEmail() {
+	// Security: should return same response for non-existent email
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "nonexistent@example.com",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "If your email address is registered, a password reset email has been sent.")
+}
+
+func (s *AuthTestSuite) TestForgotPassword_InvalidEmail() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "invalid-email",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestForgotPassword_PendingUser() {
+	// Register but don't activate
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "pending-forgot@example.com",
+			"password": "Password123",
+			"name":     "Pending User",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Request password reset (should work for pending users too)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "pending-forgot@example.com",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "If your email address is registered, a password reset email has been sent.")
+}
+
+// =============================================================================
+// Reset Password Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestResetPassword_Success() {
+	// Register and activate user
+	s.registerAndActivateUser("reset@example.com", "Password123", "Reset User")
+
+	// Request password reset
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "reset@example.com",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Get token
+	token := s.getPasswordResetToken("reset@example.com")
+	s.NotEmpty(token)
+
+	// Reset password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "password reset successfully")
+
+	// Verify can login with new password
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "reset@example.com",
+			"password": "NewPassword456",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token")
+
+	// Verify cannot login with old password
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "reset@example.com",
+			"password": "Password123",
+		},
+	}).AssertStatus(http.StatusUnauthorized)
+}
+
+func (s *AuthTestSuite) TestResetPassword_InvalidToken() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    "invalid-token",
+			"password": "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "invalid or expired token")
+}
+
+func (s *AuthTestSuite) TestResetPassword_ExpiredToken() {
+	// Register and activate user
+	s.registerAndActivateUser("expired-reset@example.com", "Password123", "Expired Reset User")
+
+	// Request password reset
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "expired-reset@example.com",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Get token and expire it
+	token := s.getPasswordResetToken("expired-reset@example.com")
+	_, err := s.server.Pool.Exec(
+		context.Background(),
+		"UPDATE password_reset_tokens SET expires_at = NOW() - INTERVAL '1 hour' WHERE token = $1",
+		token,
+	)
+	s.Require().NoError(err)
+
+	// Try to reset with expired token
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "token has expired")
+}
+
+func (s *AuthTestSuite) TestResetPassword_MissingToken() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"password": "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestResetPassword_WeakPassword() {
+	// Register and activate user
+	s.registerAndActivateUser("weak-reset@example.com", "Password123", "Weak Reset User")
+
+	// Request password reset
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "weak-reset@example.com",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Get token
+	token := s.getPasswordResetToken("weak-reset@example.com")
+
+	// Try to reset with weak password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "weak",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestResetPassword_TokenAlreadyUsed() {
+	// Register and activate user
+	s.registerAndActivateUser("used-token@example.com", "Password123", "Used Token User")
+
+	// Request password reset
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "used-token@example.com",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Get token
+	token := s.getPasswordResetToken("used-token@example.com")
+
+	// First reset (should succeed)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "NewPassword456",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Second reset with same token (should fail)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "AnotherPassword789",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "invalid or expired token")
+}
+
+// =============================================================================
+// Password Reset Flow Integration Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestFullPasswordResetFlow() {
+	// 1. Register and activate user
+	s.registerAndActivateUser("fullreset@example.com", "OriginalPass123", "Full Reset User")
+
+	// 2. Verify can login with original password
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "fullreset@example.com",
+			"password": "OriginalPass123",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Clear rate limiter to avoid rate limit issues in this flow test
+	testutil.FlushRedis(s.T(), s.server.Redis)
+
+	// 3. Request password reset
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "fullreset@example.com",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// 4. Get reset token
+	token := s.getPasswordResetToken("fullreset@example.com")
+	s.NotEmpty(token)
+
+	// 5. Reset password
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "NewSecurePass456",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Clear rate limiter before login attempts
+	testutil.FlushRedis(s.T(), s.server.Redis)
+
+	// 6. Verify cannot login with old password
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "fullreset@example.com",
+			"password": "OriginalPass123",
+		},
+	}).AssertStatus(http.StatusUnauthorized)
+
+	// 7. Verify can login with new password
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "fullreset@example.com",
+			"password": "NewSecurePass456",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token")
+
+	// Clear rate limiter before final check
+	testutil.FlushRedis(s.T(), s.server.Redis)
+
+	// 8. Verify token cannot be reused
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "AnotherPassword789",
+		},
+	}).AssertStatus(http.StatusBadRequest)
+}
+
+// =============================================================================
+// Change Password Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestChangePassword_Success() {
+	// Register, activate and login
+	s.registerAndActivateUser("change@example.com", "OldPassword123", "Change User")
+	accessToken := s.loginAndGetToken("change@example.com", "OldPassword123")
+
+	// Change password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/change",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"current_password": "OldPassword123",
+			"new_password":     "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "password changed successfully")
+}
+
+func (s *AuthTestSuite) TestChangePassword_WrongCurrentPassword() {
+	// Register, activate and login
+	s.registerAndActivateUser("wrongcurrent@example.com", "CorrectPassword123", "Wrong Current User")
+	accessToken := s.loginAndGetToken("wrongcurrent@example.com", "CorrectPassword123")
+
+	// Try to change password with wrong current password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/change",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"current_password": "WrongPassword123",
+			"new_password":     "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusUnauthorized).
+		AssertJSONError("UNAUTHORIZED", "current password is incorrect")
+}
+
+func (s *AuthTestSuite) TestChangePassword_WeakNewPassword() {
+	// Register, activate and login
+	s.registerAndActivateUser("weaknew@example.com", "StrongPassword123", "Weak New User")
+	accessToken := s.loginAndGetToken("weaknew@example.com", "StrongPassword123")
+
+	// Try to change password with weak new password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/change",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"current_password": "StrongPassword123",
+			"new_password":     "weak",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestChangePassword_MissingCurrentPassword() {
+	// Register, activate and login
+	s.registerAndActivateUser("missingcurrent@example.com", "Password123", "Missing Current User")
+	accessToken := s.loginAndGetToken("missingcurrent@example.com", "Password123")
+
+	// Try to change password without current password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/change",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"new_password": "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestChangePassword_MissingNewPassword() {
+	// Register, activate and login
+	s.registerAndActivateUser("missingnew@example.com", "Password123", "Missing New User")
+	accessToken := s.loginAndGetToken("missingnew@example.com", "Password123")
+
+	// Try to change password without new password
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/change",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"current_password": "Password123",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestChangePassword_Unauthorized() {
+	// Try to change password without token
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/change",
+		Body: map[string]string{
+			"current_password": "OldPassword123",
+			"new_password":     "NewPassword456",
+		},
+	})
+
+	resp.AssertStatus(http.StatusUnauthorized)
+}
+
+func (s *AuthTestSuite) TestFullChangePasswordFlow() {
+	// 1. Register and activate user
+	s.registerAndActivateUser("fullchange@example.com", "OriginalPass123", "Full Change User")
+
+	// 2. Login and get token
+	accessToken := s.loginAndGetToken("fullchange@example.com", "OriginalPass123")
+
+	// 3. Change password
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/password/change",
+		AccessToken: accessToken,
+		Body: map[string]string{
+			"current_password": "OriginalPass123",
+			"new_password":     "NewSecurePass456",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Clear rate limiter
+	testutil.FlushRedis(s.T(), s.server.Redis)
+
+	// 4. Verify cannot login with old password
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "fullchange@example.com",
+			"password": "OriginalPass123",
+		},
+	}).AssertStatus(http.StatusUnauthorized)
+
+	// 5. Verify can login with new password
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "fullchange@example.com",
+			"password": "NewSecurePass456",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token")
+}
+
+// =============================================================================
+// Additional Helper Methods
+// =============================================================================
+
+// loginAndGetToken logs in a user and returns the access token
+func (s *AuthTestSuite) loginAndGetToken(email, password string) string {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    email,
+			"password": password,
+		},
+	})
+	resp.AssertStatus(http.StatusOK)
+
+	data := resp.GetJSONData()
+	return data["access_token"].(string)
+}
+
+// =============================================================================
+// OAuth Login Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestOAuthLogin_Google_NewUser_Success() {
+	// Configure mock to return specific user info
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-new-user-123",
+		Email:          "oauth-new@example.com",
+		Name:           "OAuth New User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token").
+		AssertJSONPathExists("data.expires_in").
+		AssertJSONPath("data.is_new_user", true).
+		AssertJSONPath("data.user.email", "oauth-new@example.com").
+		AssertJSONPath("data.user.name", "OAuth New User").
+		AssertJSONPath("data.user.status", "active").
+		AssertJSONPath("data.user.email_verified", true)
+
+	// Verify refresh token cookie is set
+	cookie := resp.GetCookie("refresh_token")
+	s.NotNil(cookie)
+	s.True(cookie.HttpOnly)
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_Google_ExistingOAuthUser_Success() {
+	// First OAuth login to create user
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-existing-user-456",
+		Email:          "oauth-existing@example.com",
+		Name:           "OAuth Existing User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	}).AssertStatus(http.StatusOK).
+		AssertJSONPath("data.is_new_user", true)
+
+	// Clear rate limiter
+	testutil.FlushRedis(s.T(), s.server.Redis)
+
+	// Second OAuth login with same user
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token").
+		AssertJSONPath("data.is_new_user", false).
+		AssertJSONPath("data.user.email", "oauth-existing@example.com")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_Google_ExistingEmailUser_LinkAccount() {
+	// First, create a user via traditional registration
+	s.registerAndActivateUser("link-oauth@example.com", "Password123", "Link OAuth User")
+
+	// Configure mock with same email
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-link-user-789",
+		Email:          "link-oauth@example.com",
+		Name:           "Link OAuth User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	// OAuth login should link the account
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token").
+		AssertJSONPath("data.is_new_user", false).
+		AssertJSONPath("data.user.email", "link-oauth@example.com")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_GitHub_Success() {
+	// Configure GitHub mock
+	s.server.MockGitHubClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "github-user-999",
+		Email:          "oauth-github@example.com",
+		Name:           "GitHub OAuth User",
+		AvatarURL:      "https://example.com/github-avatar.png",
+	})
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/github",
+		Body: map[string]string{
+			"code": "valid-github-auth-code",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token").
+		AssertJSONPath("data.is_new_user", true).
+		AssertJSONPath("data.user.email", "oauth-github@example.com").
+		AssertJSONPath("data.user.name", "GitHub OAuth User")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_InvalidProvider() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/invalid-provider",
+		Body: map[string]string{
+			"code": "some-code",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "unsupported oauth provider")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_MissingCode() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body:   map[string]string{},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_InvalidCode() {
+	// Mock returns error for "invalid-code"
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "invalid-code",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "invalid authorization code")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_PendingUserActivation() {
+	// Register a pending user (not activated)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "pending-oauth@example.com",
+			"password": "Password123",
+			"name":     "Pending OAuth User",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Configure mock with same email
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-pending-user-111",
+		Email:          "pending-oauth@example.com",
+		Name:           "Pending OAuth User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	// OAuth login should activate the pending user
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.is_new_user", false).
+		AssertJSONPath("data.user.status", "active").
+		AssertJSONPath("data.user.email_verified", true)
+}
+
+func (s *AuthTestSuite) TestFullOAuthFlow() {
+	// 1. New user OAuth login
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-fullflow-user",
+		Email:          "oauth-fullflow@example.com",
+		Name:           "OAuth Full Flow User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.is_new_user", true)
+
+	data := loginResp.GetJSONData()
+	accessToken := data["access_token"].(string)
+
+	// 2. Access protected endpoint
+	meResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodGet,
+		Path:        "/api/v1/me",
+		AccessToken: accessToken,
+	})
+	meResp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.email", "oauth-fullflow@example.com")
+
+	// 3. Logout
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/logout",
+		AccessToken: accessToken,
+	}).AssertStatus(http.StatusOK)
+
+	// 4. Token should be blacklisted
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodGet,
+		Path:        "/api/v1/me",
+		AccessToken: accessToken,
+	}).AssertStatus(http.StatusUnauthorized)
+
+	// 5. Re-login with OAuth
+	testutil.FlushRedis(s.T(), s.server.Redis)
+	reLoginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+	reLoginResp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.is_new_user", false)
 }
