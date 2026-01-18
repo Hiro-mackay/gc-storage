@@ -413,10 +413,10 @@ import (
     "time"
 
     "github.com/google/uuid"
-    "gc-storage/internal/domain/entity"
-    domainRepo "gc-storage/internal/domain/repository"
-    "gc-storage/internal/infrastructure/database"
-    "gc-storage/internal/infrastructure/database/sqlcgen"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    domainRepo "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database/sqlcgen"
 )
 
 type userRepository struct {
@@ -599,7 +599,7 @@ import (
     "context"
 
     "github.com/google/wire"
-    "gc-storage/internal/infrastructure/database"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 )
 
 var DatabaseSet = wire.NewSet(

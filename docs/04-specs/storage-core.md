@@ -25,7 +25,7 @@ MinIO（オブジェクトストレージ）とPostgreSQL（メタデータ）�
 ### 1.1 Folder
 
 ```go
-// internal/domain/storage/folder.go
+// backend/internal/domain/storage/folder.go
 
 package storage
 
@@ -82,7 +82,7 @@ func (f *Folder) CanRestore() bool {
 ### 1.2 FolderName（値オブジェクト）
 
 ```go
-// internal/domain/storage/folder_name.go
+// backend/internal/domain/storage/folder_name.go
 
 package storage
 
@@ -136,7 +136,7 @@ func (n FolderName) Equals(other FolderName) bool {
 ### 1.3 File
 
 ```go
-// internal/domain/storage/file.go
+// backend/internal/domain/storage/file.go
 
 package storage
 
@@ -194,7 +194,7 @@ func (f *File) IsPreviewable() bool {
 ### 1.4 FileName（値オブジェクト）
 
 ```go
-// internal/domain/storage/file_name.go
+// backend/internal/domain/storage/file_name.go
 
 package storage
 
@@ -256,7 +256,7 @@ func (n FileName) BaseName() string {
 ### 1.5 FileVersion
 
 ```go
-// internal/domain/storage/file_version.go
+// backend/internal/domain/storage/file_version.go
 
 package storage
 
@@ -281,7 +281,7 @@ type FileVersion struct {
 ### 1.6 UploadSession
 
 ```go
-// internal/domain/storage/upload_session.go
+// backend/internal/domain/storage/upload_session.go
 
 package storage
 
@@ -330,7 +330,7 @@ func (s *UploadSession) CanComplete() bool {
 ### 2.1 FolderRepository
 
 ```go
-// internal/domain/storage/folder_repository.go
+// backend/internal/domain/storage/folder_repository.go
 
 package storage
 
@@ -370,7 +370,7 @@ type FolderRepository interface {
 ### 2.2 FileRepository
 
 ```go
-// internal/domain/storage/file_repository.go
+// backend/internal/domain/storage/file_repository.go
 
 package storage
 
@@ -419,7 +419,7 @@ type FileRepository interface {
 ### 2.3 FileVersionRepository
 
 ```go
-// internal/domain/storage/file_version_repository.go
+// backend/internal/domain/storage/file_version_repository.go
 
 package storage
 
@@ -444,7 +444,7 @@ type FileVersionRepository interface {
 ### 2.4 UploadSessionRepository
 
 ```go
-// internal/domain/storage/upload_session_repository.go
+// backend/internal/domain/storage/upload_session_repository.go
 
 package storage
 
@@ -471,7 +471,7 @@ type UploadSessionRepository interface {
 ### 3.1 フォルダ作成
 
 ```go
-// internal/usecase/storage/create_folder.go
+// backend/internal/usecase/storage/create_folder.go
 
 package storage
 
@@ -479,8 +479,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type CreateFolderInput struct {
@@ -494,22 +494,22 @@ type CreateFolderOutput struct {
     Folder *storage.Folder
 }
 
-type CreateFolderUseCase struct {
+type CreateFolderCommand struct {
     folderRepo storage.FolderRepository
     txManager  TransactionManager
 }
 
-func NewCreateFolderUseCase(
+func NewCreateFolderCommand(
     folderRepo storage.FolderRepository,
     txManager TransactionManager,
-) *CreateFolderUseCase {
-    return &CreateFolderUseCase{
+) *CreateFolderCommand {
+    return &CreateFolderCommand{
         folderRepo: folderRepo,
         txManager:  txManager,
     }
 }
 
-func (uc *CreateFolderUseCase) Execute(ctx context.Context, input CreateFolderInput) (*CreateFolderOutput, error) {
+func (uc *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInput) (*CreateFolderOutput, error) {
     // 1. Validate folder name
     name, err := storage.NewFolderName(input.Name)
     if err != nil {
@@ -588,7 +588,7 @@ func (uc *CreateFolderUseCase) Execute(ctx context.Context, input CreateFolderIn
 ### 3.2 フォルダ移動
 
 ```go
-// internal/usecase/storage/move_folder.go
+// backend/internal/usecase/storage/move_folder.go
 
 package storage
 
@@ -596,8 +596,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type MoveFolderInput struct {
@@ -610,22 +610,22 @@ type MoveFolderOutput struct {
     Folder *storage.Folder
 }
 
-type MoveFolderUseCase struct {
+type MoveFolderCommand struct {
     folderRepo storage.FolderRepository
     txManager  TransactionManager
 }
 
-func NewMoveFolderUseCase(
+func NewMoveFolderCommand(
     folderRepo storage.FolderRepository,
     txManager TransactionManager,
-) *MoveFolderUseCase {
-    return &MoveFolderUseCase{
+) *MoveFolderCommand {
+    return &MoveFolderCommand{
         folderRepo: folderRepo,
         txManager:  txManager,
     }
 }
 
-func (uc *MoveFolderUseCase) Execute(ctx context.Context, input MoveFolderInput) (*MoveFolderOutput, error) {
+func (uc *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) (*MoveFolderOutput, error) {
     var folder *storage.Folder
 
     err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
@@ -733,7 +733,7 @@ func (uc *MoveFolderUseCase) Execute(ctx context.Context, input MoveFolderInput)
 ### 3.3 ファイルアップロード開始
 
 ```go
-// internal/usecase/storage/initiate_upload.go
+// backend/internal/usecase/storage/initiate_upload.go
 
 package storage
 
@@ -741,9 +741,9 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/internal/infrastructure/minio"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type InitiateUploadInput struct {
@@ -768,7 +768,7 @@ const (
     SessionExpiry      = 1 * time.Hour
 )
 
-type InitiateUploadUseCase struct {
+type InitiateUploadCommand struct {
     fileRepo    storage.FileRepository
     folderRepo  storage.FolderRepository
     sessionRepo storage.UploadSessionRepository
@@ -776,14 +776,14 @@ type InitiateUploadUseCase struct {
     txManager   TransactionManager
 }
 
-func NewInitiateUploadUseCase(
+func NewInitiateUploadCommand(
     fileRepo storage.FileRepository,
     folderRepo storage.FolderRepository,
     sessionRepo storage.UploadSessionRepository,
     minioClient minio.Client,
     txManager TransactionManager,
-) *InitiateUploadUseCase {
-    return &InitiateUploadUseCase{
+) *InitiateUploadCommand {
+    return &InitiateUploadCommand{
         fileRepo:    fileRepo,
         folderRepo:  folderRepo,
         sessionRepo: sessionRepo,
@@ -792,7 +792,7 @@ func NewInitiateUploadUseCase(
     }
 }
 
-func (uc *InitiateUploadUseCase) Execute(ctx context.Context, input InitiateUploadInput) (*InitiateUploadOutput, error) {
+func (uc *InitiateUploadCommand) Execute(ctx context.Context, input InitiateUploadInput) (*InitiateUploadOutput, error) {
     // 1. Validate file name
     fileName, err := storage.NewFileName(input.FileName)
     if err != nil {
@@ -935,7 +935,7 @@ func (uc *InitiateUploadUseCase) Execute(ctx context.Context, input InitiateUplo
 ### 3.4 ファイルアップロード完了
 
 ```go
-// internal/usecase/storage/complete_upload.go
+// backend/internal/usecase/storage/complete_upload.go
 
 package storage
 
@@ -943,9 +943,9 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/internal/infrastructure/minio"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type CompleteUploadInput struct {
@@ -959,7 +959,7 @@ type CompleteUploadOutput struct {
     Version *storage.FileVersion
 }
 
-type CompleteUploadUseCase struct {
+type CompleteUploadCommand struct {
     fileRepo    storage.FileRepository
     versionRepo storage.FileVersionRepository
     sessionRepo storage.UploadSessionRepository
@@ -967,14 +967,14 @@ type CompleteUploadUseCase struct {
     txManager   TransactionManager
 }
 
-func NewCompleteUploadUseCase(
+func NewCompleteUploadCommand(
     fileRepo storage.FileRepository,
     versionRepo storage.FileVersionRepository,
     sessionRepo storage.UploadSessionRepository,
     minioClient minio.Client,
     txManager TransactionManager,
-) *CompleteUploadUseCase {
-    return &CompleteUploadUseCase{
+) *CompleteUploadCommand {
+    return &CompleteUploadCommand{
         fileRepo:    fileRepo,
         versionRepo: versionRepo,
         sessionRepo: sessionRepo,
@@ -983,7 +983,7 @@ func NewCompleteUploadUseCase(
     }
 }
 
-func (uc *CompleteUploadUseCase) Execute(ctx context.Context, input CompleteUploadInput) (*CompleteUploadOutput, error) {
+func (uc *CompleteUploadCommand) Execute(ctx context.Context, input CompleteUploadInput) (*CompleteUploadOutput, error) {
     var output *CompleteUploadOutput
 
     err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
@@ -1079,7 +1079,7 @@ func (uc *CompleteUploadUseCase) Execute(ctx context.Context, input CompleteUplo
 ### 3.5 ファイルダウンロード
 
 ```go
-// internal/usecase/storage/download_file.go
+// backend/internal/usecase/storage/download_file.go
 
 package storage
 
@@ -1087,9 +1087,9 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/internal/infrastructure/minio"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type DownloadFileInput struct {
@@ -1108,25 +1108,25 @@ type DownloadFileOutput struct {
 
 const DownloadURLExpiry = 1 * time.Hour
 
-type DownloadFileUseCase struct {
+type GetDownloadURLQuery struct {
     fileRepo    storage.FileRepository
     versionRepo storage.FileVersionRepository
     minioClient minio.Client
 }
 
-func NewDownloadFileUseCase(
+func NewGetDownloadURLQuery(
     fileRepo storage.FileRepository,
     versionRepo storage.FileVersionRepository,
     minioClient minio.Client,
-) *DownloadFileUseCase {
-    return &DownloadFileUseCase{
+) *GetDownloadURLQuery {
+    return &GetDownloadURLQuery{
         fileRepo:    fileRepo,
         versionRepo: versionRepo,
         minioClient: minioClient,
     }
 }
 
-func (uc *DownloadFileUseCase) Execute(ctx context.Context, input DownloadFileInput) (*DownloadFileOutput, error) {
+func (uc *GetDownloadURLQuery) Execute(ctx context.Context, input DownloadFileInput) (*DownloadFileOutput, error) {
     // 1. Get file
     file, err := uc.fileRepo.FindByID(ctx, input.FileID)
     if err != nil {
@@ -1173,7 +1173,7 @@ func (uc *DownloadFileUseCase) Execute(ctx context.Context, input DownloadFileIn
 ### 3.6 ゴミ箱移動（フォルダ）
 
 ```go
-// internal/usecase/storage/trash_folder.go
+// backend/internal/usecase/storage/trash_folder.go
 
 package storage
 
@@ -1181,8 +1181,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type TrashFolderInput struct {
@@ -1190,25 +1190,25 @@ type TrashFolderInput struct {
     ActorID  uuid.UUID
 }
 
-type TrashFolderUseCase struct {
+type TrashFolderCommand struct {
     folderRepo storage.FolderRepository
     fileRepo   storage.FileRepository
     txManager  TransactionManager
 }
 
-func NewTrashFolderUseCase(
+func NewTrashFolderCommand(
     folderRepo storage.FolderRepository,
     fileRepo storage.FileRepository,
     txManager TransactionManager,
-) *TrashFolderUseCase {
-    return &TrashFolderUseCase{
+) *TrashFolderCommand {
+    return &TrashFolderCommand{
         folderRepo: folderRepo,
         fileRepo:   fileRepo,
         txManager:  txManager,
     }
 }
 
-func (uc *TrashFolderUseCase) Execute(ctx context.Context, input TrashFolderInput) error {
+func (uc *TrashFolderCommand) Execute(ctx context.Context, input TrashFolderInput) error {
     return uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
         // 1. Get folder
         folder, err := uc.folderRepo.FindByID(ctx, input.FolderID)
@@ -1259,7 +1259,7 @@ func (uc *TrashFolderUseCase) Execute(ctx context.Context, input TrashFolderInpu
 ### 3.7 ゴミ箱から復元
 
 ```go
-// internal/usecase/storage/restore_folder.go
+// backend/internal/usecase/storage/restore_folder.go
 
 package storage
 
@@ -1267,8 +1267,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type RestoreFolderInput struct {
@@ -1280,25 +1280,25 @@ type RestoreFolderOutput struct {
     Folder *storage.Folder
 }
 
-type RestoreFolderUseCase struct {
+type RestoreFolderCommand struct {
     folderRepo storage.FolderRepository
     fileRepo   storage.FileRepository
     txManager  TransactionManager
 }
 
-func NewRestoreFolderUseCase(
+func NewRestoreFolderCommand(
     folderRepo storage.FolderRepository,
     fileRepo storage.FileRepository,
     txManager TransactionManager,
-) *RestoreFolderUseCase {
-    return &RestoreFolderUseCase{
+) *RestoreFolderCommand {
+    return &RestoreFolderCommand{
         folderRepo: folderRepo,
         fileRepo:   fileRepo,
         txManager:  txManager,
     }
 }
 
-func (uc *RestoreFolderUseCase) Execute(ctx context.Context, input RestoreFolderInput) (*RestoreFolderOutput, error) {
+func (uc *RestoreFolderCommand) Execute(ctx context.Context, input RestoreFolderInput) (*RestoreFolderOutput, error) {
     var folder *storage.Folder
 
     err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
@@ -1373,16 +1373,16 @@ func (uc *RestoreFolderUseCase) Execute(ctx context.Context, input RestoreFolder
 ### 3.8 完全削除
 
 ```go
-// internal/usecase/storage/permanently_delete.go
+// backend/internal/usecase/storage/permanently_delete.go
 
 package storage
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/internal/infrastructure/minio"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type PermanentlyDeleteFolderInput struct {
@@ -1390,7 +1390,7 @@ type PermanentlyDeleteFolderInput struct {
     ActorID  uuid.UUID
 }
 
-type PermanentlyDeleteFolderUseCase struct {
+type PermanentlyDeleteFolderCommand struct {
     folderRepo  storage.FolderRepository
     fileRepo    storage.FileRepository
     versionRepo storage.FileVersionRepository
@@ -1398,14 +1398,14 @@ type PermanentlyDeleteFolderUseCase struct {
     txManager   TransactionManager
 }
 
-func NewPermanentlyDeleteFolderUseCase(
+func NewPermanentlyDeleteFolderCommand(
     folderRepo storage.FolderRepository,
     fileRepo storage.FileRepository,
     versionRepo storage.FileVersionRepository,
     minioClient minio.Client,
     txManager TransactionManager,
-) *PermanentlyDeleteFolderUseCase {
-    return &PermanentlyDeleteFolderUseCase{
+) *PermanentlyDeleteFolderCommand {
+    return &PermanentlyDeleteFolderCommand{
         folderRepo:  folderRepo,
         fileRepo:    fileRepo,
         versionRepo: versionRepo,
@@ -1414,7 +1414,7 @@ func NewPermanentlyDeleteFolderUseCase(
     }
 }
 
-func (uc *PermanentlyDeleteFolderUseCase) Execute(ctx context.Context, input PermanentlyDeleteFolderInput) error {
+func (uc *PermanentlyDeleteFolderCommand) Execute(ctx context.Context, input PermanentlyDeleteFolderInput) error {
     // 1. Get folder
     folder, err := uc.folderRepo.FindByID(ctx, input.FolderID)
     if err != nil {
@@ -1494,7 +1494,7 @@ func (uc *PermanentlyDeleteFolderUseCase) Execute(ctx context.Context, input Per
 ### 4.1 フォルダハンドラー
 
 ```go
-// internal/interface/handler/folder_handler.go
+// backend/internal/interface/handler/folder_handler.go
 
 package handler
 
@@ -1502,20 +1502,20 @@ import (
     "net/http"
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
-    "gc-storage/internal/interface/dto"
-    "gc-storage/internal/interface/middleware"
-    "gc-storage/internal/usecase/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/storage"
 )
 
 type FolderHandler struct {
-    createFolder  *storage.CreateFolderUseCase
-    moveFolder    *storage.MoveFolderUseCase
-    renameFolder  *storage.RenameFolderUseCase
-    trashFolder   *storage.TrashFolderUseCase
-    restoreFolder *storage.RestoreFolderUseCase
-    deleteFolder  *storage.PermanentlyDeleteFolderUseCase
-    listContents  *storage.ListFolderContentsUseCase
-    getAncestors  *storage.GetFolderAncestorsUseCase
+    createFolder  *storage.CreateFolderCommand
+    moveFolder    *storage.MoveFolderCommand
+    renameFolder  *storage.RenameFolderCommand
+    trashFolder   *storage.TrashFolderCommand
+    restoreFolder *storage.RestoreFolderCommand
+    deleteFolder  *storage.PermanentlyDeleteFolderCommand
+    listContents  *storage.ListFolderContentsQuery
+    getAncestors  *storage.GetFolderAncestorsQuery
 }
 
 // POST /api/v1/folders
@@ -1695,7 +1695,7 @@ func (h *FolderHandler) GetBreadcrumb(c echo.Context) error {
 ### 4.2 ファイルハンドラー
 
 ```go
-// internal/interface/handler/file_handler.go
+// backend/internal/interface/handler/file_handler.go
 
 package handler
 
@@ -1703,24 +1703,24 @@ import (
     "net/http"
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
-    "gc-storage/internal/interface/dto"
-    "gc-storage/internal/interface/middleware"
-    "gc-storage/internal/usecase/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/storage"
 )
 
 type FileHandler struct {
-    initiateUpload  *storage.InitiateUploadUseCase
-    completeUpload  *storage.CompleteUploadUseCase
-    cancelUpload    *storage.CancelUploadUseCase
-    downloadFile    *storage.DownloadFileUseCase
-    moveFile        *storage.MoveFileUseCase
-    copyFile        *storage.CopyFileUseCase
-    renameFile      *storage.RenameFileUseCase
-    trashFile       *storage.TrashFileUseCase
-    restoreFile     *storage.RestoreFileUseCase
-    deleteFile      *storage.PermanentlyDeleteFileUseCase
-    listVersions    *storage.ListFileVersionsUseCase
-    restoreVersion  *storage.RestoreFileVersionUseCase
+    initiateUpload  *storage.InitiateUploadCommand
+    completeUpload  *storage.CompleteUploadCommand
+    cancelUpload    *storage.CancelUploadCommand
+    downloadFile    *storage.GetDownloadURLQuery
+    moveFile        *storage.MoveFileCommand
+    copyFile        *storage.CopyFileCommand
+    renameFile      *storage.RenameFileCommand
+    trashFile       *storage.TrashFileCommand
+    restoreFile     *storage.RestoreFileCommand
+    deleteFile      *storage.PermanentlyDeleteFileCommand
+    listVersions    *storage.ListFileVersionsQuery
+    restoreVersion  *storage.RestoreFileVersionCommand
 }
 
 // POST /api/v1/files/upload
@@ -1972,7 +1972,7 @@ func (h *FileHandler) RestoreVersion(c echo.Context) error {
 ## 5. DTO定義
 
 ```go
-// internal/interface/dto/storage.go
+// backend/internal/interface/dto/storage.go
 
 package dto
 
@@ -2123,7 +2123,7 @@ type TrashResponse struct {
 ### 7.1 ゴミ箱自動削除
 
 ```go
-// internal/job/trash_cleanup.go
+// backend/internal/job/trash_cleanup.go
 
 package job
 
@@ -2131,22 +2131,22 @@ import (
     "context"
     "log/slog"
     "time"
-    "gc-storage/internal/usecase/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/storage"
 )
 
 const TrashRetentionDays = 30
 
 type TrashCleanupJob struct {
-    cleanupUseCase *storage.CleanupTrashUseCase
+    cleanupCommand *storage.CleanupTrashCommand
     logger         *slog.Logger
 }
 
 func NewTrashCleanupJob(
-    cleanupUseCase *storage.CleanupTrashUseCase,
+    cleanupCommand *storage.CleanupTrashCommand,
     logger *slog.Logger,
 ) *TrashCleanupJob {
     return &TrashCleanupJob{
-        cleanupUseCase: cleanupUseCase,
+        cleanupCommand: cleanupCommand,
         logger:         logger,
     }
 }
@@ -2155,7 +2155,7 @@ func NewTrashCleanupJob(
 func (j *TrashCleanupJob) Run(ctx context.Context) error {
     threshold := time.Now().AddDate(0, 0, -TrashRetentionDays)
 
-    output, err := j.cleanupUseCase.Execute(ctx, storage.CleanupTrashInput{
+    output, err := j.cleanupCommand.Execute(ctx, storage.CleanupTrashInput{
         OlderThan: threshold,
     })
     if err != nil {
@@ -2175,34 +2175,34 @@ func (j *TrashCleanupJob) Run(ctx context.Context) error {
 ### 7.2 期限切れアップロードセッションクリーンアップ
 
 ```go
-// internal/job/session_cleanup.go
+// backend/internal/job/session_cleanup.go
 
 package job
 
 import (
     "context"
     "log/slog"
-    "gc-storage/internal/usecase/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/storage"
 )
 
 type SessionCleanupJob struct {
-    cleanupUseCase *storage.CleanupExpiredSessionsUseCase
+    cleanupCommand *storage.CleanupExpiredSessionsCommand
     logger         *slog.Logger
 }
 
 func NewSessionCleanupJob(
-    cleanupUseCase *storage.CleanupExpiredSessionsUseCase,
+    cleanupCommand *storage.CleanupExpiredSessionsCommand,
     logger *slog.Logger,
 ) *SessionCleanupJob {
     return &SessionCleanupJob{
-        cleanupUseCase: cleanupUseCase,
+        cleanupCommand: cleanupCommand,
         logger:         logger,
     }
 }
 
 // Run executes every hour
 func (j *SessionCleanupJob) Run(ctx context.Context) error {
-    output, err := j.cleanupUseCase.Execute(ctx)
+    output, err := j.cleanupCommand.Execute(ctx)
     if err != nil {
         j.logger.Error("session cleanup failed", "error", err)
         return err

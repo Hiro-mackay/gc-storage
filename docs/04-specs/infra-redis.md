@@ -15,7 +15,7 @@
 ### 1.1 クライアント構成
 
 ```go
-// internal/infrastructure/persistence/redis/client.go
+// backend/internal/infrastructure/persistence/redis/client.go
 
 package redis
 
@@ -138,7 +138,7 @@ backend/internal/infrastructure/persistence/redis/
 ### 2.1 キープレフィックス定義
 
 ```go
-// internal/infrastructure/persistence/redis/keys.go
+// backend/internal/infrastructure/persistence/redis/keys.go
 
 package redis
 
@@ -215,7 +215,7 @@ func UserCacheKey(userID uuid.UUID, key string) string {
 ### 3.1 セッションデータ構造
 
 ```go
-// internal/domain/entity/session.go（参考）
+// backend/internal/domain/entity/session.go（参考）
 
 type Session struct {
     ID           string    `json:"id"`
@@ -232,7 +232,7 @@ type Session struct {
 ### 3.2 セッションストア実装
 
 ```go
-// internal/infrastructure/persistence/redis/session_store.go
+// backend/internal/infrastructure/persistence/redis/session_store.go
 
 package redis
 
@@ -245,8 +245,8 @@ import (
     "github.com/google/uuid"
     "github.com/redis/go-redis/v9"
 
-    "gc-storage/internal/domain/entity"
-    "gc-storage/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 )
 
 // SessionStore はセッションの永続化を提供します
@@ -435,7 +435,7 @@ var _ repository.SessionRepository = (*SessionStore)(nil)
 ### 3.3 セッションリポジトリインターフェース
 
 ```go
-// internal/domain/repository/session.go
+// backend/internal/domain/repository/session.go
 
 package repository
 
@@ -445,7 +445,7 @@ import (
 
     "github.com/google/uuid"
 
-    "gc-storage/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
 var ErrSessionNotFound = errors.New("session not found")
@@ -468,7 +468,7 @@ type SessionRepository interface {
 ### 4.1 ブラックリスト実装
 
 ```go
-// internal/infrastructure/persistence/redis/jwt_blacklist.go
+// backend/internal/infrastructure/persistence/redis/jwt_blacklist.go
 
 package redis
 
@@ -532,7 +532,7 @@ func (b *JWTBlacklist) Remove(ctx context.Context, jti string) error {
 ### 4.2 ブラックリストサービスインターフェース
 
 ```go
-// internal/domain/service/jwt_blacklist.go
+// backend/internal/domain/service/jwt_blacklist.go
 
 package service
 
@@ -555,7 +555,7 @@ type JWTBlacklistService interface {
 ### 5.1 Token Bucket / Sliding Window 実装
 
 ```go
-// internal/infrastructure/persistence/redis/rate_limiter.go
+// backend/internal/infrastructure/persistence/redis/rate_limiter.go
 
 package redis
 
@@ -756,7 +756,7 @@ func (r *RateLimiter) Reset(ctx context.Context, identifier string, config RateL
 ### 5.2 レートリミッターミドルウェア
 
 ```go
-// internal/interface/middleware/rate_limit.go
+// backend/internal/interface/middleware/rate_limit.go
 
 package middleware
 
@@ -767,8 +767,8 @@ import (
 
     "github.com/labstack/echo/v4"
 
-    redisinfra "gc-storage/internal/infrastructure/persistence/redis"
-    "gc-storage/pkg/apperror"
+    redisinfra "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/persistence/redis"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // RateLimitMiddleware はレート制限ミドルウェアを提供します
@@ -836,7 +836,7 @@ func (m *RateLimitMiddleware) ByUser(config redisinfra.RateLimitConfig) echo.Mid
 ### 6.1 キャッシュ実装
 
 ```go
-// internal/infrastructure/persistence/redis/cache.go
+// backend/internal/infrastructure/persistence/redis/cache.go
 
 package redis
 
@@ -967,7 +967,7 @@ var ErrCacheMiss = fmt.Errorf("cache miss")
 ### 6.2 ユーザーキャッシュ例
 
 ```go
-// internal/infrastructure/persistence/redis/user_cache.go
+// backend/internal/infrastructure/persistence/redis/user_cache.go
 
 package redis
 
@@ -978,7 +978,7 @@ import (
     "github.com/google/uuid"
     "github.com/redis/go-redis/v9"
 
-    "gc-storage/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
 // UserCache はユーザー情報のキャッシュを提供します
@@ -1071,7 +1071,7 @@ func isTimeout(err error) bool {
 ### 7.2 サーキットブレーカー
 
 ```go
-// internal/infrastructure/persistence/redis/circuit_breaker.go
+// backend/internal/infrastructure/persistence/redis/circuit_breaker.go
 
 package redis
 
@@ -1166,14 +1166,14 @@ var ErrCircuitOpen = fmt.Errorf("circuit breaker is open")
 ### 8.1 Redis依存関係の初期化
 
 ```go
-// internal/infrastructure/di/redis.go
+// backend/internal/infrastructure/di/redis.go
 
 package di
 
 import (
     "time"
 
-    "gc-storage/internal/infrastructure/persistence/redis"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/persistence/redis"
 )
 
 // RedisComponents はRedis関連の依存関係を保持します
@@ -1217,7 +1217,7 @@ func (c *RedisComponents) Close() error {
 ### 9.1 Redis Testcontainer
 
 ```go
-// internal/infrastructure/persistence/redis/testhelper/redis.go
+// backend/internal/infrastructure/persistence/redis/testhelper/redis.go
 
 package testhelper
 
@@ -1302,7 +1302,7 @@ func (c *RedisContainer) FlushAll(ctx context.Context) error {
 ### 9.2 セッションストアテスト例
 
 ```go
-// internal/infrastructure/persistence/redis/session_store_test.go
+// backend/internal/infrastructure/persistence/redis/session_store_test.go
 
 package redis_test
 
@@ -1315,9 +1315,9 @@ import (
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/require"
 
-    "gc-storage/internal/domain/entity"
-    redisinfra "gc-storage/internal/infrastructure/persistence/redis"
-    "gc-storage/internal/infrastructure/persistence/redis/testhelper"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    redisinfra "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/persistence/redis"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/persistence/redis/testhelper"
 )
 
 func TestSessionStore_Save_and_FindByID(t *testing.T) {

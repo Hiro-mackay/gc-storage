@@ -16,7 +16,7 @@
 ### 1.1 サーバー構成
 
 ```go
-// internal/interface/server/server.go
+// backend/internal/interface/server/server.go
 
 package server
 
@@ -138,15 +138,15 @@ backend/internal/interface/
 ### 2.1 ルーター構成
 
 ```go
-// internal/interface/router/router.go
+// backend/internal/interface/router/router.go
 
 package router
 
 import (
     "github.com/labstack/echo/v4"
 
-    "gc-storage/internal/interface/handler"
-    "gc-storage/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/handler"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
 )
 
 // Config はルーター設定を定義します
@@ -377,7 +377,7 @@ func (r *Router) setupGroupRoutes(g *echo.Group) {
 ### 3.1 リクエストIDミドルウェア
 
 ```go
-// internal/interface/middleware/request_id.go
+// backend/internal/interface/middleware/request_id.go
 
 package middleware
 
@@ -420,7 +420,7 @@ func GetRequestID(c echo.Context) string {
 ### 3.2 ロギングミドルウェア
 
 ```go
-// internal/interface/middleware/logger.go
+// backend/internal/interface/middleware/logger.go
 
 package middleware
 
@@ -463,7 +463,7 @@ func Logger() echo.MiddlewareFunc {
 ### 3.3 パニックリカバリーミドルウェア
 
 ```go
-// internal/interface/middleware/recover.go
+// backend/internal/interface/middleware/recover.go
 
 package middleware
 
@@ -474,7 +474,7 @@ import (
 
     "github.com/labstack/echo/v4"
 
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // Recover はパニックをリカバーするミドルウェアを返します
@@ -508,7 +508,7 @@ func Recover() echo.MiddlewareFunc {
 ### 3.4 CORSミドルウェア
 
 ```go
-// internal/interface/middleware/cors.go
+// backend/internal/interface/middleware/cors.go
 
 package middleware
 
@@ -558,7 +558,7 @@ func CORSWithConfig(cfg CORSConfig) echo.MiddlewareFunc {
 ### 3.5 セキュリティヘッダーミドルウェア
 
 ```go
-// internal/interface/middleware/security.go
+// backend/internal/interface/middleware/security.go
 
 package middleware
 
@@ -598,7 +598,7 @@ func SecurityHeaders() echo.MiddlewareFunc {
 ### 3.6 認証ミドルウェア
 
 ```go
-// internal/interface/middleware/auth.go
+// backend/internal/interface/middleware/auth.go
 
 package middleware
 
@@ -607,8 +607,8 @@ import (
 
     "github.com/labstack/echo/v4"
 
-    "gc-storage/internal/domain/service"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 const (
@@ -696,7 +696,7 @@ func GetSessionID(c echo.Context) string {
 ### 4.1 カスタムバリデーター
 
 ```go
-// internal/interface/validator/validator.go
+// backend/internal/interface/validator/validator.go
 
 package validator
 
@@ -708,7 +708,7 @@ import (
     "github.com/go-playground/validator/v10"
     "github.com/labstack/echo/v4"
 
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // CustomValidator はEcho用のカスタムバリデーターです
@@ -862,7 +862,7 @@ func toSnakeCase(str string) string {
 ### 4.2 リクエストDTOの例
 
 ```go
-// internal/interface/dto/request/file.go
+// backend/internal/interface/dto/request/file.go
 
 package request
 
@@ -886,7 +886,7 @@ type MoveFileRequest struct {
 ```
 
 ```go
-// internal/interface/dto/request/auth.go
+// backend/internal/interface/dto/request/auth.go
 
 package request
 
@@ -1029,7 +1029,7 @@ func NewInternalError(err error) *AppError {
 ### 5.2 エラーハンドラー
 
 ```go
-// internal/interface/middleware/error_handler.go
+// backend/internal/interface/middleware/error_handler.go
 
 package middleware
 
@@ -1040,7 +1040,7 @@ import (
 
     "github.com/labstack/echo/v4"
 
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // ErrorResponse はエラーレスポンス構造を定義します
@@ -1111,7 +1111,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 ### 6.1 統一レスポンス形式
 
 ```go
-// internal/interface/presenter/response.go
+// backend/internal/interface/presenter/response.go
 
 package presenter
 
@@ -1209,14 +1209,14 @@ func NewPagination(page, perPage, totalItems int) *Pagination {
 ### 6.2 レスポンスDTOの例
 
 ```go
-// internal/interface/dto/response/file.go
+// backend/internal/interface/dto/response/file.go
 
 package response
 
 import (
     "time"
 
-    "gc-storage/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
 // FileResponse はファイルレスポンス
@@ -1272,7 +1272,7 @@ func ToFileResponseList(files []*entity.File) []*FileResponse {
 ### 7.1 ファイルハンドラー
 
 ```go
-// internal/interface/handler/file_handler.go
+// backend/internal/interface/handler/file_handler.go
 
 package handler
 
@@ -1280,31 +1280,44 @@ import (
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
 
-    "gc-storage/internal/interface/dto/request"
-    "gc-storage/internal/interface/dto/response"
-    "gc-storage/internal/interface/middleware"
-    "gc-storage/internal/interface/presenter"
-    "gc-storage/internal/usecase/file"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/request"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/response"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/presenter"
+    filecmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/file/command"
+    fileqry "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/file/query"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
-// FileHandler はファイル関連のHTTPハンドラーです
+// FileHandler はファイル関連のHTTPハンドラーです（CQRSパターン）
 type FileHandler struct {
-    uploadUC   *file.UploadUseCase
-    downloadUC *file.DownloadUseCase
-    manageUC   *file.ManageUseCase
+    // Commands
+    initiateUploadCommand *filecmd.InitiateUploadCommand
+    completeUploadCommand *filecmd.CompleteUploadCommand
+    moveFileCommand       *filecmd.MoveFileCommand
+    trashFileCommand      *filecmd.TrashFileCommand
+
+    // Queries
+    getFileQuery        *fileqry.GetFileQuery
+    getDownloadURLQuery *fileqry.GetDownloadURLQuery
 }
 
 // NewFileHandler は新しいFileHandlerを作成します
 func NewFileHandler(
-    uploadUC *file.UploadUseCase,
-    downloadUC *file.DownloadUseCase,
-    manageUC *file.ManageUseCase,
+    initiateUploadCommand *filecmd.InitiateUploadCommand,
+    completeUploadCommand *filecmd.CompleteUploadCommand,
+    moveFileCommand *filecmd.MoveFileCommand,
+    trashFileCommand *filecmd.TrashFileCommand,
+    getFileQuery *fileqry.GetFileQuery,
+    getDownloadURLQuery *fileqry.GetDownloadURLQuery,
 ) *FileHandler {
     return &FileHandler{
-        uploadUC:   uploadUC,
-        downloadUC: downloadUC,
-        manageUC:   manageUC,
+        initiateUploadCommand: initiateUploadCommand,
+        completeUploadCommand: completeUploadCommand,
+        moveFileCommand:       moveFileCommand,
+        trashFileCommand:      trashFileCommand,
+        getFileQuery:          getFileQuery,
+        getDownloadURLQuery:   getDownloadURLQuery,
     }
 }
 
@@ -1333,7 +1346,7 @@ func (h *FileHandler) InitUpload(c echo.Context) error {
         folderID = &id
     }
 
-    output, err := h.uploadUC.InitiateUpload(c.Request().Context(), file.InitiateUploadInput{
+    output, err := h.initiateUploadCommand.Execute(c.Request().Context(), filecmd.InitiateUploadInput{
         UserID:   userID,
         FolderID: folderID,
         Name:     req.Name,
@@ -1360,12 +1373,14 @@ func (h *FileHandler) Get(c echo.Context) error {
         return apperror.NewValidationError("invalid file id", nil)
     }
 
-    file, err := h.manageUC.GetFile(c.Request().Context(), fileID)
+    output, err := h.getFileQuery.Execute(c.Request().Context(), fileqry.GetFileInput{
+        FileID: fileID,
+    })
     if err != nil {
         return err
     }
 
-    return presenter.OK(c, response.ToFileResponse(file))
+    return presenter.OK(c, response.ToFileResponse(output.File))
 }
 
 // Download はダウンロードURLを取得します
@@ -1376,12 +1391,15 @@ func (h *FileHandler) Download(c echo.Context) error {
         return apperror.NewValidationError("invalid file id", nil)
     }
 
-    url, err := h.downloadUC.GetDownloadURL(c.Request().Context(), fileID, nil)
+    output, err := h.getDownloadURLQuery.Execute(c.Request().Context(), fileqry.GetDownloadURLInput{
+        FileID:    fileID,
+        VersionID: nil,
+    })
     if err != nil {
         return err
     }
 
-    return presenter.OK(c, map[string]string{"download_url": url})
+    return presenter.OK(c, map[string]string{"download_url": output.URL})
 }
 
 // Rename はファイル名を変更します
@@ -1400,12 +1418,16 @@ func (h *FileHandler) Rename(c echo.Context) error {
         return err
     }
 
-    file, err := h.manageUC.RenameFile(c.Request().Context(), fileID, req.Name)
+    // Note: RenameFileCommand would need to be added to the handler
+    output, err := h.renameFileCommand.Execute(c.Request().Context(), filecmd.RenameFileInput{
+        FileID:  fileID,
+        NewName: req.Name,
+    })
     if err != nil {
         return err
     }
 
-    return presenter.OK(c, response.ToFileResponse(file))
+    return presenter.OK(c, response.ToFileResponse(output.File))
 }
 ```
 
@@ -1416,16 +1438,16 @@ func (h *FileHandler) Rename(c echo.Context) error {
 ### 8.1 サーバー初期化
 
 ```go
-// internal/infrastructure/di/server.go
+// backend/internal/infrastructure/di/server.go
 
 package di
 
 import (
-    "gc-storage/internal/interface/handler"
-    "gc-storage/internal/interface/middleware"
-    "gc-storage/internal/interface/router"
-    "gc-storage/internal/interface/server"
-    "gc-storage/internal/interface/validator"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/handler"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/router"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/server"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/validator"
 )
 
 // ServerComponents はサーバー関連の依存関係を保持します
@@ -1473,7 +1495,7 @@ func NewServerComponents(
 ### 9.1 テスト用ヘルパー
 
 ```go
-// internal/interface/handler/testhelper/handler.go
+// backend/internal/interface/handler/testhelper/handler.go
 
 package testhelper
 
@@ -1486,8 +1508,8 @@ import (
 
     "github.com/labstack/echo/v4"
 
-    "gc-storage/internal/interface/middleware"
-    "gc-storage/internal/interface/validator"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/validator"
 )
 
 // TestContext はテスト用のEchoコンテキストを作成します

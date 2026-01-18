@@ -15,7 +15,7 @@
 ### 1.1 クライアント構成
 
 ```go
-// internal/infrastructure/external/email/client.go
+// backend/internal/infrastructure/external/email/client.go
 
 package email
 
@@ -209,7 +209,7 @@ func (c *SMTPClient) HealthCheck() error {
 ### 1.2 メッセージ構造
 
 ```go
-// internal/infrastructure/external/email/message.go
+// backend/internal/infrastructure/external/email/message.go
 
 package email
 
@@ -295,7 +295,7 @@ backend/internal/infrastructure/external/email/
 ### 2.1 テンプレートローダー
 
 ```go
-// internal/infrastructure/external/email/templates.go
+// backend/internal/infrastructure/external/email/templates.go
 
 package email
 
@@ -396,7 +396,7 @@ func (tm *TemplateManager) BaseURL() string {
 ### 2.2 テンプレートデータ構造
 
 ```go
-// internal/infrastructure/external/email/template_data.go
+// backend/internal/infrastructure/external/email/template_data.go
 
 package email
 
@@ -641,7 +641,7 @@ type ShareNotificationData struct {
 ### 3.1 サービスインターフェース
 
 ```go
-// internal/domain/service/email.go
+// backend/internal/domain/service/email.go
 
 package service
 
@@ -675,7 +675,7 @@ type ShareNotificationParams struct {
 ### 3.2 サービス実装
 
 ```go
-// internal/infrastructure/external/email/service.go
+// backend/internal/infrastructure/external/email/service.go
 
 package email
 
@@ -684,7 +684,7 @@ import (
     "fmt"
     "time"
 
-    "gc-storage/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 )
 
 // EmailServiceImpl はEmailServiceの実装です
@@ -797,7 +797,7 @@ var _ service.EmailService = (*EmailServiceImpl)(nil)
 ### 4.1 メールキュー
 
 ```go
-// internal/infrastructure/external/email/queue.go
+// backend/internal/infrastructure/external/email/queue.go
 
 package email
 
@@ -919,7 +919,7 @@ func (q *EmailQueue) QueueLength(ctx context.Context) (int64, error) {
 ### 4.2 メールワーカー
 
 ```go
-// internal/infrastructure/external/email/worker.go
+// backend/internal/infrastructure/external/email/worker.go
 
 package email
 
@@ -1073,14 +1073,14 @@ func (w *EmailWorker) sendEmail(ctx context.Context, email *QueuedEmail) error {
 ### 4.3 非同期メールサービス
 
 ```go
-// internal/infrastructure/external/email/async_service.go
+// backend/internal/infrastructure/external/email/async_service.go
 
 package email
 
 import (
     "context"
 
-    "gc-storage/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 )
 
 // AsyncEmailService は非同期メール送信サービスです
@@ -1161,7 +1161,7 @@ var _ service.EmailService = (*AsyncEmailService)(nil)
 ### 5.1 依存関係の初期化
 
 ```go
-// internal/infrastructure/di/email.go
+// backend/internal/infrastructure/di/email.go
 
 package di
 
@@ -1170,7 +1170,7 @@ import (
 
     "github.com/redis/go-redis/v9"
 
-    "gc-storage/internal/infrastructure/external/email"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/external/email"
 )
 
 // EmailComponents はメール関連の依存関係を保持します
@@ -1234,7 +1234,7 @@ func (c *EmailComponents) StopWorker() {
 ### 6.1 モックメールサービス
 
 ```go
-// internal/infrastructure/external/email/testhelper/mock.go
+// backend/internal/infrastructure/external/email/testhelper/mock.go
 
 package testhelper
 
@@ -1242,7 +1242,7 @@ import (
     "context"
     "sync"
 
-    "gc-storage/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 )
 
 // SentEmail は送信されたメールを表します

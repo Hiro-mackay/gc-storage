@@ -29,7 +29,7 @@ PBAC（Policy-Based）とReBAC（Relationship-Based）のハイブリッドモ�
 ### 1.1 Permission
 
 ```go
-// internal/domain/authz/permission.go
+// backend/internal/domain/authz/permission.go
 
 package authz
 
@@ -98,7 +98,7 @@ func (p Permission) IsValid() bool {
 ### 1.2 PermissionSet
 
 ```go
-// internal/domain/authz/permission_set.go
+// backend/internal/domain/authz/permission_set.go
 
 package authz
 
@@ -154,7 +154,7 @@ func (ps *PermissionSet) ToSlice() []Permission {
 ### 1.3 Role
 
 ```go
-// internal/domain/authz/role.go
+// backend/internal/domain/authz/role.go
 
 package authz
 
@@ -227,7 +227,7 @@ func (r Role) String() string {
 ### 1.4 RelationType
 
 ```go
-// internal/domain/authz/relation.go
+// backend/internal/domain/authz/relation.go
 
 package authz
 
@@ -270,7 +270,7 @@ func (r RelationType) String() string {
 ### 2.1 PermissionGrant
 
 ```go
-// internal/domain/authz/permission_grant.go
+// backend/internal/domain/authz/permission_grant.go
 
 package authz
 
@@ -321,7 +321,7 @@ func (g *PermissionGrant) GetPermissions() []Permission {
 ### 2.2 Relationship (Zanzibar-style Tuple)
 
 ```go
-// internal/domain/authz/relationship.go
+// backend/internal/domain/authz/relationship.go
 
 package authz
 
@@ -363,7 +363,7 @@ type Resource struct {
 ### 3.1 PermissionGrantRepository
 
 ```go
-// internal/domain/authz/permission_grant_repository.go
+// backend/internal/domain/authz/permission_grant_repository.go
 
 package authz
 
@@ -393,7 +393,7 @@ type PermissionGrantRepository interface {
 ### 3.2 RelationshipRepository
 
 ```go
-// internal/domain/authz/relationship_repository.go
+// backend/internal/domain/authz/relationship_repository.go
 
 package authz
 
@@ -437,7 +437,7 @@ type RelationshipRepository interface {
 ## 4. Permission Resolver
 
 ```go
-// internal/domain/authz/permission_resolver.go
+// backend/internal/domain/authz/permission_resolver.go
 
 package authz
 
@@ -461,14 +461,14 @@ type PermissionResolver interface {
 ### 4.1 Permission Resolver 実装
 
 ```go
-// internal/infrastructure/authz/permission_resolver.go
+// backend/internal/infrastructure/authz/permission_resolver.go
 
 package authz
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 )
 
 type PermissionResolverImpl struct {
@@ -704,7 +704,7 @@ func (r *PermissionResolverImpl) getAncestors(
 ### 5.1 ロール付与
 
 ```go
-// internal/usecase/authz/grant_role.go
+// backend/internal/usecase/authz/grant_role.go
 
 package authz
 
@@ -712,8 +712,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/authz"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type GrantRoleInput struct {
@@ -729,20 +729,20 @@ type GrantRoleOutput struct {
     Grant *authz.PermissionGrant
 }
 
-type GrantRoleUseCase struct {
+type GrantRoleCommand struct {
     grantRepo        authz.PermissionGrantRepository
     relationshipRepo authz.RelationshipRepository
     resolver         authz.PermissionResolver
     txManager        TransactionManager
 }
 
-func NewGrantRoleUseCase(
+func NewGrantRoleCommand(
     grantRepo authz.PermissionGrantRepository,
     relationshipRepo authz.RelationshipRepository,
     resolver authz.PermissionResolver,
     txManager TransactionManager,
-) *GrantRoleUseCase {
-    return &GrantRoleUseCase{
+) *GrantRoleCommand {
+    return &GrantRoleCommand{
         grantRepo:        grantRepo,
         relationshipRepo: relationshipRepo,
         resolver:         resolver,
@@ -750,7 +750,7 @@ func NewGrantRoleUseCase(
     }
 }
 
-func (uc *GrantRoleUseCase) Execute(ctx context.Context, input GrantRoleInput) (*GrantRoleOutput, error) {
+func (uc *GrantRoleCommand) Execute(ctx context.Context, input GrantRoleInput) (*GrantRoleOutput, error) {
     // 1. Validate role
     if !input.Role.IsValid() {
         return nil, apperror.NewValidation("invalid role", nil)
@@ -839,15 +839,15 @@ func (uc *GrantRoleUseCase) Execute(ctx context.Context, input GrantRoleInput) (
 ### 5.2 権限取り消し
 
 ```go
-// internal/usecase/authz/revoke_grant.go
+// backend/internal/usecase/authz/revoke_grant.go
 
 package authz
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/authz"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type RevokeGrantInput struct {
@@ -855,20 +855,20 @@ type RevokeGrantInput struct {
     ActorID  uuid.UUID
 }
 
-type RevokeGrantUseCase struct {
+type RevokeGrantCommand struct {
     grantRepo        authz.PermissionGrantRepository
     relationshipRepo authz.RelationshipRepository
     resolver         authz.PermissionResolver
     txManager        TransactionManager
 }
 
-func NewRevokeGrantUseCase(
+func NewRevokeGrantCommand(
     grantRepo authz.PermissionGrantRepository,
     relationshipRepo authz.RelationshipRepository,
     resolver authz.PermissionResolver,
     txManager TransactionManager,
-) *RevokeGrantUseCase {
-    return &RevokeGrantUseCase{
+) *RevokeGrantCommand {
+    return &RevokeGrantCommand{
         grantRepo:        grantRepo,
         relationshipRepo: relationshipRepo,
         resolver:         resolver,
@@ -876,7 +876,7 @@ func NewRevokeGrantUseCase(
     }
 }
 
-func (uc *RevokeGrantUseCase) Execute(ctx context.Context, input RevokeGrantInput) error {
+func (uc *RevokeGrantCommand) Execute(ctx context.Context, input RevokeGrantInput) error {
     // 1. Get the grant
     grant, err := uc.grantRepo.FindByID(ctx, input.GrantID)
     if err != nil {
@@ -926,7 +926,7 @@ func (uc *RevokeGrantUseCase) Execute(ctx context.Context, input RevokeGrantInpu
 ### 5.3 所有権設定
 
 ```go
-// internal/usecase/authz/set_owner.go
+// backend/internal/usecase/authz/set_owner.go
 
 package authz
 
@@ -934,7 +934,7 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 )
 
 type SetOwnerInput struct {
@@ -943,19 +943,19 @@ type SetOwnerInput struct {
     OwnerID      uuid.UUID
 }
 
-type SetOwnerUseCase struct {
+type SetOwnerCommand struct {
     relationshipRepo authz.RelationshipRepository
 }
 
-func NewSetOwnerUseCase(
+func NewSetOwnerCommand(
     relationshipRepo authz.RelationshipRepository,
-) *SetOwnerUseCase {
-    return &SetOwnerUseCase{
+) *SetOwnerCommand {
+    return &SetOwnerCommand{
         relationshipRepo: relationshipRepo,
     }
 }
 
-func (uc *SetOwnerUseCase) Execute(ctx context.Context, input SetOwnerInput) error {
+func (uc *SetOwnerCommand) Execute(ctx context.Context, input SetOwnerInput) error {
     // Create owner relationship
     relationship := &authz.Relationship{
         ID:          uuid.New(),
@@ -974,7 +974,7 @@ func (uc *SetOwnerUseCase) Execute(ctx context.Context, input SetOwnerInput) err
 ### 5.4 親子関係設定
 
 ```go
-// internal/usecase/authz/set_parent.go
+// backend/internal/usecase/authz/set_parent.go
 
 package authz
 
@@ -982,7 +982,7 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 )
 
 type SetParentInput struct {
@@ -992,19 +992,19 @@ type SetParentInput struct {
     ParentID   uuid.UUID
 }
 
-type SetParentUseCase struct {
+type SetParentCommand struct {
     relationshipRepo authz.RelationshipRepository
 }
 
-func NewSetParentUseCase(
+func NewSetParentCommand(
     relationshipRepo authz.RelationshipRepository,
-) *SetParentUseCase {
-    return &SetParentUseCase{
+) *SetParentCommand {
+    return &SetParentCommand{
         relationshipRepo: relationshipRepo,
     }
 }
 
-func (uc *SetParentUseCase) Execute(ctx context.Context, input SetParentInput) error {
+func (uc *SetParentCommand) Execute(ctx context.Context, input SetParentInput) error {
     // First delete any existing parent relationship
     _ = uc.relationshipRepo.DeleteByTuple(ctx, authz.Tuple{
         SubjectType: input.ParentType,
@@ -1032,15 +1032,15 @@ func (uc *SetParentUseCase) Execute(ctx context.Context, input SetParentInput) e
 ### 5.5 権限一覧取得
 
 ```go
-// internal/usecase/authz/list_grants.go
+// backend/internal/usecase/authz/list_grants.go
 
 package authz
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/authz"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type ListGrantsInput struct {
@@ -1059,22 +1059,22 @@ type ListGrantsOutput struct {
     Grants []*GrantWithUser
 }
 
-type ListGrantsUseCase struct {
+type ListGrantsQuery struct {
     grantRepo authz.PermissionGrantRepository
     resolver  authz.PermissionResolver
 }
 
-func NewListGrantsUseCase(
+func NewListGrantsQuery(
     grantRepo authz.PermissionGrantRepository,
     resolver authz.PermissionResolver,
-) *ListGrantsUseCase {
-    return &ListGrantsUseCase{
+) *ListGrantsQuery {
+    return &ListGrantsQuery{
         grantRepo: grantRepo,
         resolver:  resolver,
     }
 }
 
-func (uc *ListGrantsUseCase) Execute(ctx context.Context, input ListGrantsInput) (*ListGrantsOutput, error) {
+func (uc *ListGrantsQuery) Execute(ctx context.Context, input ListGrantsInput) (*ListGrantsOutput, error) {
     // 1. Verify actor has permission:read permission
     hasRead, err := uc.resolver.HasPermission(
         ctx, input.ActorID, input.ResourceType, input.ResourceID, authz.PermPermissionRead,
@@ -1112,7 +1112,7 @@ func (uc *ListGrantsUseCase) Execute(ctx context.Context, input ListGrantsInput)
 ### 6.1 Permission Middleware
 
 ```go
-// internal/interface/middleware/permission.go
+// backend/internal/interface/middleware/permission.go
 
 package middleware
 
@@ -1121,8 +1121,8 @@ import (
     "net/http"
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
-    "gc-storage/internal/domain/authz"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type PermissionMiddleware struct {
@@ -1253,7 +1253,7 @@ func (m *PermissionMiddleware) RequireOwner(
 ## 7. ハンドラー
 
 ```go
-// internal/interface/handler/permission_handler.go
+// backend/internal/interface/handler/permission_handler.go
 
 package handler
 
@@ -1261,16 +1261,16 @@ import (
     "net/http"
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
-    "gc-storage/internal/domain/authz"
-    "gc-storage/internal/interface/dto"
-    "gc-storage/internal/interface/middleware"
-    usecase "gc-storage/internal/usecase/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    usecase "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/authz"
 )
 
 type PermissionHandler struct {
-    grantRole   *usecase.GrantRoleUseCase
-    revokeGrant *usecase.RevokeGrantUseCase
-    listGrants  *usecase.ListGrantsUseCase
+    grantRole   *usecase.GrantRoleCommand
+    revokeGrant *usecase.RevokeGrantCommand
+    listGrants  *usecase.ListGrantsQuery
 }
 
 // POST /api/v1/files/:id/permissions or /api/v1/folders/:id/permissions
@@ -1359,7 +1359,7 @@ func (h *PermissionHandler) ListGrants(c echo.Context) error {
 ## 8. DTO定義
 
 ```go
-// internal/interface/dto/permission.go
+// backend/internal/interface/dto/permission.go
 
 package dto
 
@@ -1406,7 +1406,7 @@ type PermissionListResponse struct {
 ## 10. ルーティング設定例
 
 ```go
-// internal/interface/router/router.go
+// backend/internal/interface/router/router.go
 
 func SetupRoutes(e *echo.Echo, h *Handlers, m *Middlewares) {
     api := e.Group("/api/v1")

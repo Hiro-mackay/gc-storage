@@ -23,7 +23,7 @@ Share Linkは、ファイルやフォルダへの外部アクセスを可能に�
 ### 1.1 ShareLink
 
 ```go
-// internal/domain/sharing/share_link.go
+// backend/internal/domain/sharing/share_link.go
 
 package sharing
 
@@ -120,7 +120,7 @@ func (l *ShareLink) IncrementAccessCount() {
 ### 1.2 ShareToken
 
 ```go
-// internal/domain/sharing/share_token.go
+// backend/internal/domain/sharing/share_token.go
 
 package sharing
 
@@ -174,7 +174,7 @@ func (t ShareToken) String() string {
 ### 1.3 ShareLinkAccess
 
 ```go
-// internal/domain/sharing/share_link_access.go
+// backend/internal/domain/sharing/share_link_access.go
 
 package sharing
 
@@ -205,7 +205,7 @@ type ShareLinkAccess struct {
 ### 1.4 ShareLinkOptions
 
 ```go
-// internal/domain/sharing/share_link_options.go
+// backend/internal/domain/sharing/share_link_options.go
 
 package sharing
 
@@ -253,7 +253,7 @@ func (o ShareLinkOptions) Validate() error {
 ### 2.1 ShareLinkRepository
 
 ```go
-// internal/domain/sharing/share_link_repository.go
+// backend/internal/domain/sharing/share_link_repository.go
 
 package sharing
 
@@ -286,7 +286,7 @@ type ShareLinkRepository interface {
 ### 2.2 ShareLinkAccessRepository
 
 ```go
-// internal/domain/sharing/share_link_access_repository.go
+// backend/internal/domain/sharing/share_link_access_repository.go
 
 package sharing
 
@@ -312,7 +312,7 @@ type ShareLinkAccessRepository interface {
 ### 3.1 共有リンク作成
 
 ```go
-// internal/usecase/sharing/create_share_link.go
+// backend/internal/usecase/sharing/create_share_link.go
 
 package sharing
 
@@ -321,10 +321,10 @@ import (
     "time"
     "github.com/google/uuid"
     "golang.org/x/crypto/bcrypt"
-    "gc-storage/internal/domain/authz"
-    "gc-storage/internal/domain/sharing"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type CreateShareLinkInput struct {
@@ -339,7 +339,7 @@ type CreateShareLinkOutput struct {
     URL       string
 }
 
-type CreateShareLinkUseCase struct {
+type CreateShareLinkCommand struct {
     linkRepo    sharing.ShareLinkRepository
     fileRepo    storage.FileRepository
     folderRepo  storage.FolderRepository
@@ -347,14 +347,14 @@ type CreateShareLinkUseCase struct {
     baseURL     string
 }
 
-func NewCreateShareLinkUseCase(
+func NewCreateShareLinkCommand(
     linkRepo sharing.ShareLinkRepository,
     fileRepo storage.FileRepository,
     folderRepo storage.FolderRepository,
     resolver authz.PermissionResolver,
     baseURL string,
-) *CreateShareLinkUseCase {
-    return &CreateShareLinkUseCase{
+) *CreateShareLinkCommand {
+    return &CreateShareLinkCommand{
         linkRepo:   linkRepo,
         fileRepo:   fileRepo,
         folderRepo: folderRepo,
@@ -363,7 +363,7 @@ func NewCreateShareLinkUseCase(
     }
 }
 
-func (uc *CreateShareLinkUseCase) Execute(ctx context.Context, input CreateShareLinkInput) (*CreateShareLinkOutput, error) {
+func (uc *CreateShareLinkCommand) Execute(ctx context.Context, input CreateShareLinkInput) (*CreateShareLinkOutput, error) {
     // 1. Validate options
     if err := input.Options.Validate(); err != nil {
         return nil, apperror.NewValidation("invalid options", err)
@@ -440,7 +440,7 @@ func (uc *CreateShareLinkUseCase) Execute(ctx context.Context, input CreateShare
     }, nil
 }
 
-func (uc *CreateShareLinkUseCase) resourceExists(ctx context.Context, resourceType sharing.ResourceType, resourceID uuid.UUID) (bool, error) {
+func (uc *CreateShareLinkCommand) resourceExists(ctx context.Context, resourceType sharing.ResourceType, resourceID uuid.UUID) (bool, error) {
     if resourceType == sharing.ResourceTypeFile {
         file, err := uc.fileRepo.FindByID(ctx, resourceID)
         return file != nil && file.Status == storage.FileStatusActive, err
@@ -453,7 +453,7 @@ func (uc *CreateShareLinkUseCase) resourceExists(ctx context.Context, resourceTy
 ### 3.2 共有リンクアクセス
 
 ```go
-// internal/usecase/sharing/access_share_link.go
+// backend/internal/usecase/sharing/access_share_link.go
 
 package sharing
 
@@ -461,10 +461,10 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/sharing"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/internal/infrastructure/minio"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type ClientInfo struct {
@@ -499,7 +499,7 @@ type AccessShareLinkOutput struct {
 
 const PresignedURLExpiry = 15 * time.Minute
 
-type AccessShareLinkUseCase struct {
+type AccessShareLinkQuery struct {
     linkRepo    sharing.ShareLinkRepository
     accessRepo  sharing.ShareLinkAccessRepository
     fileRepo    storage.FileRepository
@@ -508,15 +508,15 @@ type AccessShareLinkUseCase struct {
     txManager   TransactionManager
 }
 
-func NewAccessShareLinkUseCase(
+func NewAccessShareLinkQuery(
     linkRepo sharing.ShareLinkRepository,
     accessRepo sharing.ShareLinkAccessRepository,
     fileRepo storage.FileRepository,
     folderRepo storage.FolderRepository,
     minioClient minio.Client,
     txManager TransactionManager,
-) *AccessShareLinkUseCase {
-    return &AccessShareLinkUseCase{
+) *AccessShareLinkQuery {
+    return &AccessShareLinkQuery{
         linkRepo:    linkRepo,
         accessRepo:  accessRepo,
         fileRepo:    fileRepo,
@@ -526,7 +526,7 @@ func NewAccessShareLinkUseCase(
     }
 }
 
-func (uc *AccessShareLinkUseCase) Execute(ctx context.Context, input AccessShareLinkInput) (*AccessShareLinkOutput, error) {
+func (uc *AccessShareLinkQuery) Execute(ctx context.Context, input AccessShareLinkInput) (*AccessShareLinkOutput, error) {
     // 1. Parse and validate token
     token, err := sharing.ParseShareToken(input.Token)
     if err != nil {
@@ -643,7 +643,7 @@ func (uc *AccessShareLinkUseCase) Execute(ctx context.Context, input AccessShare
     return output, nil
 }
 
-func (uc *AccessShareLinkUseCase) getFolderContents(ctx context.Context, folderID uuid.UUID) ([]*ResourceInfo, error) {
+func (uc *AccessShareLinkQuery) getFolderContents(ctx context.Context, folderID uuid.UUID) ([]*ResourceInfo, error) {
     var contents []*ResourceInfo
 
     // Get subfolders
@@ -681,7 +681,7 @@ func (uc *AccessShareLinkUseCase) getFolderContents(ctx context.Context, folderI
 ### 3.3 ファイルダウンロード（共有リンク経由）
 
 ```go
-// internal/usecase/sharing/download_via_share.go
+// backend/internal/usecase/sharing/download_via_share.go
 
 package sharing
 
@@ -689,10 +689,10 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/sharing"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/internal/infrastructure/minio"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type DownloadViaShareInput struct {
@@ -709,7 +709,7 @@ type DownloadViaShareOutput struct {
     Size     int64
 }
 
-type DownloadViaShareUseCase struct {
+type GetDownloadViaShareQuery struct {
     linkRepo    sharing.ShareLinkRepository
     accessRepo  sharing.ShareLinkAccessRepository
     fileRepo    storage.FileRepository
@@ -717,14 +717,14 @@ type DownloadViaShareUseCase struct {
     minioClient minio.Client
 }
 
-func NewDownloadViaShareUseCase(
+func NewGetDownloadViaShareQuery(
     linkRepo sharing.ShareLinkRepository,
     accessRepo sharing.ShareLinkAccessRepository,
     fileRepo storage.FileRepository,
     folderRepo storage.FolderRepository,
     minioClient minio.Client,
-) *DownloadViaShareUseCase {
-    return &DownloadViaShareUseCase{
+) *GetDownloadViaShareQuery {
+    return &GetDownloadViaShareQuery{
         linkRepo:    linkRepo,
         accessRepo:  accessRepo,
         fileRepo:    fileRepo,
@@ -733,7 +733,7 @@ func NewDownloadViaShareUseCase(
     }
 }
 
-func (uc *DownloadViaShareUseCase) Execute(ctx context.Context, input DownloadViaShareInput) (*DownloadViaShareOutput, error) {
+func (uc *GetDownloadViaShareQuery) Execute(ctx context.Context, input DownloadViaShareInput) (*DownloadViaShareOutput, error) {
     // 1. Validate and get share link
     link, err := uc.validateShareLink(ctx, input.Token, input.Password)
     if err != nil {
@@ -791,7 +791,7 @@ func (uc *DownloadViaShareUseCase) Execute(ctx context.Context, input DownloadVi
     }, nil
 }
 
-func (uc *DownloadViaShareUseCase) validateShareLink(ctx context.Context, token string, password *string) (*sharing.ShareLink, error) {
+func (uc *GetDownloadViaShareQuery) validateShareLink(ctx context.Context, token string, password *string) (*sharing.ShareLink, error) {
     parsedToken, err := sharing.ParseShareToken(token)
     if err != nil {
         return nil, apperror.NewBadRequest("invalid token", err)
@@ -821,7 +821,7 @@ func (uc *DownloadViaShareUseCase) validateShareLink(ctx context.Context, token 
     return link, nil
 }
 
-func (uc *DownloadViaShareUseCase) isFileInFolder(ctx context.Context, fileID, folderID uuid.UUID) (bool, error) {
+func (uc *GetDownloadViaShareQuery) isFileInFolder(ctx context.Context, fileID, folderID uuid.UUID) (bool, error) {
     file, err := uc.fileRepo.FindByID(ctx, fileID)
     if err != nil {
         return false, err
@@ -853,7 +853,7 @@ func (uc *DownloadViaShareUseCase) isFileInFolder(ctx context.Context, fileID, f
 ### 3.4 共有リンク無効化
 
 ```go
-// internal/usecase/sharing/revoke_share_link.go
+// backend/internal/usecase/sharing/revoke_share_link.go
 
 package sharing
 
@@ -861,8 +861,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/sharing"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type RevokeShareLinkInput struct {
@@ -870,19 +870,19 @@ type RevokeShareLinkInput struct {
     ActorID uuid.UUID
 }
 
-type RevokeShareLinkUseCase struct {
+type RevokeShareLinkCommand struct {
     linkRepo sharing.ShareLinkRepository
 }
 
-func NewRevokeShareLinkUseCase(
+func NewRevokeShareLinkCommand(
     linkRepo sharing.ShareLinkRepository,
-) *RevokeShareLinkUseCase {
-    return &RevokeShareLinkUseCase{
+) *RevokeShareLinkCommand {
+    return &RevokeShareLinkCommand{
         linkRepo: linkRepo,
     }
 }
 
-func (uc *RevokeShareLinkUseCase) Execute(ctx context.Context, input RevokeShareLinkInput) error {
+func (uc *RevokeShareLinkCommand) Execute(ctx context.Context, input RevokeShareLinkInput) error {
     // 1. Get share link
     link, err := uc.linkRepo.FindByID(ctx, input.LinkID)
     if err != nil {
@@ -910,7 +910,7 @@ func (uc *RevokeShareLinkUseCase) Execute(ctx context.Context, input RevokeShare
 ### 3.5 共有リンク更新
 
 ```go
-// internal/usecase/sharing/update_share_link.go
+// backend/internal/usecase/sharing/update_share_link.go
 
 package sharing
 
@@ -919,8 +919,8 @@ import (
     "time"
     "github.com/google/uuid"
     "golang.org/x/crypto/bcrypt"
-    "gc-storage/internal/domain/sharing"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type UpdateShareLinkInput struct {
@@ -935,19 +935,19 @@ type UpdateShareLinkOutput struct {
     ShareLink *sharing.ShareLink
 }
 
-type UpdateShareLinkUseCase struct {
+type UpdateShareLinkCommand struct {
     linkRepo sharing.ShareLinkRepository
 }
 
-func NewUpdateShareLinkUseCase(
+func NewUpdateShareLinkCommand(
     linkRepo sharing.ShareLinkRepository,
-) *UpdateShareLinkUseCase {
-    return &UpdateShareLinkUseCase{
+) *UpdateShareLinkCommand {
+    return &UpdateShareLinkCommand{
         linkRepo: linkRepo,
     }
 }
 
-func (uc *UpdateShareLinkUseCase) Execute(ctx context.Context, input UpdateShareLinkInput) (*UpdateShareLinkOutput, error) {
+func (uc *UpdateShareLinkCommand) Execute(ctx context.Context, input UpdateShareLinkInput) (*UpdateShareLinkOutput, error) {
     // 1. Get share link
     link, err := uc.linkRepo.FindByID(ctx, input.LinkID)
     if err != nil {
@@ -1005,16 +1005,16 @@ func (uc *UpdateShareLinkUseCase) Execute(ctx context.Context, input UpdateShare
 ### 3.6 共有リンク一覧
 
 ```go
-// internal/usecase/sharing/list_share_links.go
+// backend/internal/usecase/sharing/list_share_links.go
 
 package sharing
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/authz"
-    "gc-storage/internal/domain/sharing"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type ListShareLinksInput struct {
@@ -1027,22 +1027,22 @@ type ListShareLinksOutput struct {
     Links []*sharing.ShareLink
 }
 
-type ListShareLinksUseCase struct {
+type ListShareLinksQuery struct {
     linkRepo sharing.ShareLinkRepository
     resolver authz.PermissionResolver
 }
 
-func NewListShareLinksUseCase(
+func NewListShareLinksQuery(
     linkRepo sharing.ShareLinkRepository,
     resolver authz.PermissionResolver,
-) *ListShareLinksUseCase {
-    return &ListShareLinksUseCase{
+) *ListShareLinksQuery {
+    return &ListShareLinksQuery{
         linkRepo: linkRepo,
         resolver: resolver,
     }
 }
 
-func (uc *ListShareLinksUseCase) Execute(ctx context.Context, input ListShareLinksInput) (*ListShareLinksOutput, error) {
+func (uc *ListShareLinksQuery) Execute(ctx context.Context, input ListShareLinksInput) (*ListShareLinksOutput, error) {
     // 1. Verify actor has permission to view share links
     var permission authz.Permission
     if input.ResourceType == sharing.ResourceTypeFile {
@@ -1076,7 +1076,7 @@ func (uc *ListShareLinksUseCase) Execute(ctx context.Context, input ListShareLin
 ## 4. ハンドラー
 
 ```go
-// internal/interface/handler/share_handler.go
+// backend/internal/interface/handler/share_handler.go
 
 package handler
 
@@ -1084,20 +1084,20 @@ import (
     "net/http"
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
-    "gc-storage/internal/domain/sharing"
-    "gc-storage/internal/interface/dto"
-    "gc-storage/internal/interface/middleware"
-    usecase "gc-storage/internal/usecase/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    usecase "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/sharing"
 )
 
 type ShareHandler struct {
-    createShareLink   *usecase.CreateShareLinkUseCase
-    accessShareLink   *usecase.AccessShareLinkUseCase
-    downloadViaShare  *usecase.DownloadViaShareUseCase
-    revokeShareLink   *usecase.RevokeShareLinkUseCase
-    updateShareLink   *usecase.UpdateShareLinkUseCase
-    listShareLinks    *usecase.ListShareLinksUseCase
-    getAccessHistory  *usecase.GetAccessHistoryUseCase
+    createShareLink   *usecase.CreateShareLinkCommand
+    accessShareLink   *usecase.AccessShareLinkQuery
+    downloadViaShare  *usecase.GetDownloadViaShareQuery
+    revokeShareLink   *usecase.RevokeShareLinkCommand
+    updateShareLink   *usecase.UpdateShareLinkCommand
+    listShareLinks    *usecase.ListShareLinksQuery
+    getAccessHistory  *usecase.GetAccessHistoryQuery
 }
 
 // POST /api/v1/files/:id/share or /api/v1/folders/:id/share
@@ -1357,7 +1357,7 @@ func getClientUserAgent(c echo.Context) *string {
 ## 5. DTO定義
 
 ```go
-// internal/interface/dto/share.go
+// backend/internal/interface/dto/share.go
 
 package dto
 
@@ -1457,14 +1457,14 @@ type ResourceInfo struct {
 ### 7.1 期限切れリンク処理
 
 ```go
-// internal/job/share_link_expiry.go
+// backend/internal/job/share_link_expiry.go
 
 package job
 
 import (
     "context"
     "log/slog"
-    "gc-storage/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
 )
 
 type ShareLinkExpiryJob struct {
@@ -1513,7 +1513,7 @@ func (j *ShareLinkExpiryJob) Run(ctx context.Context) error {
 ### 7.2 アクセスログ匿名化
 
 ```go
-// internal/job/access_log_anonymize.go
+// backend/internal/job/access_log_anonymize.go
 
 package job
 
@@ -1521,7 +1521,7 @@ import (
     "context"
     "log/slog"
     "time"
-    "gc-storage/internal/domain/sharing"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/sharing"
 )
 
 const AccessLogRetentionDays = 90

@@ -15,7 +15,7 @@
 ### 1.1 クライアント構成
 
 ```go
-// internal/infrastructure/storage/minio/client.go
+// backend/internal/infrastructure/storage/minio/client.go
 
 package minio
 
@@ -124,7 +124,7 @@ backend/internal/infrastructure/storage/minio/
 ### 2.1 キー形式
 
 ```go
-// internal/infrastructure/storage/minio/keys.go
+// backend/internal/infrastructure/storage/minio/keys.go
 
 package minio
 
@@ -226,7 +226,7 @@ func (k StorageKey) ThumbnailKey(size string) string {
 ### 3.2 Presigned URL 実装
 
 ```go
-// internal/infrastructure/storage/minio/presigned.go
+// backend/internal/infrastructure/storage/minio/presigned.go
 
 package minio
 
@@ -356,7 +356,7 @@ func (s *PresignedURLService) GeneratePreviewURL(
 ### 3.3 ストレージサービスインターフェース
 
 ```go
-// internal/domain/service/storage.go
+// backend/internal/domain/service/storage.go
 
 package service
 
@@ -479,7 +479,7 @@ type PartInfo struct {
 ### 4.2 マルチパートアップロード実装
 
 ```go
-// internal/infrastructure/storage/minio/multipart.go
+// backend/internal/infrastructure/storage/minio/multipart.go
 
 package minio
 
@@ -492,7 +492,7 @@ import (
 
     "github.com/minio/minio-go/v7"
 
-    "gc-storage/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 )
 
 // MultipartService はマルチパートアップロードを提供します
@@ -698,7 +698,7 @@ func CalculatePartSize(fileSize int64, partNumber, totalParts int) int64 {
 ### 5.1 ストレージサービス実装
 
 ```go
-// internal/infrastructure/storage/minio/storage.go
+// backend/internal/infrastructure/storage/minio/storage.go
 
 package minio
 
@@ -710,7 +710,7 @@ import (
 
     "github.com/minio/minio-go/v7"
 
-    "gc-storage/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 )
 
 // StorageServiceImpl はStorageServiceの実装です
@@ -891,7 +891,7 @@ var _ service.StorageService = (*StorageServiceImpl)(nil)
 ### 6.1 バケット初期化
 
 ```go
-// internal/infrastructure/storage/minio/setup.go
+// backend/internal/infrastructure/storage/minio/setup.go
 
 package minio
 
@@ -963,7 +963,7 @@ func (s *BucketSetup) SetVersioning(ctx context.Context, enabled bool) error {
 ### 6.2 ライフサイクル管理
 
 ```go
-// internal/infrastructure/storage/minio/lifecycle.go
+// backend/internal/infrastructure/storage/minio/lifecycle.go
 
 package minio
 
@@ -1046,7 +1046,7 @@ func (m *LifecycleManager) SetObjectExpiration(ctx context.Context, prefix strin
 ### 7.1 孤立オブジェクトクリーンアップ
 
 ```go
-// internal/infrastructure/storage/minio/cleanup.go
+// backend/internal/infrastructure/storage/minio/cleanup.go
 
 package minio
 
@@ -1058,7 +1058,7 @@ import (
 
     "github.com/minio/minio-go/v7"
 
-    "gc-storage/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 )
 
 // CleanupService は不要オブジェクトのクリーンアップを提供します
@@ -1259,12 +1259,12 @@ func IsNotFound(err error) bool {
 ### 9.1 MinIO依存関係の初期化
 
 ```go
-// internal/infrastructure/di/minio.go
+// backend/internal/infrastructure/di/minio.go
 
 package di
 
 import (
-    "gc-storage/internal/infrastructure/storage/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/storage/minio"
 )
 
 // MinIOComponents はMinIO関連の依存関係を保持します
@@ -1312,7 +1312,7 @@ func NewMinIOComponents(cfg minio.Config, fileRepo repository.FileRepository, lo
 ### 10.1 MinIO Testcontainer
 
 ```go
-// internal/infrastructure/storage/minio/testhelper/minio.go
+// backend/internal/infrastructure/storage/minio/testhelper/minio.go
 
 package testhelper
 
@@ -1324,7 +1324,7 @@ import (
     "github.com/testcontainers/testcontainers-go"
     "github.com/testcontainers/testcontainers-go/wait"
 
-    minioinfra "gc-storage/internal/infrastructure/storage/minio"
+    minioinfra "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/storage/minio"
 )
 
 // MinIOContainer はテスト用MinIOコンテナを管理します
@@ -1436,7 +1436,7 @@ func (c *MinIOContainer) ClearBucket(ctx context.Context) error {
 ### 10.2 ストレージサービステスト例
 
 ```go
-// internal/infrastructure/storage/minio/storage_test.go
+// backend/internal/infrastructure/storage/minio/storage_test.go
 
 package minio_test
 
@@ -1449,8 +1449,8 @@ import (
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/require"
 
-    minioinfra "gc-storage/internal/infrastructure/storage/minio"
-    "gc-storage/internal/infrastructure/storage/minio/testhelper"
+    minioinfra "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/storage/minio"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/storage/minio/testhelper"
 )
 
 func TestStorageService_PutAndGet(t *testing.T) {

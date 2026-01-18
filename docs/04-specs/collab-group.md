@@ -23,7 +23,7 @@ Collaboration Groupは、グループの作成・管理、メンバーシップ�
 ### 1.1 Group
 
 ```go
-// internal/domain/group/group.go
+// backend/internal/domain/group/group.go
 
 package group
 
@@ -68,7 +68,7 @@ func (g *Group) CanDelete(userID uuid.UUID) bool {
 ### 1.2 GroupRole
 
 ```go
-// internal/domain/group/role.go
+// backend/internal/domain/group/role.go
 
 package group
 
@@ -151,7 +151,7 @@ func (r GroupRole) IsHigherThan(other GroupRole) bool {
 ### 1.3 Membership
 
 ```go
-// internal/domain/group/membership.go
+// backend/internal/domain/group/membership.go
 
 package group
 
@@ -183,7 +183,7 @@ func (m *Membership) CanLeave() bool {
 ### 1.4 Invitation
 
 ```go
-// internal/domain/group/invitation.go
+// backend/internal/domain/group/invitation.go
 
 package group
 
@@ -262,7 +262,7 @@ func GenerateInvitationToken() (string, error) {
 ### 2.1 GroupRepository
 
 ```go
-// internal/domain/group/group_repository.go
+// backend/internal/domain/group/group_repository.go
 
 package group
 
@@ -288,7 +288,7 @@ type GroupRepository interface {
 ### 2.2 MembershipRepository
 
 ```go
-// internal/domain/group/membership_repository.go
+// backend/internal/domain/group/membership_repository.go
 
 package group
 
@@ -324,7 +324,7 @@ type MembershipRepository interface {
 ### 2.3 InvitationRepository
 
 ```go
-// internal/domain/group/invitation_repository.go
+// backend/internal/domain/group/invitation_repository.go
 
 package group
 
@@ -359,7 +359,7 @@ type InvitationRepository interface {
 ### 3.1 グループ作成
 
 ```go
-// internal/usecase/group/create_group.go
+// backend/internal/usecase/group/create_group.go
 
 package group
 
@@ -367,9 +367,9 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type CreateGroupInput struct {
@@ -384,20 +384,20 @@ type CreateGroupOutput struct {
     RootFolder *storage.Folder
 }
 
-type CreateGroupUseCase struct {
+type CreateGroupCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
     folderRepo     storage.FolderRepository
     txManager      TransactionManager
 }
 
-func NewCreateGroupUseCase(
+func NewCreateGroupCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
     folderRepo storage.FolderRepository,
     txManager TransactionManager,
-) *CreateGroupUseCase {
-    return &CreateGroupUseCase{
+) *CreateGroupCommand {
+    return &CreateGroupCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
         folderRepo:     folderRepo,
@@ -405,7 +405,7 @@ func NewCreateGroupUseCase(
     }
 }
 
-func (uc *CreateGroupUseCase) Execute(ctx context.Context, input CreateGroupInput) (*CreateGroupOutput, error) {
+func (uc *CreateGroupCommand) Execute(ctx context.Context, input CreateGroupInput) (*CreateGroupOutput, error) {
     // 1. Validate name
     if len(input.Name) == 0 || len(input.Name) > 100 {
         return nil, apperror.NewValidation("group name must be 1-100 characters", nil)
@@ -482,7 +482,7 @@ func (uc *CreateGroupUseCase) Execute(ctx context.Context, input CreateGroupInpu
 ### 3.2 メンバー招待
 
 ```go
-// internal/usecase/group/invite_member.go
+// backend/internal/usecase/group/invite_member.go
 
 package group
 
@@ -490,10 +490,10 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/internal/domain/user"
-    "gc-storage/internal/infrastructure/email"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/user"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/email"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type InviteMemberInput struct {
@@ -507,7 +507,7 @@ type InviteMemberOutput struct {
     Invitation *group.Invitation
 }
 
-type InviteMemberUseCase struct {
+type InviteMemberCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
     invitationRepo group.InvitationRepository
@@ -516,15 +516,15 @@ type InviteMemberUseCase struct {
     baseURL        string
 }
 
-func NewInviteMemberUseCase(
+func NewInviteMemberCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
     invitationRepo group.InvitationRepository,
     userRepo user.UserRepository,
     emailService email.Service,
     baseURL string,
-) *InviteMemberUseCase {
-    return &InviteMemberUseCase{
+) *InviteMemberCommand {
+    return &InviteMemberCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
         invitationRepo: invitationRepo,
@@ -534,7 +534,7 @@ func NewInviteMemberUseCase(
     }
 }
 
-func (uc *InviteMemberUseCase) Execute(ctx context.Context, input InviteMemberInput) (*InviteMemberOutput, error) {
+func (uc *InviteMemberCommand) Execute(ctx context.Context, input InviteMemberInput) (*InviteMemberOutput, error) {
     // 1. Validate role (cannot invite as owner)
     if input.Role == group.GroupRoleOwner {
         return nil, apperror.NewBadRequest("cannot invite with owner role", nil)
@@ -612,7 +612,7 @@ func (uc *InviteMemberUseCase) Execute(ctx context.Context, input InviteMemberIn
 ### 3.3 招待承諾
 
 ```go
-// internal/usecase/group/accept_invitation.go
+// backend/internal/usecase/group/accept_invitation.go
 
 package group
 
@@ -620,9 +620,9 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/internal/domain/user"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/user"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type AcceptInvitationInput struct {
@@ -635,7 +635,7 @@ type AcceptInvitationOutput struct {
     Group      *group.Group
 }
 
-type AcceptInvitationUseCase struct {
+type AcceptInvitationCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
     invitationRepo group.InvitationRepository
@@ -643,14 +643,14 @@ type AcceptInvitationUseCase struct {
     txManager      TransactionManager
 }
 
-func NewAcceptInvitationUseCase(
+func NewAcceptInvitationCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
     invitationRepo group.InvitationRepository,
     userRepo user.UserRepository,
     txManager TransactionManager,
-) *AcceptInvitationUseCase {
-    return &AcceptInvitationUseCase{
+) *AcceptInvitationCommand {
+    return &AcceptInvitationCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
         invitationRepo: invitationRepo,
@@ -659,7 +659,7 @@ func NewAcceptInvitationUseCase(
     }
 }
 
-func (uc *AcceptInvitationUseCase) Execute(ctx context.Context, input AcceptInvitationInput) (*AcceptInvitationOutput, error) {
+func (uc *AcceptInvitationCommand) Execute(ctx context.Context, input AcceptInvitationInput) (*AcceptInvitationOutput, error) {
     var output *AcceptInvitationOutput
 
     err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
@@ -741,15 +741,15 @@ func (uc *AcceptInvitationUseCase) Execute(ctx context.Context, input AcceptInvi
 ### 3.4 メンバー削除
 
 ```go
-// internal/usecase/group/remove_member.go
+// backend/internal/usecase/group/remove_member.go
 
 package group
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type RemoveMemberInput struct {
@@ -758,25 +758,25 @@ type RemoveMemberInput struct {
     ActorID   uuid.UUID  // User performing the action
 }
 
-type RemoveMemberUseCase struct {
+type RemoveMemberCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
     txManager      TransactionManager
 }
 
-func NewRemoveMemberUseCase(
+func NewRemoveMemberCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
     txManager TransactionManager,
-) *RemoveMemberUseCase {
-    return &RemoveMemberUseCase{
+) *RemoveMemberCommand {
+    return &RemoveMemberCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
         txManager:      txManager,
     }
 }
 
-func (uc *RemoveMemberUseCase) Execute(ctx context.Context, input RemoveMemberInput) error {
+func (uc *RemoveMemberCommand) Execute(ctx context.Context, input RemoveMemberInput) error {
     return uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
         // 1. Get group
         grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
@@ -822,15 +822,15 @@ func (uc *RemoveMemberUseCase) Execute(ctx context.Context, input RemoveMemberIn
 ### 3.5 グループ脱退
 
 ```go
-// internal/usecase/group/leave_group.go
+// backend/internal/usecase/group/leave_group.go
 
 package group
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type LeaveGroupInput struct {
@@ -838,22 +838,22 @@ type LeaveGroupInput struct {
     UserID  uuid.UUID
 }
 
-type LeaveGroupUseCase struct {
+type LeaveGroupCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
 }
 
-func NewLeaveGroupUseCase(
+func NewLeaveGroupCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
-) *LeaveGroupUseCase {
-    return &LeaveGroupUseCase{
+) *LeaveGroupCommand {
+    return &LeaveGroupCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
     }
 }
 
-func (uc *LeaveGroupUseCase) Execute(ctx context.Context, input LeaveGroupInput) error {
+func (uc *LeaveGroupCommand) Execute(ctx context.Context, input LeaveGroupInput) error {
     // 1. Get group
     grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
@@ -882,7 +882,7 @@ func (uc *LeaveGroupUseCase) Execute(ctx context.Context, input LeaveGroupInput)
 ### 3.6 所有権譲渡
 
 ```go
-// internal/usecase/group/transfer_ownership.go
+// backend/internal/usecase/group/transfer_ownership.go
 
 package group
 
@@ -890,8 +890,8 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type TransferOwnershipInput struct {
@@ -904,25 +904,25 @@ type TransferOwnershipOutput struct {
     Group *group.Group
 }
 
-type TransferOwnershipUseCase struct {
+type TransferOwnershipCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
     txManager      TransactionManager
 }
 
-func NewTransferOwnershipUseCase(
+func NewTransferOwnershipCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
     txManager TransactionManager,
-) *TransferOwnershipUseCase {
-    return &TransferOwnershipUseCase{
+) *TransferOwnershipCommand {
+    return &TransferOwnershipCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
         txManager:      txManager,
     }
 }
 
-func (uc *TransferOwnershipUseCase) Execute(ctx context.Context, input TransferOwnershipInput) (*TransferOwnershipOutput, error) {
+func (uc *TransferOwnershipCommand) Execute(ctx context.Context, input TransferOwnershipInput) (*TransferOwnershipOutput, error) {
     var output *TransferOwnershipOutput
 
     err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
@@ -993,15 +993,15 @@ func (uc *TransferOwnershipUseCase) Execute(ctx context.Context, input TransferO
 ### 3.7 ロール変更
 
 ```go
-// internal/usecase/group/change_role.go
+// backend/internal/usecase/group/change_role.go
 
 package group
 
 import (
     "context"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type ChangeRoleInput struct {
@@ -1015,22 +1015,22 @@ type ChangeRoleOutput struct {
     Membership *group.Membership
 }
 
-type ChangeRoleUseCase struct {
+type ChangeRoleCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
 }
 
-func NewChangeRoleUseCase(
+func NewChangeRoleCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
-) *ChangeRoleUseCase {
-    return &ChangeRoleUseCase{
+) *ChangeRoleCommand {
+    return &ChangeRoleCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
     }
 }
 
-func (uc *ChangeRoleUseCase) Execute(ctx context.Context, input ChangeRoleInput) (*ChangeRoleOutput, error) {
+func (uc *ChangeRoleCommand) Execute(ctx context.Context, input ChangeRoleInput) (*ChangeRoleOutput, error) {
     // 1. Get group
     grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
@@ -1080,7 +1080,7 @@ func (uc *ChangeRoleUseCase) Execute(ctx context.Context, input ChangeRoleInput)
 ### 3.8 グループ削除
 
 ```go
-// internal/usecase/group/delete_group.go
+// backend/internal/usecase/group/delete_group.go
 
 package group
 
@@ -1088,9 +1088,9 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "gc-storage/internal/domain/group"
-    "gc-storage/internal/domain/storage"
-    "gc-storage/pkg/apperror"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 type DeleteGroupInput struct {
@@ -1098,7 +1098,7 @@ type DeleteGroupInput struct {
     ActorID uuid.UUID
 }
 
-type DeleteGroupUseCase struct {
+type DeleteGroupCommand struct {
     groupRepo      group.GroupRepository
     membershipRepo group.MembershipRepository
     invitationRepo group.InvitationRepository
@@ -1106,14 +1106,14 @@ type DeleteGroupUseCase struct {
     txManager      TransactionManager
 }
 
-func NewDeleteGroupUseCase(
+func NewDeleteGroupCommand(
     groupRepo group.GroupRepository,
     membershipRepo group.MembershipRepository,
     invitationRepo group.InvitationRepository,
     folderRepo storage.FolderRepository,
     txManager TransactionManager,
-) *DeleteGroupUseCase {
-    return &DeleteGroupUseCase{
+) *DeleteGroupCommand {
+    return &DeleteGroupCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
         invitationRepo: invitationRepo,
@@ -1122,7 +1122,7 @@ func NewDeleteGroupUseCase(
     }
 }
 
-func (uc *DeleteGroupUseCase) Execute(ctx context.Context, input DeleteGroupInput) error {
+func (uc *DeleteGroupCommand) Execute(ctx context.Context, input DeleteGroupInput) error {
     return uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
         // 1. Get group
         grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
@@ -1177,7 +1177,7 @@ func (uc *DeleteGroupUseCase) Execute(ctx context.Context, input DeleteGroupInpu
 ## 4. ハンドラー
 
 ```go
-// internal/interface/handler/group_handler.go
+// backend/internal/interface/handler/group_handler.go
 
 package handler
 
@@ -1185,27 +1185,27 @@ import (
     "net/http"
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
-    "gc-storage/internal/interface/dto"
-    "gc-storage/internal/interface/middleware"
-    "gc-storage/internal/usecase/group"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/group"
 )
 
 type GroupHandler struct {
-    createGroup       *group.CreateGroupUseCase
-    getGroup          *group.GetGroupUseCase
-    updateGroup       *group.UpdateGroupUseCase
-    deleteGroup       *group.DeleteGroupUseCase
-    listMyGroups      *group.ListMyGroupsUseCase
-    inviteMember      *group.InviteMemberUseCase
-    acceptInvitation  *group.AcceptInvitationUseCase
-    declineInvitation *group.DeclineInvitationUseCase
-    cancelInvitation  *group.CancelInvitationUseCase
-    listInvitations   *group.ListInvitationsUseCase
-    listMembers       *group.ListMembersUseCase
-    removeMember      *group.RemoveMemberUseCase
-    leaveGroup        *group.LeaveGroupUseCase
-    changeRole        *group.ChangeRoleUseCase
-    transferOwnership *group.TransferOwnershipUseCase
+    createGroup       *group.CreateGroupCommand
+    getGroup          *group.GetGroupQuery
+    updateGroup       *group.UpdateGroupCommand
+    deleteGroup       *group.DeleteGroupCommand
+    listMyGroups      *group.ListMyGroupsQuery
+    inviteMember      *group.InviteMemberCommand
+    acceptInvitation  *group.AcceptInvitationCommand
+    declineInvitation *group.DeclineInvitationCommand
+    cancelInvitation  *group.CancelInvitationCommand
+    listInvitations   *group.ListInvitationsQuery
+    listMembers       *group.ListMembersQuery
+    removeMember      *group.RemoveMemberCommand
+    leaveGroup        *group.LeaveGroupCommand
+    changeRole        *group.ChangeRoleCommand
+    transferOwnership *group.TransferOwnershipCommand
 }
 
 // POST /api/v1/groups
@@ -1509,7 +1509,7 @@ func (h *GroupHandler) TransferOwnership(c echo.Context) error {
 ## 5. DTO定義
 
 ```go
-// internal/interface/dto/group.go
+// backend/internal/interface/dto/group.go
 
 package dto
 
@@ -1628,14 +1628,14 @@ type TransferOwnershipRequest struct {
 ### 7.1 招待期限切れ処理
 
 ```go
-// internal/job/invitation_expiry.go
+// backend/internal/job/invitation_expiry.go
 
 package job
 
 import (
     "context"
     "log/slog"
-    "gc-storage/internal/domain/group"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
 )
 
 type InvitationExpiryJob struct {
