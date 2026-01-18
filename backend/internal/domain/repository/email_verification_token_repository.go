@@ -8,16 +8,16 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
-// VerificationTokenRepository はメール確認トークンリポジトリインターフェースを定義します
-type VerificationTokenRepository interface {
+// EmailVerificationTokenRepository はメール確認トークンリポジトリインターフェースを定義します
+type EmailVerificationTokenRepository interface {
 	// Create はトークンを作成します
-	Create(ctx context.Context, token *entity.VerificationToken) error
+	Create(ctx context.Context, token *entity.EmailVerificationToken) error
 
 	// FindByToken はトークン文字列でトークンを検索します
-	FindByToken(ctx context.Context, token string) (*entity.VerificationToken, error)
+	FindByToken(ctx context.Context, token string) (*entity.EmailVerificationToken, error)
 
 	// FindByUserID はユーザーIDでトークンを検索します
-	FindByUserID(ctx context.Context, userID uuid.UUID) (*entity.VerificationToken, error)
+	FindByUserID(ctx context.Context, userID uuid.UUID) (*entity.EmailVerificationToken, error)
 
 	// Delete はトークンを削除します
 	Delete(ctx context.Context, id uuid.UUID) error

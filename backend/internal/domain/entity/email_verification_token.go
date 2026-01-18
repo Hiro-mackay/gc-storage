@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// VerificationToken はメール確認トークンエンティティを定義します
-type VerificationToken struct {
+// EmailVerificationToken はメール確認トークンエンティティを定義します
+type EmailVerificationToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	Token     string
@@ -16,12 +16,12 @@ type VerificationToken struct {
 }
 
 // IsExpired はトークンが期限切れかを判定します
-func (v *VerificationToken) IsExpired() bool {
+func (v *EmailVerificationToken) IsExpired() bool {
 	return time.Now().After(v.ExpiresAt)
 }
 
 // IsValid はトークンが有効かを判定します
-func (v *VerificationToken) IsValid() bool {
+func (v *EmailVerificationToken) IsValid() bool {
 	return !v.IsExpired()
 }
 
