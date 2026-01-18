@@ -3,6 +3,8 @@ package email
 import (
 	"context"
 	"fmt"
+
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 )
 
 // EmailService はメール送信サービスを提供します
@@ -96,3 +98,6 @@ func (s *EmailService) SendShareNotification(ctx context.Context, to, userName, 
 
 	return s.client.SendHTML([]string{to}, fmt.Sprintf("%sさんからファイルが共有されました", sharerName), body)
 }
+
+// インターフェースの実装を保証
+var _ service.EmailSender = (*EmailService)(nil)
