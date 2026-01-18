@@ -18,12 +18,16 @@ import (
 // AuthHandler は認証関連のHTTPハンドラーです
 type AuthHandler struct {
 	// Commands
-	registerCommand                  *authcmd.RegisterCommand
-	loginCommand                     *authcmd.LoginCommand
-	refreshTokenCommand              *authcmd.RefreshTokenCommand
-	logoutCommand                    *authcmd.LogoutCommand
-	verifyEmailCommand               *authcmd.VerifyEmailCommand
-	resendEmailVerificationCommand   *authcmd.ResendEmailVerificationCommand
+	registerCommand                *authcmd.RegisterCommand
+	loginCommand                   *authcmd.LoginCommand
+	refreshTokenCommand            *authcmd.RefreshTokenCommand
+	logoutCommand                  *authcmd.LogoutCommand
+	verifyEmailCommand             *authcmd.VerifyEmailCommand
+	resendEmailVerificationCommand *authcmd.ResendEmailVerificationCommand
+	forgotPasswordCommand          *authcmd.ForgotPasswordCommand
+	resetPasswordCommand           *authcmd.ResetPasswordCommand
+	changePasswordCommand          *authcmd.ChangePasswordCommand
+	oauthLoginCommand              *authcmd.OAuthLoginCommand
 
 	// Queries
 	getUserQuery *authqry.GetUserQuery
@@ -37,16 +41,24 @@ func NewAuthHandler(
 	logoutCommand *authcmd.LogoutCommand,
 	verifyEmailCommand *authcmd.VerifyEmailCommand,
 	resendEmailVerificationCommand *authcmd.ResendEmailVerificationCommand,
+	forgotPasswordCommand *authcmd.ForgotPasswordCommand,
+	resetPasswordCommand *authcmd.ResetPasswordCommand,
+	changePasswordCommand *authcmd.ChangePasswordCommand,
+	oauthLoginCommand *authcmd.OAuthLoginCommand,
 	getUserQuery *authqry.GetUserQuery,
 ) *AuthHandler {
 	return &AuthHandler{
-		registerCommand:                  registerCommand,
-		loginCommand:                     loginCommand,
-		refreshTokenCommand:              refreshTokenCommand,
-		logoutCommand:                    logoutCommand,
-		verifyEmailCommand:               verifyEmailCommand,
-		resendEmailVerificationCommand:   resendEmailVerificationCommand,
-		getUserQuery:                     getUserQuery,
+		registerCommand:                registerCommand,
+		loginCommand:                   loginCommand,
+		refreshTokenCommand:            refreshTokenCommand,
+		logoutCommand:                  logoutCommand,
+		verifyEmailCommand:             verifyEmailCommand,
+		resendEmailVerificationCommand: resendEmailVerificationCommand,
+		forgotPasswordCommand:          forgotPasswordCommand,
+		resetPasswordCommand:           resetPasswordCommand,
+		changePasswordCommand:          changePasswordCommand,
+		oauthLoginCommand:              oauthLoginCommand,
+		getUserQuery:                   getUserQuery,
 	}
 }
 
@@ -206,6 +218,120 @@ func (h *AuthHandler) ResendEmailVerification(c echo.Context) error {
 
 	return presenter.OK(c, response.ResendEmailVerificationResponse{
 		Message: output.Message,
+	})
+}
+
+// ForgotPassword はパスワードリセットリクエストを処理します
+// POST /api/v1/auth/password/forgot
+func (h *AuthHandler) ForgotPassword(c echo.Context) error {
+	var req request.ForgotPasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.NewValidationError("invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	output, err := h.forgotPasswordCommand.Execute(c.Request().Context(), authcmd.ForgotPasswordInput{
+		Email: req.Email,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.ForgotPasswordResponse{
+		Message: output.Message,
+	})
+}
+
+// ResetPassword はパスワードリセットを処理します
+// POST /api/v1/auth/password/reset
+func (h *AuthHandler) ResetPassword(c echo.Context) error {
+	var req request.ResetPasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.NewValidationError("invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	output, err := h.resetPasswordCommand.Execute(c.Request().Context(), authcmd.ResetPasswordInput{
+		Token:    req.Token,
+		Password: req.Password,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.ResetPasswordResponse{
+		Message: output.Message,
+	})
+}
+
+// ChangePassword はパスワード変更を処理します（認証必須）
+// POST /api/v1/auth/password/change
+func (h *AuthHandler) ChangePassword(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
+	}
+
+	var req request.ChangePasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.NewValidationError("invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	output, err := h.changePasswordCommand.Execute(c.Request().Context(), authcmd.ChangePasswordInput{
+		UserID:          claims.UserID,
+		CurrentPassword: req.CurrentPassword,
+		NewPassword:     req.NewPassword,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.ChangePasswordResponse{
+		Message: output.Message,
+	})
+}
+
+// OAuthLogin はOAuthログインを処理します
+// POST /api/v1/auth/oauth/:provider
+func (h *AuthHandler) OAuthLogin(c echo.Context) error {
+	provider := c.Param("provider")
+	if provider == "" {
+		return apperror.NewValidationError("provider is required", nil)
+	}
+
+	var req request.OAuthLoginRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.NewValidationError("invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	output, err := h.oauthLoginCommand.Execute(c.Request().Context(), authcmd.OAuthLoginInput{
+		Provider:  provider,
+		Code:      req.Code,
+		UserAgent: c.Request().UserAgent(),
+		IPAddress: c.RealIP(),
+	})
+	if err != nil {
+		return err
+	}
+
+	// リフレッシュトークンをHttpOnly Cookieに設定
+	h.setRefreshTokenCookie(c, output.RefreshToken)
+
+	return presenter.OK(c, response.OAuthLoginResponse{
+		AccessToken: output.AccessToken,
+		ExpiresIn:   output.ExpiresIn,
+		User:        response.ToUserResponse(output.User),
+		IsNewUser:   output.IsNewUser,
 	})
 }
 

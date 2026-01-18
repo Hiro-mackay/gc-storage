@@ -17,3 +17,25 @@ type LoginRequest struct {
 type ResendEmailVerificationRequest struct {
 	Email string `json:"email" validate:"required,email"`
 }
+
+// ForgotPasswordRequest はパスワードリセットリクエスト
+type ForgotPasswordRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+// ResetPasswordRequest はパスワードリセット実行リクエスト
+type ResetPasswordRequest struct {
+	Token    string `json:"token" validate:"required"`
+	Password string `json:"password" validate:"required,password"`
+}
+
+// ChangePasswordRequest はパスワード変更リクエスト
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required"`
+	NewPassword     string `json:"new_password" validate:"required,password"`
+}
+
+// OAuthLoginRequest はOAuthログインリクエスト
+type OAuthLoginRequest struct {
+	Code string `json:"code" validate:"required"`
+}

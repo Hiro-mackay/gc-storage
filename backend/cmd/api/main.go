@@ -14,6 +14,7 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/email"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/oauth"
 	infraRepo "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/handler"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
@@ -82,9 +83,22 @@ func main() {
 	smtpClient := email.NewSMTPClient(email.DefaultConfig())
 	emailService := email.NewEmailService(smtpClient)
 
+	// OAuth Client Factory
+	oauthConfig := oauth.Config{
+		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", config.AppURL+"/auth/callback/google"),
+		GitHubClientID:     getEnv("GITHUB_CLIENT_ID", ""),
+		GitHubClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
+		GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", config.AppURL+"/auth/callback/github"),
+	}
+	oauthFactory := oauth.NewClientFactory(oauthConfig)
+
 	// Repositories
 	userRepo := infraRepo.NewUserRepository(txManager)
 	emailVerificationTokenRepo := infraRepo.NewEmailVerificationTokenRepository(txManager)
+	passwordResetTokenRepo := infraRepo.NewPasswordResetTokenRepository(txManager)
+	oauthAccountRepo := infraRepo.NewOAuthAccountRepository(txManager)
 
 	// Commands
 	registerCommand := authcmd.NewRegisterCommand(userRepo, emailVerificationTokenRepo, txManager, emailService, config.AppURL)
@@ -93,6 +107,10 @@ func main() {
 	logoutCommand := authcmd.NewLogoutCommand(sessionStore, jwtBlacklist)
 	verifyEmailCommand := authcmd.NewVerifyEmailCommand(userRepo, emailVerificationTokenRepo, txManager)
 	resendEmailVerificationCommand := authcmd.NewResendEmailVerificationCommand(userRepo, emailVerificationTokenRepo, emailService, config.AppURL)
+	forgotPasswordCommand := authcmd.NewForgotPasswordCommand(userRepo, passwordResetTokenRepo, emailService, config.AppURL)
+	resetPasswordCommand := authcmd.NewResetPasswordCommand(userRepo, passwordResetTokenRepo, txManager)
+	changePasswordCommand := authcmd.NewChangePasswordCommand(userRepo)
+	oauthLoginCommand := authcmd.NewOAuthLoginCommand(userRepo, oauthAccountRepo, oauthFactory, txManager, sessionStore, jwtService)
 
 	// Queries
 	getUserQuery := authqry.NewGetUserQuery(userRepo)
@@ -109,6 +127,10 @@ func main() {
 		logoutCommand,
 		verifyEmailCommand,
 		resendEmailVerificationCommand,
+		forgotPasswordCommand,
+		resetPasswordCommand,
+		changePasswordCommand,
+		oauthLoginCommand,
 		getUserQuery,
 	)
 
@@ -217,11 +239,25 @@ func setupRoutes(
 		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
 	authGroup.POST("/refresh", authHandler.Refresh)
 
+	// OAuth routes (public)
+	authGroup.POST("/oauth/:provider", authHandler.OAuthLogin,
+		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
+
 	// Email verification routes (public)
 	emailGroup := authGroup.Group("/email")
 	emailGroup.POST("/verify", authHandler.VerifyEmail)
 	emailGroup.POST("/resend", authHandler.ResendEmailVerification,
 		rateLimitMiddleware.ByIP(middleware.RateLimitAuthSignup))
+
+	// Password reset routes (public)
+	passwordGroup := authGroup.Group("/password")
+	passwordGroup.POST("/forgot", authHandler.ForgotPassword,
+		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
+	passwordGroup.POST("/reset", authHandler.ResetPassword,
+		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
+
+	// Password change route (authenticated)
+	passwordGroup.POST("/change", authHandler.ChangePassword, jwtAuthMiddleware.Authenticate())
 
 	// Auth routes (authenticated)
 	authGroup.POST("/logout", authHandler.Logout, jwtAuthMiddleware.Authenticate())

@@ -63,3 +63,26 @@ type VerifyEmailResponse struct {
 type ResendEmailVerificationResponse struct {
 	Message string `json:"message"`
 }
+
+// ForgotPasswordResponse はパスワードリセットリクエストレスポンス
+type ForgotPasswordResponse struct {
+	Message string `json:"message"`
+}
+
+// ResetPasswordResponse はパスワードリセット実行レスポンス
+type ResetPasswordResponse struct {
+	Message string `json:"message"`
+}
+
+// ChangePasswordResponse はパスワード変更レスポンス
+type ChangePasswordResponse struct {
+	Message string `json:"message"`
+}
+
+// OAuthLoginResponse はOAuthログインレスポンス
+type OAuthLoginResponse struct {
+	AccessToken string        `json:"access_token"`
+	ExpiresIn   int           `json:"expires_in"`
+	User        *UserResponse `json:"user"`
+	IsNewUser   bool          `json:"is_new_user"`
+}
