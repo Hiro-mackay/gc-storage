@@ -345,6 +345,273 @@ func (s *AuthTestSuite) TestProtectedEndpoint_InvalidToken() {
 }
 
 // =============================================================================
+// Email Verification Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestVerifyEmail_Success() {
+	// Register user
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "verify@example.com",
+			"password": "Password123",
+			"name":     "Verify User",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Get token from database
+	token := s.getVerificationToken("verify@example.com")
+	s.NotEmpty(token)
+
+	// Verify email
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/verify?token=" + token,
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "email verified successfully")
+
+	// Verify user is now active
+	var status string
+	var emailVerifiedAt interface{}
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT status, email_verified_at FROM users WHERE email = $1",
+		"verify@example.com",
+	).Scan(&status, &emailVerifiedAt)
+	s.Require().NoError(err)
+	s.Equal("active", status)
+	s.NotNil(emailVerifiedAt)
+}
+
+func (s *AuthTestSuite) TestVerifyEmail_InvalidToken() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/verify?token=invalid-token",
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "invalid or expired token")
+}
+
+func (s *AuthTestSuite) TestVerifyEmail_MissingToken() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/verify",
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "token is required")
+}
+
+func (s *AuthTestSuite) TestVerifyEmail_ExpiredToken() {
+	// Register user
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "expired@example.com",
+			"password": "Password123",
+			"name":     "Expired User",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Get token and expire it
+	token := s.getVerificationToken("expired@example.com")
+	_, err := s.server.Pool.Exec(
+		context.Background(),
+		"UPDATE email_verification_tokens SET expires_at = NOW() - INTERVAL '1 hour' WHERE token = $1",
+		token,
+	)
+	s.Require().NoError(err)
+
+	// Try to verify with expired token
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/verify?token=" + token,
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "token has expired")
+}
+
+func (s *AuthTestSuite) TestVerifyEmail_AlreadyVerified() {
+	// Register and verify user
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "alreadyverified@example.com",
+			"password": "Password123",
+			"name":     "Already Verified",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	token := s.getVerificationToken("alreadyverified@example.com")
+
+	// First verification
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/verify?token=" + token,
+	}).AssertStatus(http.StatusOK)
+
+	// Create another token for the same user
+	_, err := s.server.Pool.Exec(
+		context.Background(),
+		`INSERT INTO email_verification_tokens (user_id, token, expires_at)
+		 SELECT id, 'second-token', NOW() + INTERVAL '24 hours' FROM users WHERE email = $1`,
+		"alreadyverified@example.com",
+	)
+	s.Require().NoError(err)
+
+	// Try to verify again with new token
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/verify?token=second-token",
+	})
+
+	// Should succeed but with "already verified" message
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "email already verified")
+}
+
+// =============================================================================
+// Resend Email Verification Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestResendEmailVerification_Success() {
+	// Register user
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "resend@example.com",
+			"password": "Password123",
+			"name":     "Resend User",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Get original token
+	originalToken := s.getVerificationToken("resend@example.com")
+
+	// Resend verification email
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/resend",
+		Body: map[string]string{
+			"email": "resend@example.com",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "If your email address is registered, a verification email has been sent.")
+
+	// Verify new token was created (original should be deleted)
+	newToken := s.getVerificationToken("resend@example.com")
+	s.NotEmpty(newToken)
+	s.NotEqual(originalToken, newToken)
+}
+
+func (s *AuthTestSuite) TestResendEmailVerification_NonExistentEmail() {
+	// Security: should return same response for non-existent email
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/resend",
+		Body: map[string]string{
+			"email": "nonexistent@example.com",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "If your email address is registered, a verification email has been sent.")
+}
+
+func (s *AuthTestSuite) TestResendEmailVerification_AlreadyVerified() {
+	// Register and verify user
+	s.registerAndActivateUser("verified-resend@example.com", "Password123", "Verified User")
+
+	// Resend verification email for already verified user
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/resend",
+		Body: map[string]string{
+			"email": "verified-resend@example.com",
+		},
+	})
+
+	// Security: should return same response for already verified email
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.message", "If your email address is registered, a verification email has been sent.")
+}
+
+func (s *AuthTestSuite) TestResendEmailVerification_InvalidEmail() {
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/resend",
+		Body: map[string]string{
+			"email": "invalid-email",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+// =============================================================================
+// Email Verification Flow Integration Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestFullEmailVerificationFlow() {
+	// 1. Register
+	registerResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "fullflow@example.com",
+			"password": "Password123",
+			"name":     "Full Flow User",
+		},
+	})
+	registerResp.AssertStatus(http.StatusCreated)
+
+	// 2. Try to login (should fail - pending)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "fullflow@example.com",
+			"password": "Password123",
+		},
+	}).AssertStatus(http.StatusUnauthorized).
+		AssertJSONError("UNAUTHORIZED", "please verify your email first")
+
+	// 3. Get verification token
+	token := s.getVerificationToken("fullflow@example.com")
+
+	// 4. Verify email
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/email/verify?token=" + token,
+	}).AssertStatus(http.StatusOK)
+
+	// 5. Login (should succeed)
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "fullflow@example.com",
+			"password": "Password123",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK).
+		AssertJSONPathExists("data.access_token").
+		AssertJSONPath("data.user.email_verified", true).
+		AssertJSONPath("data.user.status", "active")
+}
+
+// =============================================================================
 // Helper Methods
 // =============================================================================
 
@@ -361,11 +628,28 @@ func (s *AuthTestSuite) registerAndActivateUser(email, password, name string) {
 		},
 	}).AssertStatus(http.StatusCreated)
 
-	// Activate user in database
+	// Activate user in database (simulating email verification)
 	_, err := s.server.Pool.Exec(
 		context.Background(),
-		"UPDATE users SET status = 'active' WHERE email = $1",
+		"UPDATE users SET status = 'active', email_verified_at = NOW() WHERE email = $1",
 		email,
 	)
 	s.Require().NoError(err)
+}
+
+// getVerificationToken gets the verification token for a user from the database
+func (s *AuthTestSuite) getVerificationToken(email string) string {
+	var token string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT t.token FROM email_verification_tokens t
+		 JOIN users u ON t.user_id = u.id
+		 WHERE u.email = $1
+		 ORDER BY t.created_at DESC LIMIT 1`,
+		email,
+	).Scan(&token)
+	if err != nil {
+		return ""
+	}
+	return token
 }

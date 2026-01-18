@@ -61,11 +61,16 @@ func NewTestServer(t *testing.T) *TestServer {
 	// Repositories
 	userRepo := infraRepo.NewUserRepository(txManager)
 
+	// Repositories (Email Verification)
+	emailVerificationTokenRepo := infraRepo.NewEmailVerificationTokenRepository(txManager)
+
 	// Commands
-	registerCommand := authcmd.NewRegisterCommand(userRepo, nil, txManager)
+	registerCommand := authcmd.NewRegisterCommand(userRepo, emailVerificationTokenRepo, txManager, nil, "http://localhost:3000")
 	loginCommand := authcmd.NewLoginCommand(userRepo, sessionStore, jwtService)
 	refreshTokenCommand := authcmd.NewRefreshTokenCommand(userRepo, sessionStore, jwtService, jwtBlacklist)
 	logoutCommand := authcmd.NewLogoutCommand(sessionStore, jwtBlacklist)
+	verifyEmailCommand := authcmd.NewVerifyEmailCommand(userRepo, emailVerificationTokenRepo, txManager)
+	resendEmailVerificationCommand := authcmd.NewResendEmailVerificationCommand(userRepo, emailVerificationTokenRepo, nil, "http://localhost:3000")
 
 	// Queries
 	getUserQuery := authqry.NewGetUserQuery(userRepo)
@@ -76,6 +81,8 @@ func NewTestServer(t *testing.T) *TestServer {
 		loginCommand,
 		refreshTokenCommand,
 		logoutCommand,
+		verifyEmailCommand,
+		resendEmailVerificationCommand,
 		getUserQuery,
 	)
 
@@ -123,6 +130,12 @@ func setupTestRoutes(
 		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
 	authGroup.POST("/refresh", authHandler.Refresh)
 
+	// Email verification routes (public)
+	emailGroup := authGroup.Group("/email")
+	emailGroup.POST("/verify", authHandler.VerifyEmail)
+	emailGroup.POST("/resend", authHandler.ResendEmailVerification,
+		rateLimitMiddleware.ByIP(middleware.RateLimitAuthSignup))
+
 	// Auth routes (authenticated)
 	authGroup.POST("/logout", authHandler.Logout, jwtAuthMiddleware.Authenticate())
 
@@ -133,6 +146,6 @@ func setupTestRoutes(
 // Cleanup cleans up test data
 func (ts *TestServer) Cleanup(t *testing.T) {
 	t.Helper()
-	TruncateTables(t, ts.Pool, "sessions", "oauth_accounts", "users")
+	TruncateTables(t, ts.Pool, "sessions", "oauth_accounts", "email_verification_tokens", "users")
 	FlushRedis(t, ts.Redis)
 }
