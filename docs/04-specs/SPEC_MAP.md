@@ -201,12 +201,12 @@ gc-storage (メインバケット)
 |---|--------|--------|--------|------|------|
 | 1.1 | `auth-register` | ユーザー登録 | High | Done | - |
 | 1.2 | `auth-login` | メール/パスワードログイン | High | Done | 1.1 |
-| 1.3 | `auth-oauth` | OAuth認証（Google/GitHub） | High | Draft | 1.1 |
+| 1.3 | `auth-oauth` | OAuth認証（Google/GitHub） | High | Done | 1.1 |
 | 1.4 | `auth-logout` | ログアウト | High | Done | 1.2 |
 | 1.5 | `auth-refresh` | トークンリフレッシュ | High | Done | 1.2 |
-| 1.6 | `auth-email-verify` | メールアドレス確認 | Medium | Draft | 1.1 |
-| 1.7 | `auth-password-reset` | パスワードリセット | Medium | Draft | 1.1 |
-| 1.8 | `auth-password-change` | パスワード変更 | Medium | Draft | 1.2 |
+| 1.6 | `auth-email-verify` | メールアドレス確認 | Medium | Done | 1.1 |
+| 1.7 | `auth-password-reset` | パスワードリセット | Medium | Done | 1.1 |
+| 1.8 | `auth-password-change` | パスワード変更 | Medium | Done | 1.2 |
 | 1.9 | `user-profile` | プロフィール管理 | Medium | Draft | 1.2 |
 | 1.10 | `user-session-list` | セッション一覧・管理 | Low | Draft | 1.2 |
 | 1.11 | `user-oauth-link` | OAuth連携管理 | Low | Draft | 1.3 |
