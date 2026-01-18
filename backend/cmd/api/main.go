@@ -13,6 +13,7 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/email"
 	infraRepo "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/handler"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
@@ -77,14 +78,21 @@ func main() {
 	jwtBlacklist := cache.NewJWTBlacklist(redisClient.Client())
 	rateLimiter := cache.NewRateLimiter(redisClient.Client())
 
+	// Email Service
+	smtpClient := email.NewSMTPClient(email.DefaultConfig())
+	emailService := email.NewEmailService(smtpClient)
+
 	// Repositories
 	userRepo := infraRepo.NewUserRepository(txManager)
+	emailVerificationTokenRepo := infraRepo.NewEmailVerificationTokenRepository(txManager)
 
 	// Commands
-	registerCommand := authcmd.NewRegisterCommand(userRepo, nil, txManager) // verificationTokenRepo is nil for now
+	registerCommand := authcmd.NewRegisterCommand(userRepo, emailVerificationTokenRepo, txManager, emailService, config.AppURL)
 	loginCommand := authcmd.NewLoginCommand(userRepo, sessionStore, jwtService)
 	refreshTokenCommand := authcmd.NewRefreshTokenCommand(userRepo, sessionStore, jwtService, jwtBlacklist)
 	logoutCommand := authcmd.NewLogoutCommand(sessionStore, jwtBlacklist)
+	verifyEmailCommand := authcmd.NewVerifyEmailCommand(userRepo, emailVerificationTokenRepo, txManager)
+	resendEmailVerificationCommand := authcmd.NewResendEmailVerificationCommand(userRepo, emailVerificationTokenRepo, emailService, config.AppURL)
 
 	// Queries
 	getUserQuery := authqry.NewGetUserQuery(userRepo)
@@ -99,6 +107,8 @@ func main() {
 		loginCommand,
 		refreshTokenCommand,
 		logoutCommand,
+		verifyEmailCommand,
+		resendEmailVerificationCommand,
 		getUserQuery,
 	)
 
@@ -159,6 +169,7 @@ type Config struct {
 	DatabaseURL  string
 	RedisURL     string
 	JWTSecretKey string
+	AppURL       string
 }
 
 func loadConfig() Config {
@@ -173,6 +184,7 @@ func loadConfig() Config {
 		DatabaseURL:  getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/gc_storage?sslmode=disable"),
 		RedisURL:     getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		JWTSecretKey: getEnv("JWT_SECRET_KEY", "your-secret-key-change-in-production"),
+		AppURL:       getEnv("APP_URL", "http://localhost:3000"),
 	}
 }
 
@@ -204,6 +216,12 @@ func setupRoutes(
 	authGroup.POST("/login", authHandler.Login,
 		rateLimitMiddleware.ByIP(middleware.RateLimitAuthLogin))
 	authGroup.POST("/refresh", authHandler.Refresh)
+
+	// Email verification routes (public)
+	emailGroup := authGroup.Group("/email")
+	emailGroup.POST("/verify", authHandler.VerifyEmail)
+	emailGroup.POST("/resend", authHandler.ResendEmailVerification,
+		rateLimitMiddleware.ByIP(middleware.RateLimitAuthSignup))
 
 	// Auth routes (authenticated)
 	authGroup.POST("/logout", authHandler.Logout, jwtAuthMiddleware.Authenticate())

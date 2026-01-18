@@ -18,10 +18,12 @@ import (
 // AuthHandler は認証関連のHTTPハンドラーです
 type AuthHandler struct {
 	// Commands
-	registerCommand     *authcmd.RegisterCommand
-	loginCommand        *authcmd.LoginCommand
-	refreshTokenCommand *authcmd.RefreshTokenCommand
-	logoutCommand       *authcmd.LogoutCommand
+	registerCommand                  *authcmd.RegisterCommand
+	loginCommand                     *authcmd.LoginCommand
+	refreshTokenCommand              *authcmd.RefreshTokenCommand
+	logoutCommand                    *authcmd.LogoutCommand
+	verifyEmailCommand               *authcmd.VerifyEmailCommand
+	resendEmailVerificationCommand   *authcmd.ResendEmailVerificationCommand
 
 	// Queries
 	getUserQuery *authqry.GetUserQuery
@@ -33,14 +35,18 @@ func NewAuthHandler(
 	loginCommand *authcmd.LoginCommand,
 	refreshTokenCommand *authcmd.RefreshTokenCommand,
 	logoutCommand *authcmd.LogoutCommand,
+	verifyEmailCommand *authcmd.VerifyEmailCommand,
+	resendEmailVerificationCommand *authcmd.ResendEmailVerificationCommand,
 	getUserQuery *authqry.GetUserQuery,
 ) *AuthHandler {
 	return &AuthHandler{
-		registerCommand:     registerCommand,
-		loginCommand:        loginCommand,
-		refreshTokenCommand: refreshTokenCommand,
-		logoutCommand:       logoutCommand,
-		getUserQuery:        getUserQuery,
+		registerCommand:                  registerCommand,
+		loginCommand:                     loginCommand,
+		refreshTokenCommand:              refreshTokenCommand,
+		logoutCommand:                    logoutCommand,
+		verifyEmailCommand:               verifyEmailCommand,
+		resendEmailVerificationCommand:   resendEmailVerificationCommand,
+		getUserQuery:                     getUserQuery,
 	}
 }
 
@@ -158,6 +164,49 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	}
 
 	return presenter.OK(c, response.ToUserResponse(output.User))
+}
+
+// VerifyEmail はメール確認を処理します
+// POST /api/v1/auth/email/verify?token=xxx
+func (h *AuthHandler) VerifyEmail(c echo.Context) error {
+	token := c.QueryParam("token")
+	if token == "" {
+		return apperror.NewValidationError("token is required", nil)
+	}
+
+	output, err := h.verifyEmailCommand.Execute(c.Request().Context(), authcmd.VerifyEmailInput{
+		Token: token,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.VerifyEmailResponse{
+		Message: output.Message,
+	})
+}
+
+// ResendEmailVerification は確認メール再送を処理します
+// POST /api/v1/auth/email/resend
+func (h *AuthHandler) ResendEmailVerification(c echo.Context) error {
+	var req request.ResendEmailVerificationRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.NewValidationError("invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	output, err := h.resendEmailVerificationCommand.Execute(c.Request().Context(), authcmd.ResendEmailVerificationInput{
+		Email: req.Email,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.ResendEmailVerificationResponse{
+		Message: output.Message,
+	})
 }
 
 func (h *AuthHandler) setRefreshTokenCookie(c echo.Context, token string) {

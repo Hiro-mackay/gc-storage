@@ -53,3 +53,13 @@ func ToUserResponse(user *entity.User) *UserResponse {
 		UpdatedAt:     user.UpdatedAt,
 	}
 }
+
+// VerifyEmailResponse はメール確認レスポンス
+type VerifyEmailResponse struct {
+	Message string `json:"message"`
+}
+
+// ResendEmailVerificationResponse は確認メール再送レスポンス
+type ResendEmailVerificationResponse struct {
+	Message string `json:"message"`
+}
