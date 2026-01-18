@@ -245,7 +245,7 @@ HTTP Request
          │
          ▼
 ┌─────────────────┐
-│   UseCase       │  ビジネスロジック
+│   UseCase       │  Command (書込), Query (読取) - CQRS
 └────────┬────────┘
          │
          ▼
@@ -262,6 +262,40 @@ HTTP Request
 - 依存は常に内側（Domain）に向かう
 - Domain 層は外部依存を持たない
 - Infrastructure は Domain のインターフェースを実装
+
+### UseCase層 CQRS パターン
+
+UseCase層はCQRS（Command Query Responsibility Segregation）パターンを採用:
+
+```
+usecase/
+├── auth/
+│   ├── command/           # 書き込み操作
+│   │   ├── register.go    # RegisterCommand
+│   │   ├── login.go       # LoginCommand
+│   │   └── logout.go      # LogoutCommand
+│   └── query/             # 読み取り操作
+│       └── get_user.go    # GetUserQuery
+└── storage/
+    ├── command/
+    │   └── create_folder.go
+    └── query/
+        └── list_folder_contents.go
+```
+
+**命名規則:**
+
+| 要素 | パターン | 例 |
+|------|---------|-----|
+| Command構造体 | `{Action}Command` | `LoginCommand` |
+| Query構造体 | `{Action}Query` | `GetUserQuery` |
+| コンストラクタ | `New{StructName}` | `NewLoginCommand` |
+| Input/Output | `{Action}Input/Output` | `LoginInput` |
+| メソッド | `Execute` | すべて統一 |
+
+**分類基準:**
+- **Command**: 副作用（状態変更）がある操作（Create, Update, Delete, Login, Logout）
+- **Query**: 副作用がない操作（Read, List, Get）
 
 ### 状態管理（Frontend）
 

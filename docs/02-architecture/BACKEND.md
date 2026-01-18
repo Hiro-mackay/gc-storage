@@ -109,19 +109,126 @@ Interface → UseCase → Domain ← Infrastructure
 - Value Objectは生成時にバリデーションを行う
 - Repository Interfaceは技術的詳細を含まない
 
-### 3.2 UseCase Layer
+### 3.2 UseCase Layer（CQRS パターン）
 
-| 責務 | 説明 |
-|------|------|
-| ビジネスロジックの調整 | 複数のRepository/Serviceを組み合わせる |
-| トランザクション管理 | データの整合性を保証 |
-| 認可チェック | ユーザーの操作権限を検証 |
-| Input/Outputの定義 | UseCaseの入出力を明確に定義 |
+UseCase層はCQRS（Command Query Responsibility Segregation）パターンを採用しています。
+
+| 種別 | 責務 | 説明 |
+|------|------|------|
+| **Command** | 書き込み操作 | 状態を変更する操作（Create, Update, Delete） |
+| **Query** | 読み取り操作 | 状態を変更しない操作（Read, List, Search） |
+
+**ディレクトリ構成:**
+
+```
+usecase/
+├── auth/
+│   ├── command/           # 書き込み操作
+│   │   ├── register.go    # RegisterCommand
+│   │   ├── login.go       # LoginCommand
+│   │   ├── logout.go      # LogoutCommand
+│   │   └── refresh_token.go
+│   └── query/             # 読み取り操作
+│       └── get_user.go    # GetUserQuery
+└── storage/
+    ├── command/
+    │   ├── create_folder.go
+    │   └── initiate_upload.go
+    └── query/
+        ├── list_folder_contents.go
+        └── get_file.go
+```
+
+**命名規則:**
+
+| 要素 | パターン | 例 |
+|------|---------|-----|
+| Command構造体 | `{Action}Command` | `LoginCommand`, `RegisterCommand` |
+| Query構造体 | `{Action}Query` | `GetUserQuery`, `ListFilesQuery` |
+| コンストラクタ | `New{StructName}` | `NewLoginCommand`, `NewGetUserQuery` |
+| Input | `{Action}Input` | `LoginInput`, `GetUserInput` |
+| Output | `{Action}Output` | `LoginOutput`, `GetUserOutput` |
+| メソッド | `Execute` | すべて統一 |
+
+**Command実装例:**
+
+```go
+// internal/usecase/auth/command/login.go
+package command
+
+type LoginInput struct {
+    Email     string
+    Password  string
+    UserAgent string
+    IPAddress string
+}
+
+type LoginOutput struct {
+    AccessToken  string
+    RefreshToken string
+    ExpiresIn    int
+    User         *entity.User
+}
+
+type LoginCommand struct {
+    userRepo     repository.UserRepository
+    sessionStore *cache.SessionStore
+    jwtService   *jwt.JWTService
+}
+
+func NewLoginCommand(
+    userRepo repository.UserRepository,
+    sessionStore *cache.SessionStore,
+    jwtService *jwt.JWTService,
+) *LoginCommand {
+    return &LoginCommand{
+        userRepo:     userRepo,
+        sessionStore: sessionStore,
+        jwtService:   jwtService,
+    }
+}
+
+func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOutput, error) {
+    // ビジネスロジック
+}
+```
+
+**Query実装例:**
+
+```go
+// internal/usecase/auth/query/get_user.go
+package query
+
+type GetUserInput struct {
+    UserID uuid.UUID
+}
+
+type GetUserOutput struct {
+    User *entity.User
+}
+
+type GetUserQuery struct {
+    userRepo repository.UserRepository
+}
+
+func NewGetUserQuery(userRepo repository.UserRepository) *GetUserQuery {
+    return &GetUserQuery{userRepo: userRepo}
+}
+
+func (q *GetUserQuery) Execute(ctx context.Context, input GetUserInput) (*GetUserOutput, error) {
+    user, err := q.userRepo.FindByID(ctx, input.UserID)
+    if err != nil {
+        return nil, apperror.NewNotFoundError("user")
+    }
+    return &GetUserOutput{User: user}, nil
+}
+```
 
 **ルール:**
-- 1ユースケース = 1ファイル
+- 1 Command/Query = 1ファイル
 - Input/Output構造体を必ず定義
 - HTTPやDBの詳細を知らない
+- 副作用がある操作は Command、ない操作は Query
 
 ### 3.3 Infrastructure Layer
 

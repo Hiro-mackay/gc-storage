@@ -57,10 +57,13 @@
 | ツール | 用途 |
 |--------|------|
 | `testing` | 標準テストパッケージ |
-| `testify` | アサーション、モック |
+| `testify` | アサーション、モック、テストスイート |
 | `gomock` | インターフェースモック生成 |
-| `testcontainers-go` | 統合テスト用コンテナ |
 | `httptest` | HTTPハンドラテスト |
+| `pgxpool` | PostgreSQL接続（インテグレーションテスト） |
+| `go-redis` | Redis接続（インテグレーションテスト） |
+
+**注**: インテグレーションテストは `docker compose` で起動したインフラを使用します。
 
 ### 3.2 ディレクトリ構成
 
@@ -70,22 +73,23 @@ backend/
 │   ├── domain/
 │   │   └── entity/
 │   │       ├── file.go
-│   │       └── file_test.go      # 同一ディレクトリ
+│   │       └── file_test.go      # 同一ディレクトリ（ユニットテスト）
 │   ├── usecase/
 │   │   └── file/
 │   │       ├── upload.go
-│   │       └── upload_test.go
+│   │       └── upload_test.go    # ユースケースのユニットテスト
 │   └── interface/
 │       └── handler/
 │           ├── file_handler.go
 │           └── file_handler_test.go
 ├── tests/
-│   ├── integration/              # 統合テスト
-│   │   ├── file_api_test.go
-│   │   └── auth_api_test.go
+│   ├── README.md                 # テストドキュメント
+│   ├── integration/              # インテグレーションテスト
+│   │   └── auth_test.go          # 認証APIテスト
 │   └── testutil/                 # テストユーティリティ
-│       ├── fixtures.go
-│       └── helpers.go
+│       ├── setup.go              # DB/Redis接続セットアップ
+│       ├── server.go             # テストサーバー構築（DI）
+│       └── http.go               # HTTPリクエスト/レスポンスヘルパー
 ```
 
 ### 3.3 Unit テスト
@@ -290,137 +294,236 @@ func TestUploadUseCase_Execute(t *testing.T) {
 
 ### 3.4 Integration テスト
 
-**testcontainers-go を使用したDBテスト:**
+**docker compose + testutil を使用したAPIテスト:**
+
+インテグレーションテストは `docker compose` で起動したインフラ（PostgreSQL, Redis）を使用します。
+テストユーティリティ（`tests/testutil/`）が接続管理やHTTPヘルパーを提供します。
 
 ```go
-// tests/integration/file_api_test.go
-package integration_test
+// tests/integration/auth_test.go
+package integration
 
 import (
     "context"
     "net/http"
-    "net/http/httptest"
+    "os"
     "testing"
 
-    "github.com/stretchr/testify/assert"
-    "github.com/stretchr/testify/require"
     "github.com/stretchr/testify/suite"
-    "github.com/testcontainers/testcontainers-go"
-    "github.com/testcontainers/testcontainers-go/modules/postgres"
 
-    "gc-storage/internal/infrastructure/database"
-    "gc-storage/tests/testutil"
+    "github.com/Hiro-mackay/gc-storage/backend/tests/testutil"
 )
 
-type FileAPITestSuite struct {
+// AuthTestSuite はテストスイートの定義
+type AuthTestSuite struct {
     suite.Suite
-    ctx             context.Context
-    pgContainer     *postgres.PostgresContainer
-    redisContainer  testcontainers.Container
-    server          *httptest.Server
-    client          *http.Client
-    authToken       string
+    server *testutil.TestServer
 }
 
-func (s *FileAPITestSuite) SetupSuite() {
-    s.ctx = context.Background()
+// SetupSuite は全テスト前に1回だけ実行
+func (s *AuthTestSuite) SetupSuite() {
+    s.server = testutil.NewTestServer(s.T())
+}
 
-    // PostgreSQL コンテナ起動
-    pgContainer, err := postgres.Run(s.ctx,
-        "postgres:16-alpine",
-        postgres.WithDatabase("gc_storage_test"),
-        postgres.WithUsername("test"),
-        postgres.WithPassword("test"),
+// TearDownSuite は全テスト後に1回だけ実行
+func (s *AuthTestSuite) TearDownSuite() {
+    testutil.CleanupTestEnvironment()
+}
+
+// SetupTest は各テスト前に実行（DBクリーンアップ）
+func (s *AuthTestSuite) SetupTest() {
+    s.server.Cleanup(s.T())
+}
+
+// TestAuthSuite はテストスイートのエントリーポイント
+func TestAuthSuite(t *testing.T) {
+    // INTEGRATION_TEST=true でなければスキップ
+    if os.Getenv("INTEGRATION_TEST") != "true" {
+        t.Skip("Skipping integration tests. Set INTEGRATION_TEST=true to run.")
+    }
+    suite.Run(t, new(AuthTestSuite))
+}
+
+// =============================================================================
+// Registration Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestRegister_Success() {
+    resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+        Method: http.MethodPost,
+        Path:   "/api/v1/auth/register",
+        Body: map[string]string{
+            "email":    "test@example.com",
+            "password": "Password123",
+            "name":     "Test User",
+        },
+    })
+
+    resp.AssertStatus(http.StatusCreated).
+        AssertJSONPathExists("data.user_id").
+        AssertJSONPath("data.message", "Registration successful. Please check your email to verify your account.")
+}
+
+func (s *AuthTestSuite) TestRegister_InvalidEmail() {
+    resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+        Method: http.MethodPost,
+        Path:   "/api/v1/auth/register",
+        Body: map[string]string{
+            "email":    "invalid-email",
+            "password": "Password123",
+            "name":     "Test User",
+        },
+    })
+
+    resp.AssertStatus(http.StatusBadRequest).
+        AssertJSONError("VALIDATION_ERROR", "")
+}
+
+// =============================================================================
+// Login Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestLogin_Success() {
+    // ユーザー登録＆アクティベート
+    s.registerAndActivateUser("login@example.com", "Password123", "Login User")
+
+    // ログイン
+    resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+        Method: http.MethodPost,
+        Path:   "/api/v1/auth/login",
+        Body: map[string]string{
+            "email":    "login@example.com",
+            "password": "Password123",
+        },
+    })
+
+    resp.AssertStatus(http.StatusOK).
+        AssertJSONPathExists("data.access_token").
+        AssertJSONPathExists("data.expires_in").
+        AssertJSONPath("data.user.email", "login@example.com")
+
+    // リフレッシュトークンCookieの検証
+    cookie := resp.GetCookie("refresh_token")
+    s.NotNil(cookie)
+    s.True(cookie.HttpOnly)
+}
+
+// =============================================================================
+// Protected Endpoint Tests
+// =============================================================================
+
+func (s *AuthTestSuite) TestProtectedEndpoint_WithValidToken() {
+    // ユーザー登録＆ログイン
+    s.registerAndActivateUser("protected@example.com", "Password123", "Protected User")
+    loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+        Method: http.MethodPost,
+        Path:   "/api/v1/auth/login",
+        Body: map[string]string{
+            "email":    "protected@example.com",
+            "password": "Password123",
+        },
+    })
+    loginResp.AssertStatus(http.StatusOK)
+
+    data := loginResp.GetJSONData()
+    accessToken := data["access_token"].(string)
+
+    // 認証付きリクエスト
+    resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+        Method:      http.MethodGet,
+        Path:        "/api/v1/me",
+        AccessToken: accessToken,
+    })
+
+    resp.AssertStatus(http.StatusOK)
+}
+
+// =============================================================================
+// Helper Methods
+// =============================================================================
+
+// registerAndActivateUser はユーザー登録＆アクティベートのヘルパー
+func (s *AuthTestSuite) registerAndActivateUser(email, password, name string) {
+    // 登録
+    testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+        Method: http.MethodPost,
+        Path:   "/api/v1/auth/register",
+        Body: map[string]string{
+            "email":    email,
+            "password": password,
+            "name":     name,
+        },
+    }).AssertStatus(http.StatusCreated)
+
+    // DBで直接アクティベート（メール検証をスキップ）
+    _, err := s.server.Pool.Exec(
+        context.Background(),
+        "UPDATE users SET status = 'active' WHERE email = $1",
+        email,
     )
-    require.NoError(s.T(), err)
-    s.pgContainer = pgContainer
-
-    // Redis コンテナ起動
-    s.redisContainer, err = testutil.StartRedisContainer(s.ctx)
-    require.NoError(s.T(), err)
-
-    // マイグレーション実行
-    connStr, _ := pgContainer.ConnectionString(s.ctx)
-    err = database.RunMigrations(connStr, "../../migrations")
-    require.NoError(s.T(), err)
-
-    // テストサーバー起動
-    s.server = testutil.NewTestServer(s.ctx, connStr, s.redisContainer)
-    s.client = s.server.Client()
-
-    // テストユーザーでログイン
-    s.authToken, _ = testutil.CreateTestUserAndLogin(s.ctx, s.client, s.server.URL)
-}
-
-func (s *FileAPITestSuite) TearDownSuite() {
-    s.server.Close()
-    s.pgContainer.Terminate(s.ctx)
-    s.redisContainer.Terminate(s.ctx)
-}
-
-func (s *FileAPITestSuite) TestCreateFile() {
-    // ファイルアップロード開始
-    resp, err := testutil.PostJSON(s.client, s.server.URL+"/api/v1/files/upload", map[string]interface{}{
-        "name":      "test.pdf",
-        "size":      1024,
-        "mime_type": "application/pdf",
-    }, s.authToken)
-
-    require.NoError(s.T(), err)
-    assert.Equal(s.T(), http.StatusOK, resp.StatusCode)
-
-    var result map[string]interface{}
-    testutil.ParseJSON(resp, &result)
-
-    assert.NotEmpty(s.T(), result["data"].(map[string]interface{})["file_id"])
-    assert.NotEmpty(s.T(), result["data"].(map[string]interface{})["upload_url"])
-}
-
-func (s *FileAPITestSuite) TestGetFile_NotFound() {
-    resp, err := testutil.Get(s.client, s.server.URL+"/api/v1/files/00000000-0000-0000-0000-000000000000", s.authToken)
-
-    require.NoError(s.T(), err)
-    assert.Equal(s.T(), http.StatusNotFound, resp.StatusCode)
-}
-
-func (s *FileAPITestSuite) TestGetFile_Forbidden() {
-    // 別ユーザーのファイルにアクセス
-    otherUserToken, _ := testutil.CreateTestUserAndLogin(s.ctx, s.client, s.server.URL)
-    fileID := testutil.CreateTestFile(s.ctx, s.client, s.server.URL, s.authToken)
-
-    resp, err := testutil.Get(s.client, s.server.URL+"/api/v1/files/"+fileID, otherUserToken)
-
-    require.NoError(s.T(), err)
-    assert.Equal(s.T(), http.StatusForbidden, resp.StatusCode)
-}
-
-func TestFileAPITestSuite(t *testing.T) {
-    suite.Run(t, new(FileAPITestSuite))
+    s.Require().NoError(err)
 }
 ```
+
+**テストユーティリティの構成:**
+
+```
+backend/tests/testutil/
+├── setup.go     # DB/Redis接続管理、クリーンアップ
+├── server.go    # TestServer（全DIを含むEchoインスタンス）
+└── http.go      # HTTPRequest/HTTPResponse ヘルパー
+```
+
+詳細な使い方は `backend/tests/README.md` を参照してください。
 
 ### 3.5 テスト実行コマンド
 
 ```bash
-# 全テスト実行
+# =============================================================================
+# Taskfile コマンド（推奨）
+# =============================================================================
+
+# ユニットテスト（internal/ 内のテスト）
 task backend:test
 
-# 詳細出力付き
+# インテグレーションテスト（インフラ起動必要）
+task backend:test-integration
+
+# 全テスト（ユニット + インテグレーション、インフラ起動必要）
+task backend:test-all
+
+# インフラ起動 → テスト → インフラ停止（ワンコマンド）
+task test:integration
+
+# カバレッジ付きテスト
+task backend:test-coverage
+
+# =============================================================================
+# Go コマンド（直接実行）
+# =============================================================================
+
+# 全テスト実行（インテグレーションテストはスキップ）
 go test -v ./...
 
-# カバレッジ付き
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out -o coverage.html
+# インテグレーションテストを含める
+INTEGRATION_TEST=true go test -v -count=1 ./...
 
 # 特定パッケージのみ
 go test -v ./internal/usecase/file/...
 
-# 統合テストのみ
-go test -v -tags=integration ./tests/integration/...
-
 # 特定テストのみ
 go test -v -run TestUploadUseCase ./internal/usecase/file/
+
+# カバレッジ付き
+go test -coverprofile=coverage.out ./internal/...
+go tool cover -html=coverage.out -o coverage.html
 ```
+
+**注意事項:**
+
+- インテグレーションテストは `INTEGRATION_TEST=true` 環境変数が必要
+- インテグレーションテスト実行前に `task infra:up` でインフラを起動
+- `-count=1` を使用してテストキャッシュを無効化（DBテストで推奨）
 
 ### 3.6 モック生成
 
@@ -1137,3 +1240,4 @@ describe('functionName', () => {
 | 日付 | バージョン | 内容 |
 |------|-----------|------|
 | 2026-01-17 | 1.0.0 | 初版作成 |
+| 2026-01-18 | 1.1.0 | インテグレーションテスト実装に合わせて更新（docker compose + testutil方式）|
