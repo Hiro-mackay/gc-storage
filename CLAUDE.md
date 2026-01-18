@@ -179,8 +179,9 @@ task db:reset            # DB リセット（drop + create + migrate）
 |-------|-----------------|
 | プロジェクト理解 | `docs/03-domains/EVENT_STORMING.md` |
 | コード実装 | `docs/01-policies/CODING_STANDARDS.md` → `docs/02-architecture/BACKEND.md` |
-| 新機能開発 | `docs/03-domains/*.md` → `docs/02-architecture/*.md` |
-| テスト作成 | `docs/01-policies/TESTING.md` |
+| 新機能開発 | `docs/01-policies/TDD_WORKFLOW.md` → `docs/03-domains/*.md` → `docs/02-architecture/*.md` |
+| テスト作成 | `docs/01-policies/TDD_WORKFLOW.md` → `docs/01-policies/TESTING.md` |
+| テストケース設計 | `docs/04-specs/templates/TEST_SPEC_TEMPLATE.md` |
 | 環境構築 | `docs/01-policies/SETUP.md` |
 
 ### ドメイン定義（03-domains/）
@@ -318,8 +319,26 @@ usecase/
 
 ### 実装時のチェックリスト
 
+- [ ] TDDワークフロー（`docs/01-policies/TDD_WORKFLOW.md`）に従っているか
+- [ ] テストケースを先に設計・作成したか（RED）
 - [ ] ドメイン定義（`docs/03-domains/*.md`）を確認したか
 - [ ] 既存のコードパターンに従っているか
-- [ ] テストを書いたか
+- [ ] 全テストがPASSすることを確認したか（GREEN）
 - [ ] エラーハンドリングは適切か
 - [ ] セキュリティ（入力検証、認可）を考慮したか
+- [ ] リファクタリング後も全テストがPASSするか（REFACTOR）
+
+### TDDワークフロー（必須）
+
+新機能開発では、TDD（テスト駆動開発）アプローチを採用します。
+
+```
+RED → GREEN → REFACTOR
+```
+
+1. **RED**: テストケース設計 → テストコード作成 → 全テストFAIL確認
+2. **GREEN**: 最小実装 → 全テストPASS確認
+3. **REFACTOR**: コード改善 → 全テストPASS維持
+
+詳細は `docs/01-policies/TDD_WORKFLOW.md` を参照。
+テストケース設計には `docs/04-specs/templates/TEST_SPEC_TEMPLATE.md` を使用。
