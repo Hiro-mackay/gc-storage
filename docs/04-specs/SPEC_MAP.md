@@ -62,31 +62,31 @@ GC Storage の機能仕様を **6つのフェーズ** に分類し、インフ�
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 0A.1 | `db-connection` | DB接続・コネクションプール | High | Draft | - |
+| 0A.1 | `db-connection` | DB接続・コネクションプール | High | Done | - |
 | 0A.2 | `db-migration` | マイグレーション管理 | High | Done | 0A.1 |
-| 0A.3 | `db-transaction` | トランザクション管理 | High | Draft | 0A.1 |
-| 0A.4 | `db-repository-base` | リポジトリ基底実装 | High | Draft | 0A.1 |
+| 0A.3 | `db-transaction` | トランザクション管理 | High | Done | 0A.1 |
+| 0A.4 | `db-repository-base` | リポジトリ基底実装 | High | Done | 0A.1 |
 
 ### 0B: キャッシュ（Redis）
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 0B.1 | `redis-connection` | Redis接続管理 | High | Draft | - |
-| 0B.2 | `redis-session-store` | セッションストア | High | Draft | 0B.1 |
-| 0B.3 | `redis-rate-limit` | レート制限 | Medium | Draft | 0B.1 |
+| 0B.1 | `redis-connection` | Redis接続管理 | High | Done | - |
+| 0B.2 | `redis-session-store` | セッションストア | High | Done | 0B.1 |
+| 0B.3 | `redis-rate-limit` | レート制限 | Medium | Done | 0B.1 |
 | 0B.4 | `redis-cache` | 汎用キャッシュ | Medium | Draft | 0B.1 |
 
 ### 0C: オブジェクトストレージ（MinIO）
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 0C.1 | `minio-connection` | MinIO接続・クライアント初期化 | High | Draft | - |
-| 0C.2 | `minio-bucket-setup` | バケット作成・設定 | High | Draft | 0C.1 |
-| 0C.3 | `minio-presigned-put` | Presigned PUT URL生成 | High | Draft | 0C.1 |
-| 0C.4 | `minio-presigned-get` | Presigned GET URL生成 | High | Draft | 0C.1 |
-| 0C.5 | `minio-multipart-init` | マルチパートアップロード開始 | High | Draft | 0C.1 |
-| 0C.6 | `minio-multipart-complete` | マルチパートアップロード完了 | High | Draft | 0C.5 |
-| 0C.7 | `minio-multipart-abort` | マルチパートアップロード中断 | Medium | Draft | 0C.5 |
+| 0C.1 | `minio-connection` | MinIO接続・クライアント初期化 | High | Done | - |
+| 0C.2 | `minio-bucket-setup` | バケット作成・設定 | High | Done | 0C.1 |
+| 0C.3 | `minio-presigned-put` | Presigned PUT URL生成 | High | Done | 0C.1 |
+| 0C.4 | `minio-presigned-get` | Presigned GET URL生成 | High | Done | 0C.1 |
+| 0C.5 | `minio-multipart-init` | マルチパートアップロード開始 | High | Done | 0C.1 |
+| 0C.6 | `minio-multipart-complete` | マルチパートアップロード完了 | High | Done | 0C.5 |
+| 0C.7 | `minio-multipart-abort` | マルチパートアップロード中断 | Medium | Done | 0C.5 |
 | 0C.8 | `minio-object-info` | オブジェクト情報取得 | High | Draft | 0C.1 |
 | 0C.9 | `minio-object-delete` | オブジェクト削除 | High | Draft | 0C.1 |
 | 0C.10 | `minio-object-copy` | オブジェクトコピー | Medium | Draft | 0C.1 |
@@ -133,8 +133,8 @@ gc-storage (メインバケット)
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 0D.1 | `smtp-connection` | SMTP接続設定 | High | Draft | - |
-| 0D.2 | `email-template` | メールテンプレート管理 | High | Draft | 0D.1 |
+| 0D.1 | `smtp-connection` | SMTP接続設定 | High | Done | - |
+| 0D.2 | `email-template` | メールテンプレート管理 | High | Done | 0D.1 |
 | 0D.3 | `email-verification` | メール確認メール送信 | High | Draft | 0D.2 |
 | 0D.4 | `email-password-reset` | パスワードリセットメール | High | Draft | 0D.2 |
 | 0D.5 | `email-invitation` | グループ招待メール | Medium | Draft | 0D.2 |
@@ -144,25 +144,25 @@ gc-storage (メインバケット)
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 0E.1 | `api-router` | ルーティング設定 | High | Draft | - |
-| 0E.2 | `api-middleware-auth` | 認証ミドルウェア | High | Draft | 0E.1 |
+| 0E.1 | `api-router` | ルーティング設定 | High | Done | - |
+| 0E.2 | `api-middleware-auth` | 認証ミドルウェア | High | Done | 0E.1 |
 | 0E.3 | `api-middleware-cors` | CORSミドルウェア | High | Done | 0E.1 |
-| 0E.4 | `api-error-response` | エラーレスポンス標準化 | High | Draft | 0E.1 |
-| 0E.5 | `api-validation` | リクエストバリデーション | High | Draft | 0E.1 |
+| 0E.4 | `api-error-response` | エラーレスポンス標準化 | High | Done | 0E.1 |
+| 0E.5 | `api-validation` | リクエストバリデーション | High | Done | 0E.1 |
 | 0E.6 | `api-pagination` | ページネーション共通化 | Medium | Draft | 0E.1 |
-| 0E.7 | `api-rate-limit` | APIレート制限 | Medium | Draft | 0B.3 |
-| 0E.8 | `api-versioning` | APIバージョニング | Low | Draft | 0E.1 |
+| 0E.7 | `api-rate-limit` | APIレート制限 | Medium | Done | 0B.3 |
+| 0E.8 | `api-versioning` | APIバージョニング | Low | Done | 0E.1 |
 
 ### 0F: ロギング・監視
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 0F.1 | `log-structured` | 構造化ログ出力 | High | Draft | - |
-| 0F.2 | `log-request` | リクエストログ | High | Draft | 0F.1 |
+| 0F.1 | `log-structured` | 構造化ログ出力 | High | Done | - |
+| 0F.2 | `log-request` | リクエストログ | High | Done | 0F.1 |
 | 0F.3 | `log-audit` | 監査ログ | Medium | Draft | 0F.1 |
 | 0F.4 | `metrics-basic` | 基本メトリクス | Medium | Draft | - |
 | 0F.5 | `health-check` | ヘルスチェック | High | Done | - |
-| 0F.6 | `health-readiness` | Readiness Probe | Medium | Draft | 0F.5 |
+| 0F.6 | `health-readiness` | Readiness Probe | Medium | Done | 0F.5 |
 
 ### 0G: バックグラウンドジョブ
 
@@ -199,11 +199,11 @@ gc-storage (メインバケット)
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 1.1 | `auth-register` | ユーザー登録 | High | Draft | - |
-| 1.2 | `auth-login` | メール/パスワードログイン | High | Draft | 1.1 |
+| 1.1 | `auth-register` | ユーザー登録 | High | Done | - |
+| 1.2 | `auth-login` | メール/パスワードログイン | High | Done | 1.1 |
 | 1.3 | `auth-oauth` | OAuth認証（Google/GitHub） | High | Draft | 1.1 |
-| 1.4 | `auth-logout` | ログアウト | High | Draft | 1.2 |
-| 1.5 | `auth-refresh` | トークンリフレッシュ | High | Draft | 1.2 |
+| 1.4 | `auth-logout` | ログアウト | High | Done | 1.2 |
+| 1.5 | `auth-refresh` | トークンリフレッシュ | High | Done | 1.2 |
 | 1.6 | `auth-email-verify` | メールアドレス確認 | Medium | Draft | 1.1 |
 | 1.7 | `auth-password-reset` | パスワードリセット | Medium | Draft | 1.1 |
 | 1.8 | `auth-password-change` | パスワード変更 | Medium | Draft | 1.2 |
