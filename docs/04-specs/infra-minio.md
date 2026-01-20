@@ -121,94 +121,100 @@ backend/internal/infrastructure/storage/minio/
 
 ## 2. オブジェクトキー設計
 
-### 2.1 キー形式
+### 2.1 設計方針
+
+**MinIOバージョニングを使用**し、同一キーに対してMinIOがバージョンIDを自動管理する。
+
+| 項目 | 設計 |
+|------|------|
+| キー形式 | `{file_id}` のみ（UUIDv4） |
+| バージョン管理 | MinIOネイティブバージョニング |
+| 所有者情報 | キーに含めない（DBで管理） |
+| セキュリティ | UUIDによる推測困難性 |
+
+**この設計の理由:**
+- **所有者変更耐性**: 所有者が変わってもオブジェクト移動不要
+- **セキュリティ**: キーから所有者情報が漏洩しない
+- **シンプルさ**: MinIOバージョニングでバージョン管理を委譲
+
+### 2.2 キー形式
 
 ```go
-// backend/internal/infrastructure/storage/minio/keys.go
+// backend/internal/domain/valueobject/storage_key.go
 
-package minio
+package valueobject
 
 import (
+    "errors"
     "fmt"
-    "strings"
 
     "github.com/google/uuid"
 )
 
-// OwnerType はオーナータイプを表します
-type OwnerType string
-
 const (
-    OwnerTypeUser  OwnerType = "user"
-    OwnerTypeGroup OwnerType = "group"
+    StorageKeyMaxBytes = 1024
 )
 
-// StorageKey はMinIO内のオブジェクトキーを表します
+var (
+    ErrInvalidStorageKey = errors.New("invalid storage key")
+)
+
+// StorageKey はMinIO内のオブジェクトキーを表す値オブジェクト
+// 形式: {file_id} (UUIDv4)
 type StorageKey struct {
-    OwnerType OwnerType
-    OwnerID   uuid.UUID
-    FileID    uuid.UUID
-    Version   int
+    value string
 }
 
-// NewStorageKey は新しいStorageKeyを作成します
-func NewStorageKey(ownerType OwnerType, ownerID, fileID uuid.UUID, version int) StorageKey {
+// NewStorageKey はファイルIDからStorageKeyを生成します
+func NewStorageKey(fileID uuid.UUID) StorageKey {
     return StorageKey{
-        OwnerType: ownerType,
-        OwnerID:   ownerID,
-        FileID:    fileID,
-        Version:   version,
+        value: fileID.String(),
     }
 }
 
-// String はキー文字列を返します
-// 形式: {owner_type}/{owner_id}/{file_id}/v{version}
+// NewStorageKeyFromString は文字列からStorageKeyを生成します
+func NewStorageKeyFromString(key string) (StorageKey, error) {
+    // UUIDとしてパース可能か検証
+    if _, err := uuid.Parse(key); err != nil {
+        return StorageKey{}, fmt.Errorf("%w: %v", ErrInvalidStorageKey, err)
+    }
+
+    if len(key) > StorageKeyMaxBytes {
+        return StorageKey{}, fmt.Errorf("%w: key too long", ErrInvalidStorageKey)
+    }
+
+    return StorageKey{value: key}, nil
+}
+
+// Value はキー文字列を返します
+func (k StorageKey) Value() string {
+    return k.value
+}
+
+// FileID はファイルIDを取得します
+func (k StorageKey) FileID() (uuid.UUID, error) {
+    return uuid.Parse(k.value)
+}
+
+// String はキー文字列を返します（Stringerインターフェース）
 func (k StorageKey) String() string {
-    return fmt.Sprintf("%s/%s/%s/v%d", k.OwnerType, k.OwnerID, k.FileID, k.Version)
+    return k.value
 }
 
-// ParseStorageKey はキー文字列をパースします
-func ParseStorageKey(key string) (StorageKey, error) {
-    parts := strings.Split(key, "/")
-    if len(parts) != 4 {
-        return StorageKey{}, fmt.Errorf("invalid storage key format: %s", key)
-    }
-
-    ownerID, err := uuid.Parse(parts[1])
-    if err != nil {
-        return StorageKey{}, fmt.Errorf("invalid owner_id: %w", err)
-    }
-
-    fileID, err := uuid.Parse(parts[2])
-    if err != nil {
-        return StorageKey{}, fmt.Errorf("invalid file_id: %w", err)
-    }
-
-    var version int
-    if _, err := fmt.Sscanf(parts[3], "v%d", &version); err != nil {
-        return StorageKey{}, fmt.Errorf("invalid version: %w", err)
-    }
-
-    return StorageKey{
-        OwnerType: OwnerType(parts[0]),
-        OwnerID:   ownerID,
-        FileID:    fileID,
-        Version:   version,
-    }, nil
-}
-
-// ThumbnailKey はサムネイルのキーを返します
+// ThumbnailKey はサムネイル用のキーを返します
 func (k StorageKey) ThumbnailKey(size string) string {
-    return fmt.Sprintf("%s/%s/%s/thumbnails/%s/v%d", k.OwnerType, k.OwnerID, k.FileID, size, k.Version)
+    return fmt.Sprintf("%s/thumbnails/%s", k.value, size)
 }
 ```
 
-### 2.2 キー命名ガイドライン
+### 2.3 キー命名ガイドライン
 
 | パターン | 形式 | 例 |
 |---------|------|-----|
-| ファイル本体 | `{owner_type}/{owner_id}/{file_id}/v{version}` | `user/550e8400.../abc123.../v1` |
-| サムネイル | `{owner_type}/{owner_id}/{file_id}/thumbnails/{size}/v{version}` | `user/550e8400.../abc123.../thumbnails/256x256/v1` |
+| ファイル本体 | `{file_id}` | `550e8400-e29b-41d4-a716-446655440000` |
+| サムネイル | `{file_id}/thumbnails/{size}` | `550e8400-e29b.../thumbnails/256x256` |
+
+**注意:** バージョンはMinIOが自動管理（`minio_version_id`でアクセス）
 
 ---
 
@@ -419,11 +425,11 @@ type PartInfo struct {
 
 ## 4. マルチパートアップロード
 
-### 4.1 マルチパートアップロードの流れ
+### 4.1 マルチパートアップロードの流れ（Webhook駆動）
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Multipart Upload Flow                                   │
+│                   Multipart Upload Flow（Webhook駆動）                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 【Phase 1: 初期化】
@@ -438,43 +444,50 @@ type PartInfo struct {
      │                  │  3. uploadId                              │
      │                  │◀─────────────────────────────────────────│
      │                  │                      │                    │
-     │                  │  4. Save UploadSession                   │
+     │                  │  4. Save UploadSession (status=pending)  │
      │                  │─────────────────────▶│                    │
      │                  │                      │                    │
-     │  5. Return uploadId, partCount         │                    │
+     │  5. Return uploadId, partCount, presignedUrls               │
      │◀─────────────────│                      │                    │
 
 【Phase 2: パートアップロード】（並列5つまで）
-     │  6. GET /upload/multipart/part-url?part=N                   │
-     │─────────────────▶│                      │                    │
-     │                  │  7. GeneratePartUploadURL                │
-     │                  │─────────────────────────────────────────▶│
-     │  8. Presigned PUT URL                   │                    │
-     │◀─────────────────│                      │                    │
-     │                  │                      │                    │
-     │  9. PUT to MinIO directly                                    │
+     │  6. PUT to MinIO directly (part 1)                           │
      │──────────────────────────────────────────────────────────────▶
      │                  │                      │                    │
-     │  10. 200 OK + ETag                                           │
+     │  7. 200 OK + ETag                                            │
      │◀──────────────────────────────────────────────────────────────
      │                  │                      │                    │
      │  (Repeat for each part)                 │                    │
 
-【Phase 3: 完了】
-     │  11. POST /upload/multipart/complete    │                    │
+【Phase 3: 完了（クライアント → MinIO S3 API）】
+     │  8. POST CompleteMultipartUpload (S3 API) to MinIO           │
      │      {uploadId, parts: [{partNumber, eTag},...]}            │
-     │─────────────────▶│                      │                    │
-     │                  │  12. CompleteMultipartUpload             │
-     │                  │─────────────────────────────────────────▶│
+     │──────────────────────────────────────────────────────────────▶
      │                  │                      │                    │
-     │                  │  13. Final ETag                           │
+     │  9. 200 OK (Final ETag, VersionID)                           │
+     │◀──────────────────────────────────────────────────────────────
+
+【Phase 4: Webhook通知（MinIO → API）】
+     │                  │                      │                    │
+     │                  │  10. s3:ObjectCreated:CompleteMultipartUpload
      │                  │◀─────────────────────────────────────────│
      │                  │                      │                    │
-     │                  │  14. Update File status                   │
+     │                  │  11. Update File status (pending→active) │
+     │                  │      Create FileVersion                  │
      │                  │─────────────────────▶│                    │
-     │  15. Success                            │                    │
-     │◀─────────────────│                      │                    │
+     │                  │                      │                    │
+     │                  │  12. Return 200 OK   │                    │
+     │                  │─────────────────────────────────────────▶│
 ```
+
+**変更点（旧設計との違い）:**
+
+| 項目 | 旧設計 | 新設計（Webhook駆動） |
+|------|--------|----------------------|
+| 完了処理 | クライアント → API → MinIO | クライアント → MinIO（直接S3 API） |
+| ファイル有効化 | APIがMinIO完了後に実行 | Webhook受信時に実行 |
+| 整合性 | クライアント依存 | MinIO完了を保証 |
+| パートURL取得 | パートごとにAPIコール | 初期化時に全パート分を一括返却 |
 
 ### 4.2 マルチパートアップロード実装
 
@@ -936,8 +949,10 @@ func (s *BucketSetup) Setup(ctx context.Context) error {
         }
     }
 
-    // バケットポリシーの設定（必要に応じて）
-    // s.setBucketPolicy(ctx)
+    // バージョニングを有効化（必須）
+    if err := s.SetVersioning(ctx, true); err != nil {
+        return fmt.Errorf("failed to enable versioning: %w", err)
+    }
 
     return nil
 }
@@ -1041,9 +1056,238 @@ func (m *LifecycleManager) SetObjectExpiration(ctx context.Context, prefix strin
 
 ---
 
-## 7. クリーンアップジョブ
+## 7. Bucket Notification（Webhook）
 
-### 7.1 孤立オブジェクトクリーンアップ
+アップロード完了検知のため、MinIOのBucket Notificationを使用してWebhook通知を受信する。
+
+### 7.1 設計方針
+
+| 項目 | 設計 |
+|------|------|
+| 通知方式 | Webhook（HTTP POST） |
+| イベント | `s3:ObjectCreated:*` |
+| 同期モード | `MINIO_API_SYNC_EVENTS=on`（推奨） |
+| 冪等性 | storage_key + minio_version_id で重複チェック |
+
+**Webhook駆動の利点:**
+- クライアントからの完了通知が不要（整合性保証）
+- MinIOが完了を確定してから通知（データ整合性）
+- サーバー側で一意に完了判定
+
+### 7.2 MinIO設定
+
+**環境変数（docker-compose.yml）:**
+
+```yaml
+services:
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      # Webhook設定
+      MINIO_NOTIFY_WEBHOOK_ENABLE_PRIMARY: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY: "http://api:8080/internal/webhooks/minio"
+      MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_PRIMARY: "${MINIO_WEBHOOK_SECRET}"
+      # 同期モード（Webhookを同期的に処理）
+      MINIO_API_SYNC_EVENTS: "on"
+    command: server /data --console-address ":9001"
+```
+
+**mcコマンドによるイベント設定:**
+
+```bash
+# バケットにWebhook通知を設定
+mc event add myminio/gc-storage arn:minio:sqs::primary:webhook \
+  --event put \
+  --suffix ""
+
+# 設定確認
+mc event list myminio/gc-storage
+```
+
+### 7.3 Webhookハンドラー実装
+
+```go
+// backend/internal/interface/handler/webhook_handler.go
+
+package handler
+
+import (
+    "crypto/subtle"
+    "encoding/json"
+    "net/http"
+
+    "github.com/labstack/echo/v4"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/file/command"
+)
+
+// MinIOEvent はMinIOからのS3イベント通知
+type MinIOEvent struct {
+    Records []MinIOEventRecord `json:"Records"`
+}
+
+type MinIOEventRecord struct {
+    EventVersion string        `json:"eventVersion"`
+    EventSource  string        `json:"eventSource"`
+    EventName    string        `json:"eventName"`
+    EventTime    string        `json:"eventTime"`
+    S3           MinIOEventS3  `json:"s3"`
+}
+
+type MinIOEventS3 struct {
+    Bucket MinIOEventBucket `json:"bucket"`
+    Object MinIOEventObject `json:"object"`
+}
+
+type MinIOEventBucket struct {
+    Name string `json:"name"`
+}
+
+type MinIOEventObject struct {
+    Key       string `json:"key"`
+    Size      int64  `json:"size"`
+    ETag      string `json:"eTag"`
+    VersionID string `json:"versionId"`
+}
+
+// WebhookHandler はMinIO Webhookを処理
+type WebhookHandler struct {
+    completeUploadCmd *command.CompleteUploadCommand
+    webhookSecret     string
+}
+
+// NewWebhookHandler は新しいWebhookHandlerを作成
+func NewWebhookHandler(
+    completeUploadCmd *command.CompleteUploadCommand,
+    webhookSecret string,
+) *WebhookHandler {
+    return &WebhookHandler{
+        completeUploadCmd: completeUploadCmd,
+        webhookSecret:     webhookSecret,
+    }
+}
+
+// HandleMinIOWebhook はMinIOからのWebhook通知を処理
+func (h *WebhookHandler) HandleMinIOWebhook(c echo.Context) error {
+    // 1. 認証トークン検証
+    authToken := c.Request().Header.Get("Authorization")
+    if !h.validateToken(authToken) {
+        return c.NoContent(http.StatusUnauthorized)
+    }
+
+    // 2. イベントパース
+    var event MinIOEvent
+    if err := json.NewDecoder(c.Request().Body).Decode(&event); err != nil {
+        return c.JSON(http.StatusBadRequest, map[string]string{
+            "error": "invalid event format",
+        })
+    }
+
+    // 3. 各レコードを処理
+    for _, record := range event.Records {
+        // ObjectCreated イベントのみ処理
+        if record.EventName != "s3:ObjectCreated:Put" &&
+           record.EventName != "s3:ObjectCreated:CompleteMultipartUpload" {
+            continue
+        }
+
+        // サムネイルは除外
+        if strings.Contains(record.S3.Object.Key, "/thumbnails/") {
+            continue
+        }
+
+        // アップロード完了処理
+        input := command.CompleteUploadInput{
+            StorageKey:     record.S3.Object.Key,
+            MinioVersionID: record.S3.Object.VersionID,
+            Size:           record.S3.Object.Size,
+            ETag:           record.S3.Object.ETag,
+        }
+
+        if err := h.completeUploadCmd.Execute(c.Request().Context(), input); err != nil {
+            // エラーログ出力（リトライのため200を返す場合もある）
+            c.Logger().Error("failed to complete upload", "error", err, "key", record.S3.Object.Key)
+            // 冪等性のため、既に処理済みの場合はエラーとしない
+            continue
+        }
+    }
+
+    return c.NoContent(http.StatusOK)
+}
+
+// validateToken は認証トークンを検証
+func (h *WebhookHandler) validateToken(authToken string) bool {
+    if h.webhookSecret == "" {
+        return true // 開発環境では認証スキップ可能
+    }
+    expected := "Bearer " + h.webhookSecret
+    return subtle.ConstantTimeCompare([]byte(authToken), []byte(expected)) == 1
+}
+```
+
+### 7.4 ルーティング設定
+
+```go
+// backend/internal/interface/router/router.go
+
+func (r *Router) setupInternalRoutes() {
+    internal := r.echo.Group("/internal")
+
+    // MinIO Webhook（認証はハンドラー内で実施）
+    internal.POST("/webhooks/minio", r.handlers.Webhook.HandleMinIOWebhook)
+}
+```
+
+### 7.5 環境変数
+
+```bash
+# .env.local
+MINIO_WEBHOOK_SECRET=local-dev-secret
+
+# .env.sample（本番用）
+MINIO_WEBHOOK_SECRET=  # 強力なランダム文字列を設定
+```
+
+### 7.6 冪等性保証
+
+同じイベントが複数回送信される可能性があるため、冪等性を保証する。
+
+```go
+// UploadSessionRepository に追加
+type UploadSessionRepository interface {
+    // ...
+
+    // FindByStorageKeyAndVersionID は重複チェック用
+    FindByStorageKeyAndVersionID(ctx context.Context, storageKey string, versionID string) (*entity.UploadSession, error)
+
+    // IsAlreadyCompleted は既に完了済みかチェック
+    IsAlreadyCompleted(ctx context.Context, storageKey string, versionID string) (bool, error)
+}
+```
+
+```go
+// CompleteUploadCommand での冪等性チェック
+func (c *CompleteUploadCommand) Execute(ctx context.Context, input CompleteUploadInput) error {
+    // 冪等性チェック：既に同じバージョンで完了済みか
+    completed, err := c.sessionRepo.IsAlreadyCompleted(ctx, input.StorageKey, input.MinioVersionID)
+    if err != nil {
+        return err
+    }
+    if completed {
+        return nil // 既に処理済み、正常終了
+    }
+
+    // ... 以降の処理
+}
+```
+
+---
+
+## 8. クリーンアップジョブ
+
+### 8.1 孤立オブジェクトクリーンアップ
 
 ```go
 // backend/internal/infrastructure/storage/minio/cleanup.go
@@ -1200,9 +1444,9 @@ func (s *CleanupService) CleanupDeletedFiles(ctx context.Context) (int, error) {
 
 ---
 
-## 8. エラーハンドリング
+## 9. エラーハンドリング
 
-### 8.1 MinIOエラーの分類
+### 9.1 MinIOエラーの分類
 
 ```go
 // pkg/apperror/minio.go
@@ -1254,9 +1498,9 @@ func IsNotFound(err error) bool {
 
 ---
 
-## 9. 初期化とDI
+## 10. 初期化とDI
 
-### 9.1 MinIO依存関係の初期化
+### 10.1 MinIO依存関係の初期化
 
 ```go
 // backend/internal/infrastructure/di/minio.go
@@ -1307,9 +1551,9 @@ func NewMinIOComponents(cfg minio.Config, fileRepo repository.FileRepository, lo
 
 ---
 
-## 10. テストヘルパー
+## 11. テストヘルパー
 
-### 10.1 MinIO Testcontainer
+### 11.1 MinIO Testcontainer
 
 ```go
 // backend/internal/infrastructure/storage/minio/testhelper/minio.go
@@ -1433,7 +1677,7 @@ func (c *MinIOContainer) ClearBucket(ctx context.Context) error {
 }
 ```
 
-### 10.2 ストレージサービステスト例
+### 11.2 ストレージサービステスト例
 
 ```go
 // backend/internal/infrastructure/storage/minio/storage_test.go
@@ -1548,9 +1792,9 @@ func TestStorageService_MultipartUpload(t *testing.T) {
 
 ---
 
-## 11. 受け入れ基準
+## 12. 受け入れ基準
 
-### 11.1 機能要件
+### 12.1 機能要件
 
 | 項目 | 基準 |
 |------|------|
@@ -1564,7 +1808,7 @@ func TestStorageService_MultipartUpload(t *testing.T) {
 | オブジェクト削除 | 削除後に存在確認でfalseになる |
 | オブジェクトコピー | 同一バケット内でコピーできる |
 
-### 11.2 非機能要件
+### 12.2 非機能要件
 
 | 項目 | 基準 |
 |------|------|
@@ -1575,7 +1819,7 @@ func TestStorageService_MultipartUpload(t *testing.T) {
 | 最大並列アップロード | 5 |
 | 未完了アップロード自動削除 | 7日 |
 
-### 11.3 チェックリスト
+### 12.3 チェックリスト
 
 - [ ] MinIO接続が確立できる
 - [ ] バケットが自動作成される
@@ -1591,9 +1835,11 @@ func TestStorageService_MultipartUpload(t *testing.T) {
 
 ---
 
-## 関連ドキュメント
+## 13. 関連ドキュメント
 
 - [infra-database.md](./infra-database.md) - PostgreSQL基盤仕様
-- [storage-core.md](./storage-core.md) - ストレージコア仕様（ファイル管理）
+- [storage-file.md](./storage-file.md) - ファイル管理仕様（アップロード/ダウンロードAPI）
+- [storage-folder.md](./storage-folder.md) - フォルダ管理仕様
 - [SYSTEM.md](../02-architecture/SYSTEM.md) - アップロード/ダウンロードフロー
 - [file.md](../03-domains/file.md) - Fileドメイン定義
+- [folder.md](../03-domains/folder.md) - Folderドメイン定義

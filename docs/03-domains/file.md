@@ -2,8 +2,15 @@
 
 ## 概要
 
-Fileドメインは、ファイルのアップロード、ダウンロード、バージョン管理、メタデータ管理を担当します。
+Fileドメインは、ファイルのアップロード、ダウンロード、バージョン管理を担当します。
 Storage Contextの中核として、ファイルの実体（MinIO）とメタデータ（PostgreSQL）の整合性を保証します。
+
+### 設計方針
+
+- **MinIOバージョニング使用**: 同一StorageKeyに対してMinIOがバージョンIDを管理
+- **アーカイブテーブル方式**: 論理削除（trashed_at）ではなく、別テーブルへの移動で実現
+- **所有者情報の分離**: StorageKeyにビジネス情報を含めず、メタデータはDB管理
+- **Webhook駆動のアップロード完了**: クライアントからの完了通知ではなく、MinIO Bucket Notificationでサーバーが検知
 
 ---
 
@@ -14,47 +21,67 @@ Storage Contextの中核として、ファイルの実体（MinIO）とメタデ
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
 | id | UUID | Yes | ファイルの一意識別子 |
-| name | string | Yes | ファイル名 (1-255文字) |
-| folder_id | UUID | Yes | 所属フォルダID |
-| owner_id | UUID | Yes | 所有者ID |
-| size | int64 | Yes | ファイルサイズ（バイト） |
-| mime_type | string | Yes | MIMEタイプ |
-| storage_key | string | Yes | MinIO内のオブジェクトキー |
+| owner_id | UUID | Yes | 所有者ID（UserまたはGroup） |
+| owner_type | OwnerType | Yes | 所有者タイプ（user/group） |
+| folder_id | UUID | No | 所属フォルダID（nullならルート） |
+| name | FileName | Yes | ファイル名（値オブジェクト） |
+| mime_type | MimeType | Yes | MIMEタイプ（値オブジェクト） |
+| size | int64 | Yes | 現在のバージョンのファイルサイズ（バイト） |
+| storage_key | StorageKey | Yes | MinIO内のオブジェクトキー（値オブジェクト） |
 | current_version | int | Yes | 現在のバージョン番号 |
 | status | FileStatus | Yes | ファイル状態 |
-| trashed_at | timestamp | No | ゴミ箱移動日時 |
 | created_at | timestamp | Yes | 作成日時 |
 | updated_at | timestamp | Yes | 更新日時 |
 
-**ビジネスルール:**
-- R-FL001: nameは空文字不可、1-255文字
-- R-FL002: nameに禁止文字（/ \ : * ? " < > |）を含まない
-- R-FL003: storage_keyは全ファイルで一意
-- R-FL004: 同一フォルダ内でnameは一意
-- R-FL005: sizeは0以上（0バイトファイルは許容）
-- R-FL006: current_versionは1以上の連番
-- R-FL007: statusがpendingからactiveへの遷移はアップロード完了時のみ
-
-**ステータス遷移:**
-```
-┌─────────┐       ┌─────────┐       ┌─────────┐       ┌─────────┐
-│ pending │──────▶│  active │──────▶│ trashed │──────▶│ deleted │
-└─────────┘       └────┬────┘       └────┬────┘       └─────────┘
-     │                 │                 │
-     │  upload failed  │                 │ restore
-     ▼                 │◀────────────────┘
-┌─────────┐            │
-│  failed │            │
-└─────────┘            │
-```
+**ステータス定義:**
 
 | ステータス | 説明 |
 |-----------|------|
-| pending | アップロード中 |
+| uploading | アップロード中 |
 | active | アクティブ（通常利用可能） |
-| trashed | ゴミ箱（復元可能） |
-| deleted | 完全削除済み |
-| failed | アップロード失敗 |
+| upload_failed | アップロード失敗 |
+
+**ステータス遷移:**
+
+```
+┌────────────┐
+│ uploading  │
+└─────┬──────┘
+      │
+  ┌───┴───┐
+  │       │
+  ▼       ▼
+┌──────┐ ┌───────────────┐
+│active│ │ upload_failed │
+└──┬───┘ └───────────────┘
+   │
+   │ Trash操作
+   ▼
+┌──────────────────┐
+│  ArchivedFile    │ ← 別テーブルへ移動
+└────────┬─────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+┌──────┐  ┌────────────┐
+│ 復元 │  │ 完全削除    │
+│→File │  │（物理削除） │
+└──────┘  └────────────┘
+```
+
+**ビジネスルール:**
+
+| ID | ルール |
+|----|--------|
+| R-FL001 | storage_keyはfile_idから生成される |
+| R-FL002 | 同一フォルダ内でnameは一意 |
+| R-FL003 | sizeは0以上（0バイトファイルは許容） |
+| R-FL004 | current_versionは1以上の連番 |
+| R-FL005 | statusがuploadingからactiveへの遷移はアップロード完了時のみ |
+| R-FL006 | statusがupload_failedのファイルは自動クリーンアップ対象 |
+
+---
 
 ### FileVersion
 
@@ -62,450 +89,397 @@ Storage Contextの中核として、ファイルの実体（MinIO）とメタデ
 |-----|-----|------|------|
 | id | UUID | Yes | バージョンの一意識別子 |
 | file_id | UUID | Yes | ファイルID |
-| version_number | int | Yes | バージョン番号 |
+| version_number | int | Yes | ユーザー向けバージョン番号（1, 2, 3...） |
+| minio_version_id | string | Yes | MinIOが生成したバージョンID |
 | size | int64 | Yes | このバージョンのサイズ |
-| storage_key | string | Yes | MinIO内のオブジェクトキー |
-| checksum_md5 | string | Yes | MD5チェックサム |
-| checksum_sha256 | string | Yes | SHA256チェックサム |
-| created_by | UUID | Yes | アップロードしたユーザーID |
+| checksum | string | Yes | SHA-256チェックサム |
+| uploaded_by | UUID | Yes | アップロードしたユーザーID |
 | created_at | timestamp | Yes | 作成日時 |
 
 **ビジネスルール:**
-- R-FV001: version_numberは同一file_id内で一意かつ連番
-- R-FV002: storage_keyは全バージョンで一意
-- R-FV003: バージョン削除は最新バージョン以外のみ可能
-- R-FV004: 保持バージョン数は設定可能（デフォルト10）
 
-### FileMetadata
+| ID | ルール |
+|----|--------|
+| R-FV001 | version_numberは同一file_id内で一意かつ連番 |
+| R-FV002 | minio_version_idはMinIOから取得した値をそのまま保存 |
+| R-FV003 | checksumはアップロード完了時に必ず計算・検証 |
+| R-FV004 | 特定バージョンの取得はstorage_key + minio_version_idで行う |
+
+---
+
+### ArchivedFile
+
+ゴミ箱に移動されたファイル。復元に必要な情報を完全に保持する。
 
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
-| file_id | UUID | Yes | ファイルID（主キー） |
-| checksum_md5 | string | Yes | MD5チェックサム |
-| checksum_sha256 | string | Yes | SHA256チェックサム |
-| width | int | No | 画像/動画の幅（ピクセル） |
-| height | int | No | 画像/動画の高さ（ピクセル） |
-| duration | int | No | 音声/動画の長さ（秒） |
-| exif_data | jsonb | No | EXIF情報（画像） |
-| custom_properties | jsonb | No | カスタムメタデータ |
-| extracted_at | timestamp | Yes | メタデータ抽出日時 |
+| id | UUID | Yes | アーカイブの一意識別子 |
+| original_file_id | UUID | Yes | 元のファイルID |
+| original_folder_id | UUID | No | 復元先フォルダID |
+| original_path | string | Yes | 復元時の参考パス（例: "/documents/report.pdf"） |
+| name | FileName | Yes | ファイル名 |
+| mime_type | MimeType | Yes | MIMEタイプ |
+| size | int64 | Yes | 最新バージョンのサイズ |
+| owner_id | UUID | Yes | 所有者ID |
+| owner_type | OwnerType | Yes | 所有者タイプ |
+| storage_key | StorageKey | Yes | MinIOキー（復元・削除用） |
+| archived_at | timestamp | Yes | アーカイブ日時 |
+| archived_by | UUID | Yes | ゴミ箱に入れたユーザーID |
+| expires_at | timestamp | Yes | 自動削除日時 |
 
 **ビジネスルール:**
-- R-FM001: checksumはアップロード完了時に必ず計算
-- R-FM002: width/heightは画像・動画ファイルのみ
-- R-FM003: durationは音声・動画ファイルのみ
+
+| ID | ルール |
+|----|--------|
+| R-AF001 | expires_atはarchived_atから30日後に設定 |
+| R-AF002 | expires_atを過ぎたファイルはバッチ処理で自動削除 |
+| R-AF003 | 復元時、original_folder_idが存在しない場合はルートに復元 |
+| R-AF004 | 完全削除時はMinIOの全バージョンも削除 |
+
+---
+
+### ArchivedFileVersion
+
+ゴミ箱内ファイルのバージョン情報。
+
+| 属性 | 型 | 必須 | 説明 |
+|-----|-----|------|------|
+| id | UUID | Yes | 一意識別子 |
+| archived_file_id | UUID | Yes | ArchivedFileへの参照 |
+| original_version_id | UUID | Yes | 元のFileVersion ID |
+| version_number | int | Yes | バージョン番号 |
+| minio_version_id | string | Yes | MinIOバージョンID |
+| size | int64 | Yes | サイズ |
+| checksum | string | Yes | SHA-256チェックサム |
+| uploaded_by | UUID | Yes | アップロードしたユーザーID |
+| created_at | timestamp | Yes | 元の作成日時 |
+
+**ビジネスルール:**
+
+| ID | ルール |
+|----|--------|
+| R-AFV001 | ArchivedFile削除時、関連するArchivedFileVersionも削除 |
+| R-AFV002 | 復元時、全バージョンをFileVersionとして復元 |
+
+---
 
 ### UploadSession
+
+アップロードセッションの管理。シングルパート・マルチパート両方に対応。
 
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
 | id | UUID | Yes | セッションID |
-| file_id | UUID | Yes | 対象ファイルID |
-| upload_id | string | No | MinIOのマルチパートアップロードID |
-| is_multipart | boolean | Yes | マルチパートアップロードかどうか |
-| total_parts | int | No | マルチパートの総パート数 |
-| uploaded_parts | int | No | アップロード済みパート数 |
-| expires_at | timestamp | Yes | セッション有効期限 |
-| status | UploadSessionStatus | Yes | セッション状態 |
+| file_id | UUID | Yes | 作成予定のファイルID（事前生成） |
+| owner_id | UUID | Yes | 所有者ID |
+| owner_type | OwnerType | Yes | 所有者タイプ |
+| folder_id | UUID | No | アップロード先フォルダID |
+| file_name | FileName | Yes | ファイル名 |
+| mime_type | MimeType | Yes | MIMEタイプ |
+| total_size | int64 | Yes | 予定サイズ |
+| storage_key | StorageKey | Yes | MinIOキー |
+| minio_upload_id | string | No | MinIOマルチパートアップロードID |
+| is_multipart | boolean | Yes | マルチパートかどうか |
+| total_parts | int | Yes | 予定パーツ数（シングルパートは1） |
+| uploaded_parts | int | Yes | アップロード済みパーツ数 |
+| status | UploadStatus | Yes | セッション状態 |
 | created_at | timestamp | Yes | 作成日時 |
 | updated_at | timestamp | Yes | 更新日時 |
+| expires_at | timestamp | Yes | セッション有効期限 |
+
+**ステータス定義:**
+
+| ステータス | 説明 |
+|-----------|------|
+| pending | 初期化済み、未開始 |
+| in_progress | パーツアップロード中 |
+| completed | 完了 |
+| aborted | 中断 |
+| expired | 期限切れ |
 
 **ビジネスルール:**
-- R-US001: expires_atを過ぎたセッションは自動キャンセル
-- R-US002: is_multipart=trueの場合、upload_idは必須
-- R-US003: セッション完了後は状態変更不可
+
+| ID | ルール |
+|----|--------|
+| R-US001 | expires_atのデフォルトは作成から24時間後 |
+| R-US002 | expires_atを過ぎたセッションは自動キャンセル |
+| R-US003 | is_multipart=trueの場合、minio_upload_idは必須 |
+| R-US004 | completedまたはaborted後は状態変更不可 |
+| R-US005 | マルチパートセッションのキャンセル時はMinIO側もAbort |
+
+---
+
+### UploadPart
+
+マルチパートアップロードの各パーツ情報。
+
+| 属性 | 型 | 必須 | 説明 |
+|-----|-----|------|------|
+| id | UUID | Yes | 一意識別子 |
+| session_id | UUID | Yes | UploadSessionへの参照 |
+| part_number | int | Yes | パート番号（1から開始） |
+| size | int64 | Yes | パートサイズ |
+| etag | string | Yes | MinIOから返却されたETag |
+| uploaded_at | timestamp | Yes | アップロード日時 |
+
+**ビジネスルール:**
+
+| ID | ルール |
+|----|--------|
+| R-UP001 | part_numberは同一session_id内で一意 |
+| R-UP002 | etagはCompleteMultipartUpload時に必要 |
 
 ---
 
 ## 値オブジェクト
 
-### FileName
-
-| 属性 | 型 | 説明 |
-|-----|-----|------|
-| value | string | ファイル名文字列 |
-
-**バリデーション:**
-- 1-255文字
-- 禁止文字（/ \ : * ? " < > |）を含まない
-- 先頭・末尾の空白はトリム
-
-```go
-type FileName struct {
-    value string
-}
-
-func NewFileName(value string) (FileName, error) {
-    trimmed := strings.TrimSpace(value)
-
-    if len(trimmed) == 0 {
-        return FileName{}, errors.New("file name cannot be empty")
-    }
-    if len(trimmed) > 255 {
-        return FileName{}, errors.New("file name must not exceed 255 characters")
-    }
-
-    invalidChars := regexp.MustCompile(`[/\\:*?"<>|]`)
-    if invalidChars.MatchString(trimmed) {
-        return FileName{}, errors.New("file name contains invalid characters")
-    }
-
-    return FileName{value: trimmed}, nil
-}
-
-func (f FileName) Extension() string {
-    idx := strings.LastIndex(f.value, ".")
-    if idx == -1 || idx == len(f.value)-1 {
-        return ""
-    }
-    return strings.ToLower(f.value[idx+1:])
-}
-```
-
 ### StorageKey
+
+MinIO内のオブジェクトキー。所有者情報を含まず、file_idのみで構成。
 
 | 属性 | 型 | 説明 |
 |-----|-----|------|
 | value | string | MinIO内のオブジェクトキー |
 
-**形式:** `{owner_type}/{owner_id}/{file_id}/{version}`
+**形式:** `{file_id}`
 
-```go
-type StorageKey struct {
-    value string
-}
+**要件:**
 
-func NewStorageKey(ownerType string, ownerID, fileID uuid.UUID, version int) StorageKey {
-    return StorageKey{
-        value: fmt.Sprintf("%s/%s/%s/v%d", ownerType, ownerID, fileID, version),
-    }
-}
-```
+| ID | 要件 |
+|----|------|
+| R-SK001 | 最大長は1024バイト（UTF-8） |
+| R-SK002 | file_idのUUID文字列形式で生成 |
+| R-SK003 | MinIO非対応文字（`\` `:`）を含まない |
+| R-SK004 | 所有者情報を含めない（所有者変更時にオブジェクト移動不要） |
+| R-SK005 | 推測困難な形式（UUID）でセキュリティを確保 |
+
+---
 
 ### MimeType
 
+MIMEタイプを表す値オブジェクト。カテゴリ情報を持つ。
+
 | 属性 | 型 | 説明 |
 |-----|-----|------|
-| value | string | MIMEタイプ文字列 |
+| value | string | MIMEタイプ文字列（例: "image/png"） |
+| category | MimeCategory | カテゴリ |
 
-```go
-type MimeType struct {
-    value string
-}
+**カテゴリ定義:**
 
-func NewMimeType(value string) MimeType {
-    return MimeType{value: strings.ToLower(value)}
-}
+| カテゴリ | 説明 | 例 |
+|---------|------|-----|
+| image | 画像 | image/png, image/jpeg, image/gif |
+| video | 動画 | video/mp4, video/webm |
+| audio | 音声 | audio/mpeg, audio/wav |
+| document | ドキュメント | application/pdf, text/plain, application/msword |
+| archive | アーカイブ | application/zip, application/x-tar |
+| other | その他 | application/octet-stream |
 
-func (m MimeType) IsImage() bool {
-    return strings.HasPrefix(m.value, "image/")
-}
+**要件:**
 
-func (m MimeType) IsVideo() bool {
-    return strings.HasPrefix(m.value, "video/")
-}
+| ID | 要件 |
+|----|------|
+| R-MT001 | 形式は `type/subtype` パターンに従う |
+| R-MT002 | カテゴリはvalueのtype部分から自動判定 |
+| R-MT003 | 不明なtypeの場合はカテゴリをotherに設定 |
+| R-MT004 | カテゴリ判定ヘルパーメソッドを提供（IsImage, IsVideo等） |
 
-func (m MimeType) IsAudio() bool {
-    return strings.HasPrefix(m.value, "audio/")
-}
+---
 
-func (m MimeType) IsPreviewable() bool {
-    previewable := []string{
-        "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
-        "application/pdf", "text/plain", "text/markdown",
-    }
-    for _, p := range previewable {
-        if m.value == p {
-            return true
-        }
-    }
-    return false
-}
-```
+### FileName
+
+ファイル名を表す値オブジェクト。
+
+| 属性 | 型 | 説明 |
+|-----|-----|------|
+| value | string | ファイル名文字列 |
+| extension | string | 拡張子（".pdf"など） |
+
+**要件:**
+
+| ID | 要件 |
+|----|------|
+| R-FN001 | 1-255バイト（UTF-8） |
+| R-FN002 | 禁止文字（`/ \ : * ? " < > |`）を含まない |
+| R-FN003 | 先頭・末尾の空白はトリム |
+| R-FN004 | 空文字は不可 |
+| R-FN005 | 拡張子は最後の`.`以降から取得 |
+
+---
+
+### OwnerType
+
+所有者タイプを表す値オブジェクト。
+
+| 値 | 説明 |
+|-----|------|
+| user | 個人ユーザー所有 |
+| group | グループ所有 |
+
+---
 
 ### FileStatus
 
+ファイル状態を表すenum。
+
 | 値 | 説明 |
 |-----|------|
-| pending | アップロード中 |
+| uploading | アップロード中 |
 | active | アクティブ |
-| trashed | ゴミ箱 |
-| deleted | 削除済み |
-| failed | アップロード失敗 |
+| upload_failed | アップロード失敗 |
 
-### UploadSessionStatus
+---
+
+### UploadStatus
+
+アップロードセッション状態を表すenum。
 
 | 値 | 説明 |
 |-----|------|
+| pending | 初期化済み、未開始 |
 | in_progress | アップロード中 |
 | completed | 完了 |
-| cancelled | キャンセル |
+| aborted | 中断 |
 | expired | 期限切れ |
 
 ---
 
-## ドメインサービス
+## 定数
 
-### FileUploadService
+| 定数名 | 値 | 説明 |
+|--------|-----|------|
+| TrashRetentionDays | 30 | ゴミ箱保持期間（日） |
+| UploadSessionTTL | 24時間 | アップロードセッション有効期限 |
+| MultipartThreshold | 5MB | マルチパートアップロード切替閾値 |
+| MinPartSize | 5MB | 最小パートサイズ |
+| MaxPartSize | 5GB | 最大パートサイズ |
+| StorageKeyMaxBytes | 1024 | StorageKey最大長 |
+| FileNameMaxBytes | 255 | FileName最大長 |
+| UploadStatusPollInterval | 1秒 | クライアントのステータス確認間隔 |
+| UploadStatusPollTimeout | 30秒 | クライアントのステータス確認タイムアウト |
 
-**責務:** ファイルアップロードのライフサイクル管理
+---
 
-| 操作 | 入力 | 出力 | 説明 |
-|-----|------|------|------|
-| InitiateUpload | cmd | (File, UploadSession, PresignedURL) | アップロード開始 |
-| InitiateMultipartUpload | cmd | (File, UploadSession, PartURLs) | マルチパート開始 |
-| GetPartUploadURL | sessionId, partNumber | PresignedURL | パートURL取得 |
-| CompleteUpload | sessionId | File | アップロード完了 |
-| CompleteMultipartUpload | sessionId, parts | File | マルチパート完了 |
-| CancelUpload | sessionId | void | アップロードキャンセル |
+## 操作フロー
 
-```go
-type FileUploadService interface {
-    InitiateUpload(ctx context.Context, cmd InitiateUploadCommand) (*File, *UploadSession, string, error)
-    InitiateMultipartUpload(ctx context.Context, cmd InitiateMultipartUploadCommand) (*File, *UploadSession, []string, error)
-    GetPartUploadURL(ctx context.Context, sessionID uuid.UUID, partNumber int) (string, error)
-    CompleteUpload(ctx context.Context, sessionID uuid.UUID) (*File, error)
-    CompleteMultipartUpload(ctx context.Context, sessionID uuid.UUID, parts []CompletedPart) (*File, error)
-    CancelUpload(ctx context.Context, sessionID uuid.UUID) error
-}
+### アップロードフロー
+
+アップロード完了の検知はMinIO Bucket Notification（Webhook）を使用する。
+クライアントからの完了通知は不要で、サーバーが一意に完了を判断する。
+
+#### シングルパートアップロード（5MB未満）
+
+```
+1. クライアント → API: InitiateUpload
+2. API:
+   - UploadSession作成（is_multipart=false, status=pending）
+   - File作成（status=uploading）
+   - Presigned PUT URL生成
+3. API → クライアント: session_id, presigned_url返却
+4. クライアント → MinIO: 直接PUT
+5. MinIO → API: Webhook通知（s3:ObjectCreated:Put）
+6. API（内部処理 HandleUploadCompleted）:
+   - storage_keyからUploadSession特定
+   - File.status = active
+   - FileVersion作成（minio_version_id保存）
+   - UploadSession.status = completed
+7. クライアント → API: GetUploadStatus（ポーリング、1秒間隔）
+8. API → クライアント: status=completed, file_id返却
 ```
 
-**アップロード開始の処理:**
-```go
-func (s *FileUploadServiceImpl) InitiateUpload(
-    ctx context.Context,
-    cmd InitiateUploadCommand,
-) (*File, *UploadSession, string, error) {
-    // 1. フォルダ存在・権限チェック
-    folder, err := s.folderRepo.FindByID(ctx, cmd.FolderID)
-    if err != nil {
-        return nil, nil, "", err
-    }
-    if folder.Status != FolderStatusActive {
-        return nil, nil, "", errors.New("folder is not active")
-    }
+#### マルチパートアップロード（5MB以上）
 
-    // 2. 同名ファイルチェック（バージョン作成 or エラー）
-    existingFile, _ := s.fileRepo.FindByNameAndFolder(ctx, cmd.Name, cmd.FolderID)
-    var file *File
-
-    if existingFile != nil {
-        // 既存ファイルの新バージョンとして処理
-        file = existingFile
-        file.CurrentVersion++
-        file.UpdatedAt = time.Now()
-    } else {
-        // 新規ファイル作成
-        file = &File{
-            ID:             uuid.New(),
-            Name:           cmd.Name,
-            FolderID:       cmd.FolderID,
-            OwnerID:        cmd.OwnerID,
-            Size:           cmd.Size,
-            MimeType:       cmd.MimeType,
-            CurrentVersion: 1,
-            Status:         FileStatusPending,
-            CreatedAt:      time.Now(),
-            UpdatedAt:      time.Now(),
-        }
-    }
-
-    // 3. StorageKey生成
-    storageKey := NewStorageKey(
-        string(folder.OwnerType),
-        folder.OwnerID,
-        file.ID,
-        file.CurrentVersion,
-    )
-    file.StorageKey = storageKey.String()
-
-    // 4. ファイルレコード作成/更新
-    if existingFile != nil {
-        if err := s.fileRepo.Update(ctx, file); err != nil {
-            return nil, nil, "", err
-        }
-    } else {
-        if err := s.fileRepo.Create(ctx, file); err != nil {
-            return nil, nil, "", err
-        }
-    }
-
-    // 5. アップロードセッション作成
-    session := &UploadSession{
-        ID:          uuid.New(),
-        FileID:      file.ID,
-        IsMultipart: false,
-        ExpiresAt:   time.Now().Add(1 * time.Hour),
-        Status:      UploadSessionStatusInProgress,
-        CreatedAt:   time.Now(),
-        UpdatedAt:   time.Now(),
-    }
-    if err := s.sessionRepo.Create(ctx, session); err != nil {
-        return nil, nil, "", err
-    }
-
-    // 6. Presigned URL生成
-    presignedURL, err := s.storageClient.GeneratePutURL(ctx, storageKey.String(), 15*time.Minute)
-    if err != nil {
-        return nil, nil, "", err
-    }
-
-    // 7. イベント発行
-    s.eventPublisher.Publish(FileUploadStartedEvent{
-        FileID:    file.ID,
-        SessionID: session.ID,
-        Name:      file.Name.String(),
-        Size:      file.Size,
-    })
-
-    return file, session, presignedURL, nil
-}
+```
+1. クライアント → API: InitiateUpload（size >= 5MB）
+2. API:
+   - MinIO InitiateMultipartUpload
+   - UploadSession作成（is_multipart=true, minio_upload_id保存, status=pending）
+   - File作成（status=uploading）
+3. API → クライアント: session_id, 各パートのpresigned_url返却
+4. クライアント → MinIO: パートPUT（並列可）
+5. MinIO → API: Webhook通知（s3:ObjectCreated:Put per part）
+6. API（内部処理 HandlePartUploaded）:
+   - UploadPart作成（part_number, etag保存）
+   - uploaded_parts++
+   - UploadSession.status = in_progress
+7. （全パーツ完了まで4-6を繰り返し）
+8. API: uploaded_parts == total_partsを検知
+9. API（内部処理）:
+   - MinIO CompleteMultipartUpload（全パーツのETag送信）
+10. MinIO → API: Webhook通知（最終オブジェクト作成）
+11. API（内部処理 HandleUploadCompleted）:
+    - File.status = active
+    - FileVersion作成
+    - UploadSession.status = completed
+12. クライアント → API: GetUploadStatus（ポーリング）
+13. API → クライアント: status=completed, file_id返却
 ```
 
-**アップロード完了の処理:**
-```go
-func (s *FileUploadServiceImpl) CompleteUpload(
-    ctx context.Context,
-    sessionID uuid.UUID,
-) (*File, error) {
-    return s.txManager.WithTransaction(ctx, func(ctx context.Context) (*File, error) {
-        // 1. セッション取得
-        session, err := s.sessionRepo.FindByID(ctx, sessionID)
-        if err != nil {
-            return nil, err
-        }
-        if session.Status != UploadSessionStatusInProgress {
-            return nil, errors.New("upload session is not in progress")
-        }
-        if session.ExpiresAt.Before(time.Now()) {
-            return nil, errors.New("upload session expired")
-        }
+#### クライアント側ポーリング仕様
 
-        // 2. ファイル取得
-        file, err := s.fileRepo.FindByID(ctx, session.FileID)
-        if err != nil {
-            return nil, err
-        }
+| 項目 | 値 |
+|------|-----|
+| ポーリング間隔 | 1秒 |
+| タイムアウト | 30秒 |
+| リトライ | タイムアウト後、エラーとして処理 |
 
-        // 3. オブジェクト存在確認
-        exists, err := s.storageClient.ObjectExists(ctx, file.StorageKey)
-        if err != nil || !exists {
-            return nil, errors.New("uploaded object not found")
-        }
+**GetUploadStatusレスポンス:**
 
-        // 4. メタデータ取得・検証
-        objectInfo, err := s.storageClient.GetObjectInfo(ctx, file.StorageKey)
-        if err != nil {
-            return nil, err
-        }
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| session_id | UUID | セッションID |
+| status | UploadStatus | pending, in_progress, completed, failed, expired |
+| file_id | UUID | completed時のみ、作成されたファイルID |
+| progress | object | マルチパート時の進捗（uploaded_parts, total_parts） |
+| error | string | failed時のみ、エラー理由 |
 
-        // 5. ファイルサイズ更新（実際のサイズに合わせる）
-        file.Size = objectInfo.Size
-        file.Status = FileStatusActive
-        file.UpdatedAt = time.Now()
+### ゴミ箱操作フロー
 
-        // 6. バージョンレコード作成
-        version := &FileVersion{
-            ID:             uuid.New(),
-            FileID:         file.ID,
-            VersionNumber:  file.CurrentVersion,
-            Size:           file.Size,
-            StorageKey:     file.StorageKey,
-            ChecksumMD5:    objectInfo.MD5,
-            ChecksumSHA256: objectInfo.SHA256,
-            CreatedBy:      file.OwnerID,
-            CreatedAt:      time.Now(),
-        }
-        if err := s.versionRepo.Create(ctx, version); err != nil {
-            return nil, err
-        }
+#### Trash（ゴミ箱へ移動）
 
-        // 7. メタデータ抽出・保存
-        metadata := s.extractMetadata(ctx, file, objectInfo)
-        if err := s.metadataRepo.Upsert(ctx, metadata); err != nil {
-            // メタデータ抽出失敗は警告のみ
-            log.Warn("failed to extract metadata", "error", err)
-        }
-
-        // 8. ファイル更新
-        if err := s.fileRepo.Update(ctx, file); err != nil {
-            return nil, err
-        }
-
-        // 9. セッション完了
-        session.Status = UploadSessionStatusCompleted
-        session.UpdatedAt = time.Now()
-        if err := s.sessionRepo.Update(ctx, session); err != nil {
-            return nil, err
-        }
-
-        // 10. イベント発行
-        s.eventPublisher.Publish(FileUploadedEvent{
-            FileID:        file.ID,
-            Name:          file.Name.String(),
-            Size:          file.Size,
-            VersionNumber: file.CurrentVersion,
-        })
-
-        return file, nil
-    })
-}
+```
+1. files → archived_files へデータコピー
+2. file_versions → archived_file_versions へ全バージョンコピー
+3. file_versions 削除（CASCADE）
+4. files から削除
+5. MinIOオブジェクトは削除しない
 ```
 
-### FileDownloadService
+#### Restore（復元）
 
-**責務:** ファイルダウンロードの管理
-
-| 操作 | 入力 | 出力 | 説明 |
-|-----|------|------|------|
-| GetDownloadURL | fileId, versionNumber | PresignedURL | ダウンロードURL取得 |
-| GetPreviewURL | fileId | PresignedURL | プレビューURL取得 |
-
-```go
-type FileDownloadService interface {
-    GetDownloadURL(ctx context.Context, fileID uuid.UUID, versionNumber *int) (string, error)
-    GetPreviewURL(ctx context.Context, fileID uuid.UUID) (string, error)
-}
+```
+1. archived_files → files へデータコピー
+2. archived_file_versions → file_versions へ全バージョンコピー
+3. archived_file_versions 削除（CASCADE）
+4. archived_files から削除
+5. MinIOオブジェクトはそのまま
 ```
 
-### FileVersionService
+#### PermanentDelete（完全削除）
 
-**責務:** ファイルバージョンの管理
-
-| 操作 | 入力 | 出力 | 説明 |
-|-----|------|------|------|
-| ListVersions | fileId | []FileVersion | バージョン一覧 |
-| RestoreVersion | fileId, versionNumber | File | 特定バージョンを最新に |
-| DeleteVersion | fileId, versionNumber | void | バージョン削除 |
-| CleanupOldVersions | fileId, keepCount | int | 古いバージョン削除 |
-
-```go
-type FileVersionService interface {
-    ListVersions(ctx context.Context, fileID uuid.UUID) ([]*FileVersion, error)
-    RestoreVersion(ctx context.Context, fileID uuid.UUID, versionNumber int) (*File, error)
-    DeleteVersion(ctx context.Context, fileID uuid.UUID, versionNumber int) error
-    CleanupOldVersions(ctx context.Context, fileID uuid.UUID, keepCount int) (int, error)
-}
+```
+1. MinIOから全バージョン削除
+2. archived_file_versions 削除（CASCADE）
+3. archived_files から削除
 ```
 
-### FileTrashService
+### 自動クリーンアップ
 
-**責務:** ファイルのゴミ箱管理
+#### 期限切れゴミ箱の削除（日次バッチ）
 
-| 操作 | 入力 | 出力 | 説明 |
-|-----|------|------|------|
-| TrashFile | fileId | void | ゴミ箱へ移動 |
-| RestoreFile | fileId | File | 復元 |
-| PermanentlyDelete | fileId | void | 完全削除 |
-| TrashByFolderID | folderId | void | フォルダ内ファイル一括ゴミ箱 |
+```
+1. archived_files から expires_at < NOW() を検索
+2. 各ファイルに対してPermanentDelete実行
+```
 
-```go
-type FileTrashService interface {
-    TrashFile(ctx context.Context, fileID uuid.UUID) error
-    RestoreFile(ctx context.Context, fileID uuid.UUID) (*File, error)
-    PermanentlyDelete(ctx context.Context, fileID uuid.UUID) error
-    TrashByFolderID(ctx context.Context, folderID uuid.UUID) error
-}
+#### 期限切れアップロードセッションの処理（定期バッチ）
+
+```
+1. upload_sessions から expires_at < NOW() かつ status IN (pending, in_progress) を検索
+2. マルチパートの場合: MinIO AbortMultipartUpload
+3. 関連するupload_parts削除
+4. UploadSession.status = expired
+5. 関連するFile削除（status=uploadingの場合）
 ```
 
 ---
@@ -514,181 +488,139 @@ type FileTrashService interface {
 
 ### FileRepository
 
-```go
-type FileRepository interface {
-    // 基本CRUD
-    Create(ctx context.Context, file *File) error
-    FindByID(ctx context.Context, id uuid.UUID) (*File, error)
-    Update(ctx context.Context, file *File) error
-    Delete(ctx context.Context, id uuid.UUID) error
-
-    // 検索
-    FindByFolderID(ctx context.Context, folderID uuid.UUID, status FileStatus) ([]*File, error)
-    FindByNameAndFolder(ctx context.Context, name FileName, folderID uuid.UUID) (*File, error)
-    FindByOwnerID(ctx context.Context, ownerID uuid.UUID, status FileStatus) ([]*File, error)
-
-    // 検索（全文検索対応）
-    Search(ctx context.Context, query FileSearchQuery) ([]*File, int64, error)
-
-    // ゴミ箱
-    FindTrashedByOwner(ctx context.Context, ownerID uuid.UUID) ([]*File, error)
-    FindTrashedOlderThan(ctx context.Context, threshold time.Time) ([]*File, error)
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | ファイル作成 |
+| FindByID | ID検索 |
+| Update | 更新 |
+| Delete | 物理削除 |
+| FindByFolderID | フォルダ内ファイル一覧 |
+| FindByNameAndFolder | フォルダ内の同名ファイル検索 |
+| FindByOwner | 所有者のファイル一覧 |
+| Search | 全文検索 |
 
 ### FileVersionRepository
 
-```go
-type FileVersionRepository interface {
-    Create(ctx context.Context, version *FileVersion) error
-    FindByID(ctx context.Context, id uuid.UUID) (*FileVersion, error)
-    FindByFileID(ctx context.Context, fileID uuid.UUID) ([]*FileVersion, error)
-    FindByFileAndVersion(ctx context.Context, fileID uuid.UUID, versionNumber int) (*FileVersion, error)
-    Delete(ctx context.Context, id uuid.UUID) error
-    DeleteOlderVersions(ctx context.Context, fileID uuid.UUID, keepCount int) (int64, error)
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | バージョン作成 |
+| FindByID | ID検索 |
+| FindByFileID | ファイルの全バージョン取得 |
+| FindByFileAndVersion | 特定バージョン取得 |
+| Delete | 物理削除 |
+| BulkCreate | 一括作成（復元用） |
 
-### FileMetadataRepository
+### ArchivedFileRepository
 
-```go
-type FileMetadataRepository interface {
-    Upsert(ctx context.Context, metadata *FileMetadata) error
-    FindByFileID(ctx context.Context, fileID uuid.UUID) (*FileMetadata, error)
-    Delete(ctx context.Context, fileID uuid.UUID) error
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | アーカイブ作成 |
+| FindByID | ID検索 |
+| FindByOwner | 所有者のゴミ箱一覧 |
+| FindExpired | 期限切れファイル検索 |
+| Delete | 物理削除 |
+
+### ArchivedFileVersionRepository
+
+| 操作 | 説明 |
+|-----|------|
+| BulkCreate | 一括作成 |
+| FindByArchivedFileID | アーカイブファイルの全バージョン取得 |
+| DeleteByArchivedFileID | アーカイブファイルのバージョン一括削除 |
 
 ### UploadSessionRepository
 
-```go
-type UploadSessionRepository interface {
-    Create(ctx context.Context, session *UploadSession) error
-    FindByID(ctx context.Context, id uuid.UUID) (*UploadSession, error)
-    Update(ctx context.Context, session *UploadSession) error
-    Delete(ctx context.Context, id uuid.UUID) error
-    FindExpired(ctx context.Context) ([]*UploadSession, error)
-    DeleteExpired(ctx context.Context) (int64, error)
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | セッション作成 |
+| FindByID | ID検索 |
+| FindByStorageKey | StorageKeyで検索（Webhook処理用） |
+| Update | 更新 |
+| FindExpired | 期限切れセッション検索 |
+| Delete | 物理削除 |
 
----
+### UploadPartRepository
 
-## 関係性
-
-### エンティティ関係図
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           File Domain ERD                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-      ┌──────────────────┐          ┌──────────────────┐
-      │     folders      │          │      users       │
-      │    (external)    │          │    (external)    │
-      └────────┬─────────┘          └────────┬─────────┘
-               │                             │
-               │ folder_id                   │ owner_id, created_by
-               │                             │
-               └──────────────┬──────────────┘
-                              │
-                              ▼
-                     ┌──────────────────┐
-                     │      files       │
-                     ├──────────────────┤
-                     │ id               │
-                     │ name             │
-                     │ folder_id (FK)   │
-                     │ owner_id (FK)    │
-                     │ size             │
-                     │ mime_type        │
-                     │ storage_key      │
-                     │ current_version  │
-                     │ status           │
-                     │ trashed_at       │
-                     │ created_at       │
-                     │ updated_at       │
-                     └────────┬─────────┘
-                              │
-         ┌────────────────────┼────────────────────┐
-         │                    │                    │
-         ▼                    ▼                    ▼
-┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│  file_versions   │ │  file_metadata   │ │ upload_sessions  │
-├──────────────────┤ ├──────────────────┤ ├──────────────────┤
-│ id               │ │ file_id (PK,FK)  │ │ id               │
-│ file_id (FK)     │ │ checksum_md5     │ │ file_id (FK)     │
-│ version_number   │ │ checksum_sha256  │ │ upload_id        │
-│ size             │ │ width            │ │ is_multipart     │
-│ storage_key      │ │ height           │ │ total_parts      │
-│ checksum_md5     │ │ duration         │ │ uploaded_parts   │
-│ checksum_sha256  │ │ exif_data        │ │ expires_at       │
-│ created_by (FK)  │ │ custom_properties│ │ status           │
-│ created_at       │ │ extracted_at     │ │ created_at       │
-└──────────────────┘ └──────────────────┘ │ updated_at       │
-                                          └──────────────────┘
-```
-
-### 関係性ルール
-
-| 関係 | カーディナリティ | 説明 |
-|-----|----------------|------|
-| File - Folder | N:1 | 各ファイルは1つのフォルダに所属 |
-| File - Owner (User) | N:1 | 各ファイルは1人の所有者を持つ |
-| File - FileVersion | 1:N | 各ファイルは複数のバージョンを持てる |
-| File - FileMetadata | 1:1 | 各ファイルは1つのメタデータを持つ |
-| File - UploadSession | 1:N | 各ファイルは複数のアップロードセッションを持てる |
+| 操作 | 説明 |
+|-----|------|
+| Create | パーツ作成 |
+| FindBySessionID | セッションの全パーツ取得 |
+| DeleteBySessionID | セッションのパーツ一括削除 |
 
 ---
 
 ## 不変条件
 
-1. **ストレージ整合性**
-   - storage_keyは全ファイル・全バージョンで一意
-   - ファイル削除時、対応するMinIOオブジェクトも削除
-   - checksumは必ず計算・保存
+### ストレージ整合性
 
-2. **バージョン整合性**
-   - version_numberは連番（ギャップなし）
-   - current_versionは存在するバージョンを指す
-   - 最新バージョンは削除不可
+| ID | 不変条件 |
+|----|---------|
+| I-ST001 | storage_keyはfile_idと1:1対応 |
+| I-ST002 | 完全削除時、MinIOの全バージョンも削除 |
+| I-ST003 | checksumはアップロード完了時に必ず計算・保存 |
+| I-ST004 | MinIOバージョニングを使用し、バージョンごとにminio_version_idを保持 |
 
-3. **ステータス整合性**
-   - pending状態のファイルはダウンロード不可
-   - failed状態のファイルは自動クリーンアップ対象
-   - trashed状態のファイルは30日後に自動削除
+### バージョン整合性
 
-4. **命名制約**
-   - 同一フォルダ内でファイル名は一意
-   - 禁止文字を含まない
+| ID | 不変条件 |
+|----|---------|
+| I-VR001 | version_numberは連番（ギャップなし） |
+| I-VR002 | current_versionは存在するバージョンを指す |
+| I-VR003 | 全バージョンはminio_version_idで個別にアクセス可能 |
 
-5. **アップロードセッション**
-   - 期限切れセッションは自動キャンセル
-   - マルチパートアップロードの中断時はMinIO側もクリーンアップ
+### ステータス整合性
+
+| ID | 不変条件 |
+|----|---------|
+| I-SS001 | uploading状態のファイルはダウンロード不可 |
+| I-SS002 | upload_failed状態のファイルは自動クリーンアップ対象 |
+| I-SS003 | ゴミ箱のファイルは30日後に自動削除 |
+
+### 命名制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-NM001 | 同一フォルダ内でファイル名は一意 |
+| I-NM002 | ファイル名に禁止文字を含まない |
+
+### アップロードセッション
+
+| ID | 不変条件 |
+|----|---------|
+| I-UP001 | 期限切れセッションは自動キャンセル |
+| I-UP002 | マルチパートアップロード中断時はMinIO側もAbort |
+| I-UP003 | アップロード完了はMinIO Webhookでのみ判定（クライアント通知は使用しない） |
+| I-UP004 | マルチパートの全パーツ完了時、サーバーがCompleteMultipartUploadを実行 |
 
 ---
 
-## ユースケース概要
+## ユースケース
+
+### クライアント向けAPI
 
 | ユースケース | アクター | 概要 |
 |------------|--------|------|
-| InitiateUpload | User | アップロード開始（Presigned URL取得） |
-| CompleteUpload | User | アップロード完了通知 |
-| InitiateMultipartUpload | User | 大容量ファイルのマルチパート開始 |
-| CompleteMultipartUpload | User | マルチパートアップロード完了 |
-| CancelUpload | User | アップロードキャンセル |
+| InitiateUpload | User | アップロード開始（session_id, Presigned URL取得） |
+| GetUploadStatus | User | アップロード状態確認（ポーリング用） |
+| AbortUpload | User | アップロードキャンセル |
 | DownloadFile | User | ファイルダウンロード |
-| PreviewFile | User | ファイルプレビュー |
 | RenameFile | User | ファイル名変更 |
 | MoveFile | User | ファイル移動 |
-| CopyFile | User | ファイルコピー |
 | TrashFile | User | ゴミ箱へ移動 |
 | RestoreFile | User | ゴミ箱から復元 |
 | PermanentlyDeleteFile | User | 完全削除 |
 | ListVersions | User | バージョン一覧 |
-| RestoreVersion | User | 特定バージョン復元 |
-| GetFileMetadata | User | メタデータ取得 |
+| DownloadVersion | User | 特定バージョンダウンロード |
 | SearchFiles | User | ファイル検索 |
+| ListTrash | User | ゴミ箱一覧 |
+| EmptyTrash | User | ゴミ箱を空にする |
+
+### 内部ハンドラー（MinIO Webhook受信）
+
+| ハンドラー | トリガー | 概要 |
+|-----------|---------|------|
+| HandleUploadCompleted | s3:ObjectCreated:Put | アップロード完了処理（File/FileVersion作成） |
+| HandlePartUploaded | s3:ObjectCreated:Put (part) | マルチパートのパーツ完了処理 |
 
 ---
 
@@ -699,34 +631,71 @@ type UploadSessionRepository interface {
 | FileUploadStarted | アップロード開始 | fileId, sessionId, name, size |
 | FileUploaded | アップロード完了 | fileId, name, size, versionNumber |
 | FileUploadFailed | アップロード失敗 | fileId, sessionId, reason |
-| FileDownloaded | ダウンロード | fileId, downloadedBy, versionNumber |
 | FileRenamed | 名前変更 | fileId, oldName, newName |
 | FileMoved | 移動 | fileId, oldFolderId, newFolderId |
-| FileCopied | コピー | sourceFileId, newFileId |
-| FileTrashed | ゴミ箱移動 | fileId |
-| FileRestored | 復元 | fileId |
-| FilePermanentlyDeleted | 完全削除 | fileId |
+| FileArchived | ゴミ箱移動 | fileId, archivedFileId |
+| FileRestored | 復元 | archivedFileId, fileId |
+| FilePermanentlyDeleted | 完全削除 | archivedFileId |
 | FileVersionCreated | バージョン作成 | fileId, versionNumber |
-| FileVersionRestored | バージョン復元 | fileId, versionNumber |
-| FileVersionDeleted | バージョン削除 | fileId, versionNumber |
 
 ---
 
 ## 他コンテキストとの連携
 
 ### Folder Domain（同一コンテキスト）
-- ファイルはフォルダに所属
-- フォルダ削除時、配下のファイルも削除
+
+- ファイルはフォルダに所属（folder_id）
+- フォルダ削除時、配下のファイルもアーカイブ
 
 ### Identity Context（上流）
-- UserIDの参照（所有者、作成者）
+
+- UserIDの参照（所有者、アップロード者）
+
+### Collaboration Context（上流）
+
+- GroupIDの参照（グループ所有の場合）
 
 ### Authorization Context（下流）
+
 - ファイルに対する権限付与
 - 親フォルダからの権限継承
 
 ### Sharing Context（下流）
+
 - ファイルの共有リンク作成
+
+---
+
+## インフラ要件
+
+### MinIO Bucket Notification設定
+
+アップロード完了検知のため、MinIOにWebhook通知を設定する必要がある。
+
+| 設定項目 | 値 |
+|---------|-----|
+| イベントタイプ | s3:ObjectCreated:* |
+| 通知先 | API Webhookエンドポイント |
+| 対象バケット | ファイルストレージ用バケット |
+
+**設定コマンド例:**
+```
+mc event add myminio/files arn:minio:sqs::primary:webhook --event put
+```
+
+**Webhookエンドポイント:**
+```
+POST /internal/webhooks/minio
+```
+
+**要件:**
+
+| ID | 要件 |
+|----|------|
+| R-MN001 | MinIOからのWebhook通知を受信するエンドポイントを実装 |
+| R-MN002 | Webhook通知の認証・検証を行う |
+| R-MN003 | 通知の冪等性を保証（同一イベントの重複処理を防止） |
+| R-MN004 | 同期モード（MINIO_API_SYNC_EVENTS=on）を推奨 |
 
 ---
 
@@ -735,4 +704,3 @@ type UploadSessionRepository interface {
 - [イベントストーミング](./EVENT_STORMING.md) - ドメインイベント定義
 - [フォルダドメイン](./folder.md) - フォルダ管理
 - [共有ドメイン](./sharing.md) - 共有機能
-- [システムアーキテクチャ](../02-architecture/SYSTEM.md) - アップロード/ダウンロードフロー
