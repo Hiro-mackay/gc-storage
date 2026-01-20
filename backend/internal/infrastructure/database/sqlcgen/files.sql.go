@@ -27,23 +27,23 @@ func (q *Queries) CountFilesByFolderID(ctx context.Context, folderID pgtype.UUID
 
 const createFile = `-- name: CreateFile :one
 INSERT INTO files (
-    id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, created_at, updated_at
+    id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-) RETURNING id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at
+) RETURNING id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at
 `
 
 type CreateFileParams struct {
 	ID             uuid.UUID   `json:"id"`
-	Name           string      `json:"name"`
-	FolderID       pgtype.UUID `json:"folder_id"`
 	OwnerID        uuid.UUID   `json:"owner_id"`
+	OwnerType      OwnerType   `json:"owner_type"`
+	FolderID       pgtype.UUID `json:"folder_id"`
+	Name           string      `json:"name"`
 	MimeType       string      `json:"mime_type"`
 	Size           int64       `json:"size"`
 	StorageKey     string      `json:"storage_key"`
 	CurrentVersion int32       `json:"current_version"`
-	Status         string      `json:"status"`
-	Checksum       *string     `json:"checksum"`
+	Status         FileStatus  `json:"status"`
 	CreatedAt      time.Time   `json:"created_at"`
 	UpdatedAt      time.Time   `json:"updated_at"`
 }
@@ -51,31 +51,30 @@ type CreateFileParams struct {
 func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, error) {
 	row := q.db.QueryRow(ctx, createFile,
 		arg.ID,
-		arg.Name,
-		arg.FolderID,
 		arg.OwnerID,
+		arg.OwnerType,
+		arg.FolderID,
+		arg.Name,
 		arg.MimeType,
 		arg.Size,
 		arg.StorageKey,
 		arg.CurrentVersion,
 		arg.Status,
-		arg.Checksum,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
 	var i File
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
-		&i.FolderID,
 		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.Name,
 		&i.MimeType,
 		&i.Size,
 		&i.StorageKey,
 		&i.CurrentVersion,
 		&i.Status,
-		&i.Checksum,
-		&i.TrashedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -83,7 +82,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 }
 
 const deleteFile = `-- name: DeleteFile :exec
-UPDATE files SET status = 'deleted', updated_at = NOW() WHERE id = $1
+DELETE FROM files WHERE id = $1
 `
 
 func (q *Queries) DeleteFile(ctx context.Context, id uuid.UUID) error {
@@ -91,28 +90,65 @@ func (q *Queries) DeleteFile(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const fileExistsByName = `-- name: FileExistsByName :one
+const deleteFilesBulk = `-- name: DeleteFilesBulk :exec
+DELETE FROM files WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) DeleteFilesBulk(ctx context.Context, dollar_1 []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteFilesBulk, dollar_1)
+	return err
+}
+
+const fileExistsByNameAndFolder = `-- name: FileExistsByNameAndFolder :one
 SELECT EXISTS(
     SELECT 1 FROM files
-    WHERE folder_id = $1 AND owner_id = $2 AND name = $3 AND status != 'deleted'
+    WHERE folder_id = $1 AND owner_id = $2 AND owner_type = $3 AND name = $4 AND status IN ('uploading', 'active')
 )
 `
 
-type FileExistsByNameParams struct {
-	FolderID pgtype.UUID `json:"folder_id"`
-	OwnerID  uuid.UUID   `json:"owner_id"`
-	Name     string      `json:"name"`
+type FileExistsByNameAndFolderParams struct {
+	FolderID  pgtype.UUID `json:"folder_id"`
+	OwnerID   uuid.UUID   `json:"owner_id"`
+	OwnerType OwnerType   `json:"owner_type"`
+	Name      string      `json:"name"`
 }
 
-func (q *Queries) FileExistsByName(ctx context.Context, arg FileExistsByNameParams) (bool, error) {
-	row := q.db.QueryRow(ctx, fileExistsByName, arg.FolderID, arg.OwnerID, arg.Name)
+// Check for both 'uploading' and 'active' status (allow overwriting 'upload_failed' files)
+func (q *Queries) FileExistsByNameAndFolder(ctx context.Context, arg FileExistsByNameAndFolderParams) (bool, error) {
+	row := q.db.QueryRow(ctx, fileExistsByNameAndFolder,
+		arg.FolderID,
+		arg.OwnerID,
+		arg.OwnerType,
+		arg.Name,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const fileExistsByNameAtRoot = `-- name: FileExistsByNameAtRoot :one
+SELECT EXISTS(
+    SELECT 1 FROM files
+    WHERE folder_id IS NULL AND owner_id = $1 AND owner_type = $2 AND name = $3 AND status IN ('uploading', 'active')
+)
+`
+
+type FileExistsByNameAtRootParams struct {
+	OwnerID   uuid.UUID `json:"owner_id"`
+	OwnerType OwnerType `json:"owner_type"`
+	Name      string    `json:"name"`
+}
+
+// Check for both 'uploading' and 'active' status (allow overwriting 'upload_failed' files)
+func (q *Queries) FileExistsByNameAtRoot(ctx context.Context, arg FileExistsByNameAtRootParams) (bool, error) {
+	row := q.db.QueryRow(ctx, fileExistsByNameAtRoot, arg.OwnerID, arg.OwnerType, arg.Name)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
 const getFileByID = `-- name: GetFileByID :one
-SELECT id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at FROM files WHERE id = $1
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files WHERE id = $1
 `
 
 func (q *Queries) GetFileByID(ctx context.Context, id uuid.UUID) (File, error) {
@@ -120,320 +156,380 @@ func (q *Queries) GetFileByID(ctx context.Context, id uuid.UUID) (File, error) {
 	var i File
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
-		&i.FolderID,
 		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.Name,
 		&i.MimeType,
 		&i.Size,
 		&i.StorageKey,
 		&i.CurrentVersion,
 		&i.Status,
-		&i.Checksum,
-		&i.TrashedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getFileTotalSizeByOwnerID = `-- name: GetFileTotalSizeByOwnerID :one
-SELECT COALESCE(SUM(size), 0)::bigint FROM files
-WHERE owner_id = $1 AND status = 'active'
+const getFileByNameAndFolder = `-- name: GetFileByNameAndFolder :one
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files
+WHERE folder_id = $1 AND owner_id = $2 AND owner_type = $3 AND name = $4 AND status = 'active'
+LIMIT 1
 `
 
-func (q *Queries) GetFileTotalSizeByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, getFileTotalSizeByOwnerID, ownerID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
+type GetFileByNameAndFolderParams struct {
+	FolderID  pgtype.UUID `json:"folder_id"`
+	OwnerID   uuid.UUID   `json:"owner_id"`
+	OwnerType OwnerType   `json:"owner_type"`
+	Name      string      `json:"name"`
 }
 
-const getFilesToAutoDelete = `-- name: GetFilesToAutoDelete :many
-SELECT id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at FROM files
-WHERE status = 'trashed' AND trashed_at < $1
-`
-
-func (q *Queries) GetFilesToAutoDelete(ctx context.Context, trashedAt pgtype.Timestamptz) ([]File, error) {
-	rows, err := q.db.Query(ctx, getFilesToAutoDelete, trashedAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []File{}
-	for rows.Next() {
-		var i File
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.FolderID,
-			&i.OwnerID,
-			&i.MimeType,
-			&i.Size,
-			&i.StorageKey,
-			&i.CurrentVersion,
-			&i.Status,
-			&i.Checksum,
-			&i.TrashedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listFilesByFolderID = `-- name: ListFilesByFolderID :many
-SELECT id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at FROM files
-WHERE folder_id = $1 AND status = 'active'
-ORDER BY name ASC
-`
-
-func (q *Queries) ListFilesByFolderID(ctx context.Context, folderID pgtype.UUID) ([]File, error) {
-	rows, err := q.db.Query(ctx, listFilesByFolderID, folderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []File{}
-	for rows.Next() {
-		var i File
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.FolderID,
-			&i.OwnerID,
-			&i.MimeType,
-			&i.Size,
-			&i.StorageKey,
-			&i.CurrentVersion,
-			&i.Status,
-			&i.Checksum,
-			&i.TrashedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listFilesByOwnerID = `-- name: ListFilesByOwnerID :many
-SELECT id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at FROM files
-WHERE owner_id = $1 AND status = 'active'
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
-`
-
-type ListFilesByOwnerIDParams struct {
-	OwnerID uuid.UUID `json:"owner_id"`
-	Limit   int32     `json:"limit"`
-	Offset  int32     `json:"offset"`
-}
-
-func (q *Queries) ListFilesByOwnerID(ctx context.Context, arg ListFilesByOwnerIDParams) ([]File, error) {
-	rows, err := q.db.Query(ctx, listFilesByOwnerID, arg.OwnerID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []File{}
-	for rows.Next() {
-		var i File
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.FolderID,
-			&i.OwnerID,
-			&i.MimeType,
-			&i.Size,
-			&i.StorageKey,
-			&i.CurrentVersion,
-			&i.Status,
-			&i.Checksum,
-			&i.TrashedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listTrashedFilesByOwnerID = `-- name: ListTrashedFilesByOwnerID :many
-SELECT id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at FROM files
-WHERE owner_id = $1 AND status = 'trashed'
-ORDER BY trashed_at DESC
-`
-
-func (q *Queries) ListTrashedFilesByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]File, error) {
-	rows, err := q.db.Query(ctx, listTrashedFilesByOwnerID, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []File{}
-	for rows.Next() {
-		var i File
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.FolderID,
-			&i.OwnerID,
-			&i.MimeType,
-			&i.Size,
-			&i.StorageKey,
-			&i.CurrentVersion,
-			&i.Status,
-			&i.Checksum,
-			&i.TrashedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const restoreFile = `-- name: RestoreFile :exec
-UPDATE files SET status = 'active', trashed_at = NULL, updated_at = NOW() WHERE id = $1
-`
-
-func (q *Queries) RestoreFile(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, restoreFile, id)
-	return err
-}
-
-const searchFilesByName = `-- name: SearchFilesByName :many
-SELECT id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at FROM files
-WHERE owner_id = $1 AND name ILIKE '%' || $2 || '%' AND status = 'active'
-ORDER BY name ASC
-LIMIT $3 OFFSET $4
-`
-
-type SearchFilesByNameParams struct {
-	OwnerID uuid.UUID `json:"owner_id"`
-	Column2 *string   `json:"column_2"`
-	Limit   int32     `json:"limit"`
-	Offset  int32     `json:"offset"`
-}
-
-func (q *Queries) SearchFilesByName(ctx context.Context, arg SearchFilesByNameParams) ([]File, error) {
-	rows, err := q.db.Query(ctx, searchFilesByName,
-		arg.OwnerID,
-		arg.Column2,
-		arg.Limit,
-		arg.Offset,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []File{}
-	for rows.Next() {
-		var i File
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.FolderID,
-			&i.OwnerID,
-			&i.MimeType,
-			&i.Size,
-			&i.StorageKey,
-			&i.CurrentVersion,
-			&i.Status,
-			&i.Checksum,
-			&i.TrashedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const trashFile = `-- name: TrashFile :exec
-UPDATE files SET status = 'trashed', trashed_at = NOW(), updated_at = NOW() WHERE id = $1
-`
-
-func (q *Queries) TrashFile(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, trashFile, id)
-	return err
-}
-
-const updateFile = `-- name: UpdateFile :one
-UPDATE files SET
-    name = COALESCE($2, name),
-    folder_id = COALESCE($3, folder_id),
-    size = COALESCE($4, size),
-    storage_key = COALESCE($5, storage_key),
-    current_version = COALESCE($6, current_version),
-    status = COALESCE($7, status),
-    checksum = COALESCE($8, checksum),
-    updated_at = NOW()
-WHERE id = $1
-RETURNING id, name, folder_id, owner_id, mime_type, size, storage_key, current_version, status, checksum, trashed_at, created_at, updated_at
-`
-
-type UpdateFileParams struct {
-	ID             uuid.UUID   `json:"id"`
-	Name           *string     `json:"name"`
-	FolderID       pgtype.UUID `json:"folder_id"`
-	Size           *int64      `json:"size"`
-	StorageKey     *string     `json:"storage_key"`
-	CurrentVersion *int32      `json:"current_version"`
-	Status         *string     `json:"status"`
-	Checksum       *string     `json:"checksum"`
-}
-
-func (q *Queries) UpdateFile(ctx context.Context, arg UpdateFileParams) (File, error) {
-	row := q.db.QueryRow(ctx, updateFile,
-		arg.ID,
-		arg.Name,
+func (q *Queries) GetFileByNameAndFolder(ctx context.Context, arg GetFileByNameAndFolderParams) (File, error) {
+	row := q.db.QueryRow(ctx, getFileByNameAndFolder,
 		arg.FolderID,
-		arg.Size,
-		arg.StorageKey,
-		arg.CurrentVersion,
-		arg.Status,
-		arg.Checksum,
+		arg.OwnerID,
+		arg.OwnerType,
+		arg.Name,
 	)
 	var i File
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
-		&i.FolderID,
 		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.Name,
 		&i.MimeType,
 		&i.Size,
 		&i.StorageKey,
 		&i.CurrentVersion,
 		&i.Status,
-		&i.Checksum,
-		&i.TrashedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getFileByNameAtRoot = `-- name: GetFileByNameAtRoot :one
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files
+WHERE folder_id IS NULL AND owner_id = $1 AND owner_type = $2 AND name = $3 AND status = 'active'
+LIMIT 1
+`
+
+type GetFileByNameAtRootParams struct {
+	OwnerID   uuid.UUID `json:"owner_id"`
+	OwnerType OwnerType `json:"owner_type"`
+	Name      string    `json:"name"`
+}
+
+func (q *Queries) GetFileByNameAtRoot(ctx context.Context, arg GetFileByNameAtRootParams) (File, error) {
+	row := q.db.QueryRow(ctx, getFileByNameAtRoot, arg.OwnerID, arg.OwnerType, arg.Name)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.Name,
+		&i.MimeType,
+		&i.Size,
+		&i.StorageKey,
+		&i.CurrentVersion,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getFileByStorageKey = `-- name: GetFileByStorageKey :one
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files WHERE storage_key = $1
+`
+
+func (q *Queries) GetFileByStorageKey(ctx context.Context, storageKey string) (File, error) {
+	row := q.db.QueryRow(ctx, getFileByStorageKey, storageKey)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.Name,
+		&i.MimeType,
+		&i.Size,
+		&i.StorageKey,
+		&i.CurrentVersion,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getFileTotalSizeByOwner = `-- name: GetFileTotalSizeByOwner :one
+SELECT COALESCE(SUM(size), 0)::bigint FROM files
+WHERE owner_id = $1 AND owner_type = $2 AND status = 'active'
+`
+
+type GetFileTotalSizeByOwnerParams struct {
+	OwnerID   uuid.UUID `json:"owner_id"`
+	OwnerType OwnerType `json:"owner_type"`
+}
+
+func (q *Queries) GetFileTotalSizeByOwner(ctx context.Context, arg GetFileTotalSizeByOwnerParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getFileTotalSizeByOwner, arg.OwnerID, arg.OwnerType)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const listFilesByFolderID = `-- name: ListFilesByFolderID :many
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files
+WHERE folder_id = $1 AND owner_id = $2 AND owner_type = $3 AND status = 'active'
+ORDER BY name ASC
+`
+
+type ListFilesByFolderIDParams struct {
+	FolderID  pgtype.UUID `json:"folder_id"`
+	OwnerID   uuid.UUID   `json:"owner_id"`
+	OwnerType OwnerType   `json:"owner_type"`
+}
+
+func (q *Queries) ListFilesByFolderID(ctx context.Context, arg ListFilesByFolderIDParams) ([]File, error) {
+	rows, err := q.db.Query(ctx, listFilesByFolderID, arg.FolderID, arg.OwnerID, arg.OwnerType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OwnerType,
+			&i.FolderID,
+			&i.Name,
+			&i.MimeType,
+			&i.Size,
+			&i.StorageKey,
+			&i.CurrentVersion,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFilesByFolderIDs = `-- name: ListFilesByFolderIDs :many
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files
+WHERE folder_id = ANY($1::uuid[]) AND status = 'active'
+`
+
+func (q *Queries) ListFilesByFolderIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]File, error) {
+	rows, err := q.db.Query(ctx, listFilesByFolderIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OwnerType,
+			&i.FolderID,
+			&i.Name,
+			&i.MimeType,
+			&i.Size,
+			&i.StorageKey,
+			&i.CurrentVersion,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFilesByOwner = `-- name: ListFilesByOwner :many
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files
+WHERE owner_id = $1 AND owner_type = $2 AND status = 'active'
+ORDER BY created_at DESC
+`
+
+type ListFilesByOwnerParams struct {
+	OwnerID   uuid.UUID `json:"owner_id"`
+	OwnerType OwnerType `json:"owner_type"`
+}
+
+func (q *Queries) ListFilesByOwner(ctx context.Context, arg ListFilesByOwnerParams) ([]File, error) {
+	rows, err := q.db.Query(ctx, listFilesByOwner, arg.OwnerID, arg.OwnerType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OwnerType,
+			&i.FolderID,
+			&i.Name,
+			&i.MimeType,
+			&i.Size,
+			&i.StorageKey,
+			&i.CurrentVersion,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRootFilesByOwner = `-- name: ListRootFilesByOwner :many
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files
+WHERE folder_id IS NULL AND owner_id = $1 AND owner_type = $2 AND status = 'active'
+ORDER BY name ASC
+`
+
+type ListRootFilesByOwnerParams struct {
+	OwnerID   uuid.UUID `json:"owner_id"`
+	OwnerType OwnerType `json:"owner_type"`
+}
+
+func (q *Queries) ListRootFilesByOwner(ctx context.Context, arg ListRootFilesByOwnerParams) ([]File, error) {
+	rows, err := q.db.Query(ctx, listRootFilesByOwner, arg.OwnerID, arg.OwnerType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OwnerType,
+			&i.FolderID,
+			&i.Name,
+			&i.MimeType,
+			&i.Size,
+			&i.StorageKey,
+			&i.CurrentVersion,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUploadFailedFiles = `-- name: ListUploadFailedFiles :many
+SELECT id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at FROM files
+WHERE status = 'upload_failed'
+`
+
+func (q *Queries) ListUploadFailedFiles(ctx context.Context) ([]File, error) {
+	rows, err := q.db.Query(ctx, listUploadFailedFiles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OwnerType,
+			&i.FolderID,
+			&i.Name,
+			&i.MimeType,
+			&i.Size,
+			&i.StorageKey,
+			&i.CurrentVersion,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateFile = `-- name: UpdateFile :one
+UPDATE files SET
+    folder_id = COALESCE($2, folder_id),
+    name = COALESCE($3, name),
+    size = COALESCE($4, size),
+    current_version = COALESCE($5, current_version),
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, owner_id, owner_type, folder_id, name, mime_type, size, storage_key, current_version, status, created_at, updated_at
+`
+
+type UpdateFileParams struct {
+	ID             uuid.UUID   `json:"id"`
+	FolderID       pgtype.UUID `json:"folder_id"`
+	Name           *string     `json:"name"`
+	Size           *int64      `json:"size"`
+	CurrentVersion *int32      `json:"current_version"`
+}
+
+func (q *Queries) UpdateFile(ctx context.Context, arg UpdateFileParams) (File, error) {
+	row := q.db.QueryRow(ctx, updateFile,
+		arg.ID,
+		arg.FolderID,
+		arg.Name,
+		arg.Size,
+		arg.CurrentVersion,
+	)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.Name,
+		&i.MimeType,
+		&i.Size,
+		&i.StorageKey,
+		&i.CurrentVersion,
+		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -445,8 +541,8 @@ UPDATE files SET status = $2, updated_at = NOW() WHERE id = $1
 `
 
 type UpdateFileStatusParams struct {
-	ID     uuid.UUID `json:"id"`
-	Status string    `json:"status"`
+	ID     uuid.UUID  `json:"id"`
+	Status FileStatus `json:"status"`
 }
 
 func (q *Queries) UpdateFileStatus(ctx context.Context, arg UpdateFileStatusParams) error {

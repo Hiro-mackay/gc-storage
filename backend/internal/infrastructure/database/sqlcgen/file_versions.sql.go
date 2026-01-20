@@ -12,12 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
-const countFileVersions = `-- name: CountFileVersions :one
+const countFileVersionsByFileID = `-- name: CountFileVersionsByFileID :one
 SELECT COUNT(*) FROM file_versions WHERE file_id = $1
 `
 
-func (q *Queries) CountFileVersions(ctx context.Context, fileID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countFileVersions, fileID)
+func (q *Queries) CountFileVersionsByFileID(ctx context.Context, fileID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countFileVersionsByFileID, fileID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -25,21 +25,21 @@ func (q *Queries) CountFileVersions(ctx context.Context, fileID uuid.UUID) (int6
 
 const createFileVersion = `-- name: CreateFileVersion :one
 INSERT INTO file_versions (
-    id, file_id, version_number, size, storage_key, checksum, created_by, created_at
+    id, file_id, version_number, minio_version_id, size, checksum, uploaded_by, created_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING id, file_id, version_number, size, storage_key, checksum, created_by, created_at
+) RETURNING id, file_id, version_number, minio_version_id, size, checksum, uploaded_by, created_at
 `
 
 type CreateFileVersionParams struct {
-	ID            uuid.UUID `json:"id"`
-	FileID        uuid.UUID `json:"file_id"`
-	VersionNumber int32     `json:"version_number"`
-	Size          int64     `json:"size"`
-	StorageKey    string    `json:"storage_key"`
-	Checksum      *string   `json:"checksum"`
-	CreatedBy     uuid.UUID `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID             uuid.UUID `json:"id"`
+	FileID         uuid.UUID `json:"file_id"`
+	VersionNumber  int32     `json:"version_number"`
+	MinioVersionID *string   `json:"minio_version_id"`
+	Size           int64     `json:"size"`
+	Checksum       string    `json:"checksum"`
+	UploadedBy     uuid.UUID `json:"uploaded_by"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 func (q *Queries) CreateFileVersion(ctx context.Context, arg CreateFileVersionParams) (FileVersion, error) {
@@ -47,10 +47,10 @@ func (q *Queries) CreateFileVersion(ctx context.Context, arg CreateFileVersionPa
 		arg.ID,
 		arg.FileID,
 		arg.VersionNumber,
+		arg.MinioVersionID,
 		arg.Size,
-		arg.StorageKey,
 		arg.Checksum,
-		arg.CreatedBy,
+		arg.UploadedBy,
 		arg.CreatedAt,
 	)
 	var i FileVersion
@@ -58,13 +58,24 @@ func (q *Queries) CreateFileVersion(ctx context.Context, arg CreateFileVersionPa
 		&i.ID,
 		&i.FileID,
 		&i.VersionNumber,
+		&i.MinioVersionID,
 		&i.Size,
-		&i.StorageKey,
 		&i.Checksum,
-		&i.CreatedBy,
+		&i.UploadedBy,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+type CreateFileVersionsBulkParams struct {
+	ID             uuid.UUID `json:"id"`
+	FileID         uuid.UUID `json:"file_id"`
+	VersionNumber  int32     `json:"version_number"`
+	MinioVersionID *string   `json:"minio_version_id"`
+	Size           int64     `json:"size"`
+	Checksum       string    `json:"checksum"`
+	UploadedBy     uuid.UUID `json:"uploaded_by"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 const deleteFileVersion = `-- name: DeleteFileVersion :exec
@@ -85,34 +96,34 @@ func (q *Queries) DeleteFileVersionsByFileID(ctx context.Context, fileID uuid.UU
 	return err
 }
 
-const getFileVersion = `-- name: GetFileVersion :one
-SELECT id, file_id, version_number, size, storage_key, checksum, created_by, created_at FROM file_versions
+const getFileVersionByFileAndVersion = `-- name: GetFileVersionByFileAndVersion :one
+SELECT id, file_id, version_number, minio_version_id, size, checksum, uploaded_by, created_at FROM file_versions
 WHERE file_id = $1 AND version_number = $2
 `
 
-type GetFileVersionParams struct {
+type GetFileVersionByFileAndVersionParams struct {
 	FileID        uuid.UUID `json:"file_id"`
 	VersionNumber int32     `json:"version_number"`
 }
 
-func (q *Queries) GetFileVersion(ctx context.Context, arg GetFileVersionParams) (FileVersion, error) {
-	row := q.db.QueryRow(ctx, getFileVersion, arg.FileID, arg.VersionNumber)
+func (q *Queries) GetFileVersionByFileAndVersion(ctx context.Context, arg GetFileVersionByFileAndVersionParams) (FileVersion, error) {
+	row := q.db.QueryRow(ctx, getFileVersionByFileAndVersion, arg.FileID, arg.VersionNumber)
 	var i FileVersion
 	err := row.Scan(
 		&i.ID,
 		&i.FileID,
 		&i.VersionNumber,
+		&i.MinioVersionID,
 		&i.Size,
-		&i.StorageKey,
 		&i.Checksum,
-		&i.CreatedBy,
+		&i.UploadedBy,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getFileVersionByID = `-- name: GetFileVersionByID :one
-SELECT id, file_id, version_number, size, storage_key, checksum, created_by, created_at FROM file_versions WHERE id = $1
+SELECT id, file_id, version_number, minio_version_id, size, checksum, uploaded_by, created_at FROM file_versions WHERE id = $1
 `
 
 func (q *Queries) GetFileVersionByID(ctx context.Context, id uuid.UUID) (FileVersion, error) {
@@ -122,17 +133,17 @@ func (q *Queries) GetFileVersionByID(ctx context.Context, id uuid.UUID) (FileVer
 		&i.ID,
 		&i.FileID,
 		&i.VersionNumber,
+		&i.MinioVersionID,
 		&i.Size,
-		&i.StorageKey,
 		&i.Checksum,
-		&i.CreatedBy,
+		&i.UploadedBy,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getLatestFileVersion = `-- name: GetLatestFileVersion :one
-SELECT id, file_id, version_number, size, storage_key, checksum, created_by, created_at FROM file_versions
+SELECT id, file_id, version_number, minio_version_id, size, checksum, uploaded_by, created_at FROM file_versions
 WHERE file_id = $1
 ORDER BY version_number DESC
 LIMIT 1
@@ -145,10 +156,10 @@ func (q *Queries) GetLatestFileVersion(ctx context.Context, fileID uuid.UUID) (F
 		&i.ID,
 		&i.FileID,
 		&i.VersionNumber,
+		&i.MinioVersionID,
 		&i.Size,
-		&i.StorageKey,
 		&i.Checksum,
-		&i.CreatedBy,
+		&i.UploadedBy,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -165,14 +176,14 @@ func (q *Queries) GetNextVersionNumber(ctx context.Context, fileID uuid.UUID) (i
 	return column_1, err
 }
 
-const listFileVersions = `-- name: ListFileVersions :many
-SELECT id, file_id, version_number, size, storage_key, checksum, created_by, created_at FROM file_versions
+const listFileVersionsByFileID = `-- name: ListFileVersionsByFileID :many
+SELECT id, file_id, version_number, minio_version_id, size, checksum, uploaded_by, created_at FROM file_versions
 WHERE file_id = $1
 ORDER BY version_number DESC
 `
 
-func (q *Queries) ListFileVersions(ctx context.Context, fileID uuid.UUID) ([]FileVersion, error) {
-	rows, err := q.db.Query(ctx, listFileVersions, fileID)
+func (q *Queries) ListFileVersionsByFileID(ctx context.Context, fileID uuid.UUID) ([]FileVersion, error) {
+	rows, err := q.db.Query(ctx, listFileVersionsByFileID, fileID)
 	if err != nil {
 		return nil, err
 	}
@@ -184,10 +195,45 @@ func (q *Queries) ListFileVersions(ctx context.Context, fileID uuid.UUID) ([]Fil
 			&i.ID,
 			&i.FileID,
 			&i.VersionNumber,
+			&i.MinioVersionID,
 			&i.Size,
-			&i.StorageKey,
 			&i.Checksum,
-			&i.CreatedBy,
+			&i.UploadedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFileVersionsByFileIDs = `-- name: ListFileVersionsByFileIDs :many
+SELECT id, file_id, version_number, minio_version_id, size, checksum, uploaded_by, created_at FROM file_versions
+WHERE file_id = ANY($1::uuid[])
+ORDER BY file_id, version_number DESC
+`
+
+func (q *Queries) ListFileVersionsByFileIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]FileVersion, error) {
+	rows, err := q.db.Query(ctx, listFileVersionsByFileIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileVersion{}
+	for rows.Next() {
+		var i FileVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.FileID,
+			&i.VersionNumber,
+			&i.MinioVersionID,
+			&i.Size,
+			&i.Checksum,
+			&i.UploadedBy,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

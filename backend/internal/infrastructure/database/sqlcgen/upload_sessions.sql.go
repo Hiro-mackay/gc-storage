@@ -13,114 +13,122 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const abortUploadSession = `-- name: AbortUploadSession :exec
-UPDATE upload_sessions SET status = 'aborted' WHERE id = $1
-`
-
-func (q *Queries) AbortUploadSession(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, abortUploadSession, id)
-	return err
-}
-
-const completeUploadSession = `-- name: CompleteUploadSession :exec
-UPDATE upload_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1
-`
-
-func (q *Queries) CompleteUploadSession(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, completeUploadSession, id)
-	return err
-}
-
 const createUploadSession = `-- name: CreateUploadSession :one
 INSERT INTO upload_sessions (
-    id, file_id, upload_id, status, total_parts, completed_parts, expires_at, created_at
+    id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size,
+    storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status,
+    created_at, updated_at, expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING id, file_id, upload_id, status, total_parts, completed_parts, expires_at, created_at, completed_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+) RETURNING id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at
 `
 
 type CreateUploadSessionParams struct {
-	ID             uuid.UUID `json:"id"`
-	FileID         uuid.UUID `json:"file_id"`
-	UploadID       *string   `json:"upload_id"`
-	Status         string    `json:"status"`
-	TotalParts     *int32    `json:"total_parts"`
-	CompletedParts *int32    `json:"completed_parts"`
-	ExpiresAt      time.Time `json:"expires_at"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID            uuid.UUID           `json:"id"`
+	FileID        uuid.UUID           `json:"file_id"`
+	OwnerID       uuid.UUID           `json:"owner_id"`
+	OwnerType     OwnerType           `json:"owner_type"`
+	FolderID      pgtype.UUID         `json:"folder_id"`
+	FileName      string              `json:"file_name"`
+	MimeType      string              `json:"mime_type"`
+	TotalSize     int64               `json:"total_size"`
+	StorageKey    string              `json:"storage_key"`
+	MinioUploadID *string             `json:"minio_upload_id"`
+	IsMultipart   bool                `json:"is_multipart"`
+	TotalParts    int32               `json:"total_parts"`
+	UploadedParts int32               `json:"uploaded_parts"`
+	Status        UploadSessionStatus `json:"status"`
+	CreatedAt     time.Time           `json:"created_at"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	ExpiresAt     time.Time           `json:"expires_at"`
 }
 
 func (q *Queries) CreateUploadSession(ctx context.Context, arg CreateUploadSessionParams) (UploadSession, error) {
 	row := q.db.QueryRow(ctx, createUploadSession,
 		arg.ID,
 		arg.FileID,
-		arg.UploadID,
-		arg.Status,
+		arg.OwnerID,
+		arg.OwnerType,
+		arg.FolderID,
+		arg.FileName,
+		arg.MimeType,
+		arg.TotalSize,
+		arg.StorageKey,
+		arg.MinioUploadID,
+		arg.IsMultipart,
 		arg.TotalParts,
-		arg.CompletedParts,
-		arg.ExpiresAt,
+		arg.UploadedParts,
+		arg.Status,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.ExpiresAt,
 	)
 	var i UploadSession
 	err := row.Scan(
 		&i.ID,
 		&i.FileID,
-		&i.UploadID,
-		&i.Status,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.FileName,
+		&i.MimeType,
+		&i.TotalSize,
+		&i.StorageKey,
+		&i.MinioUploadID,
+		&i.IsMultipart,
 		&i.TotalParts,
-		&i.CompletedParts,
-		&i.ExpiresAt,
+		&i.UploadedParts,
+		&i.Status,
 		&i.CreatedAt,
-		&i.CompletedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
 
-const deleteExpiredUploadSessions = `-- name: DeleteExpiredUploadSessions :exec
-DELETE FROM upload_sessions
-WHERE status IN ('completed', 'failed', 'aborted') AND created_at < $1
+const deleteUploadSession = `-- name: DeleteUploadSession :exec
+DELETE FROM upload_sessions WHERE id = $1
 `
 
-func (q *Queries) DeleteExpiredUploadSessions(ctx context.Context, createdAt time.Time) error {
-	_, err := q.db.Exec(ctx, deleteExpiredUploadSessions, createdAt)
+func (q *Queries) DeleteUploadSession(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUploadSession, id)
 	return err
 }
 
-const failUploadSession = `-- name: FailUploadSession :exec
-UPDATE upload_sessions SET status = 'failed' WHERE id = $1
-`
-
-func (q *Queries) FailUploadSession(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, failUploadSession, id)
-	return err
-}
-
-const getActiveUploadSessionByFileID = `-- name: GetActiveUploadSessionByFileID :one
-SELECT id, file_id, upload_id, status, total_parts, completed_parts, expires_at, created_at, completed_at FROM upload_sessions
-WHERE file_id = $1 AND status IN ('initiated', 'uploading', 'completing')
+const getUploadSessionByFileID = `-- name: GetUploadSessionByFileID :one
+SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions
+WHERE file_id = $1
 ORDER BY created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetActiveUploadSessionByFileID(ctx context.Context, fileID uuid.UUID) (UploadSession, error) {
-	row := q.db.QueryRow(ctx, getActiveUploadSessionByFileID, fileID)
+func (q *Queries) GetUploadSessionByFileID(ctx context.Context, fileID uuid.UUID) (UploadSession, error) {
+	row := q.db.QueryRow(ctx, getUploadSessionByFileID, fileID)
 	var i UploadSession
 	err := row.Scan(
 		&i.ID,
 		&i.FileID,
-		&i.UploadID,
-		&i.Status,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.FileName,
+		&i.MimeType,
+		&i.TotalSize,
+		&i.StorageKey,
+		&i.MinioUploadID,
+		&i.IsMultipart,
 		&i.TotalParts,
-		&i.CompletedParts,
-		&i.ExpiresAt,
+		&i.UploadedParts,
+		&i.Status,
 		&i.CreatedAt,
-		&i.CompletedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
 
 const getUploadSessionByID = `-- name: GetUploadSessionByID :one
-SELECT id, file_id, upload_id, status, total_parts, completed_parts, expires_at, created_at, completed_at FROM upload_sessions WHERE id = $1
+SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions WHERE id = $1
 `
 
 func (q *Queries) GetUploadSessionByID(ctx context.Context, id uuid.UUID) (UploadSession, error) {
@@ -129,29 +137,71 @@ func (q *Queries) GetUploadSessionByID(ctx context.Context, id uuid.UUID) (Uploa
 	err := row.Scan(
 		&i.ID,
 		&i.FileID,
-		&i.UploadID,
-		&i.Status,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.FileName,
+		&i.MimeType,
+		&i.TotalSize,
+		&i.StorageKey,
+		&i.MinioUploadID,
+		&i.IsMultipart,
 		&i.TotalParts,
-		&i.CompletedParts,
-		&i.ExpiresAt,
+		&i.UploadedParts,
+		&i.Status,
 		&i.CreatedAt,
-		&i.CompletedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
 
-const incrementCompletedParts = `-- name: IncrementCompletedParts :exec
-UPDATE upload_sessions SET completed_parts = completed_parts + 1 WHERE id = $1
+const getUploadSessionByStorageKey = `-- name: GetUploadSessionByStorageKey :one
+SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions
+WHERE storage_key = $1
+ORDER BY created_at DESC
+LIMIT 1
 `
 
-func (q *Queries) IncrementCompletedParts(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, incrementCompletedParts, id)
+func (q *Queries) GetUploadSessionByStorageKey(ctx context.Context, storageKey string) (UploadSession, error) {
+	row := q.db.QueryRow(ctx, getUploadSessionByStorageKey, storageKey)
+	var i UploadSession
+	err := row.Scan(
+		&i.ID,
+		&i.FileID,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.FileName,
+		&i.MimeType,
+		&i.TotalSize,
+		&i.StorageKey,
+		&i.MinioUploadID,
+		&i.IsMultipart,
+		&i.TotalParts,
+		&i.UploadedParts,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const incrementUploadedParts = `-- name: IncrementUploadedParts :exec
+UPDATE upload_sessions
+SET uploaded_parts = uploaded_parts + 1, updated_at = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) IncrementUploadedParts(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, incrementUploadedParts, id)
 	return err
 }
 
 const listExpiredUploadSessions = `-- name: ListExpiredUploadSessions :many
-SELECT id, file_id, upload_id, status, total_parts, completed_parts, expires_at, created_at, completed_at FROM upload_sessions
-WHERE status IN ('initiated', 'uploading') AND expires_at < NOW()
+SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions
+WHERE status IN ('pending', 'in_progress') AND expires_at < NOW()
 `
 
 func (q *Queries) ListExpiredUploadSessions(ctx context.Context) ([]UploadSession, error) {
@@ -166,13 +216,21 @@ func (q *Queries) ListExpiredUploadSessions(ctx context.Context) ([]UploadSessio
 		if err := rows.Scan(
 			&i.ID,
 			&i.FileID,
-			&i.UploadID,
-			&i.Status,
+			&i.OwnerID,
+			&i.OwnerType,
+			&i.FolderID,
+			&i.FileName,
+			&i.MimeType,
+			&i.TotalSize,
+			&i.StorageKey,
+			&i.MinioUploadID,
+			&i.IsMultipart,
 			&i.TotalParts,
-			&i.CompletedParts,
-			&i.ExpiresAt,
+			&i.UploadedParts,
+			&i.Status,
 			&i.CreatedAt,
-			&i.CompletedAt,
+			&i.UpdatedAt,
+			&i.ExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -186,44 +244,61 @@ func (q *Queries) ListExpiredUploadSessions(ctx context.Context) ([]UploadSessio
 
 const updateUploadSession = `-- name: UpdateUploadSession :one
 UPDATE upload_sessions SET
-    upload_id = COALESCE($2, upload_id),
-    status = COALESCE($3, status),
-    total_parts = COALESCE($4, total_parts),
-    completed_parts = COALESCE($5, completed_parts),
-    completed_at = COALESCE($6, completed_at)
+    minio_upload_id = COALESCE($2, minio_upload_id),
+    uploaded_parts = COALESCE($3, uploaded_parts),
+    status = COALESCE($4, status),
+    updated_at = NOW()
 WHERE id = $1
-RETURNING id, file_id, upload_id, status, total_parts, completed_parts, expires_at, created_at, completed_at
+RETURNING id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at
 `
 
 type UpdateUploadSessionParams struct {
-	ID             uuid.UUID          `json:"id"`
-	UploadID       *string            `json:"upload_id"`
-	Status         *string            `json:"status"`
-	TotalParts     *int32             `json:"total_parts"`
-	CompletedParts *int32             `json:"completed_parts"`
-	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	ID            uuid.UUID               `json:"id"`
+	MinioUploadID *string                 `json:"minio_upload_id"`
+	UploadedParts *int32                  `json:"uploaded_parts"`
+	Status        NullUploadSessionStatus `json:"status"`
 }
 
 func (q *Queries) UpdateUploadSession(ctx context.Context, arg UpdateUploadSessionParams) (UploadSession, error) {
 	row := q.db.QueryRow(ctx, updateUploadSession,
 		arg.ID,
-		arg.UploadID,
+		arg.MinioUploadID,
+		arg.UploadedParts,
 		arg.Status,
-		arg.TotalParts,
-		arg.CompletedParts,
-		arg.CompletedAt,
 	)
 	var i UploadSession
 	err := row.Scan(
 		&i.ID,
 		&i.FileID,
-		&i.UploadID,
-		&i.Status,
+		&i.OwnerID,
+		&i.OwnerType,
+		&i.FolderID,
+		&i.FileName,
+		&i.MimeType,
+		&i.TotalSize,
+		&i.StorageKey,
+		&i.MinioUploadID,
+		&i.IsMultipart,
 		&i.TotalParts,
-		&i.CompletedParts,
-		&i.ExpiresAt,
+		&i.UploadedParts,
+		&i.Status,
 		&i.CreatedAt,
-		&i.CompletedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
+}
+
+const updateUploadSessionStatus = `-- name: UpdateUploadSessionStatus :exec
+UPDATE upload_sessions SET status = $2, updated_at = NOW() WHERE id = $1
+`
+
+type UpdateUploadSessionStatusParams struct {
+	ID     uuid.UUID           `json:"id"`
+	Status UploadSessionStatus `json:"status"`
+}
+
+func (q *Queries) UpdateUploadSessionStatus(ctx context.Context, arg UpdateUploadSessionStatusParams) error {
+	_, err := q.db.Exec(ctx, updateUploadSessionStatus, arg.ID, arg.Status)
+	return err
 }

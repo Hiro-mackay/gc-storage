@@ -18,4 +18,7 @@ type Querier interface {
 
 	// QueryRow はSQLを実行し、単一行を返す
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+
+	// CopyFrom はバルクインサートを実行する
+	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
 }

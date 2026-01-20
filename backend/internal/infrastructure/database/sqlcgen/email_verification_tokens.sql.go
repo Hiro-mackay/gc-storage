@@ -14,7 +14,7 @@ import (
 
 const createEmailVerificationToken = `-- name: CreateEmailVerificationToken :one
 INSERT INTO email_verification_tokens (id, user_id, token, expires_at, created_at)
-VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, token, expires_at, created_at
+VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, token, expires_at, created_at, used_at
 `
 
 type CreateEmailVerificationTokenParams struct {
@@ -40,6 +40,7 @@ func (q *Queries) CreateEmailVerificationToken(ctx context.Context, arg CreateEm
 		&i.Token,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.UsedAt,
 	)
 	return i, err
 }
@@ -72,7 +73,7 @@ func (q *Queries) DeleteExpiredEmailVerificationTokens(ctx context.Context) erro
 }
 
 const getEmailVerificationTokenByToken = `-- name: GetEmailVerificationTokenByToken :one
-SELECT id, user_id, token, expires_at, created_at FROM email_verification_tokens WHERE token = $1
+SELECT id, user_id, token, expires_at, created_at, used_at FROM email_verification_tokens WHERE token = $1
 `
 
 func (q *Queries) GetEmailVerificationTokenByToken(ctx context.Context, token string) (EmailVerificationToken, error) {
@@ -84,12 +85,13 @@ func (q *Queries) GetEmailVerificationTokenByToken(ctx context.Context, token st
 		&i.Token,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.UsedAt,
 	)
 	return i, err
 }
 
 const getEmailVerificationTokenByUserID = `-- name: GetEmailVerificationTokenByUserID :one
-SELECT id, user_id, token, expires_at, created_at FROM email_verification_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1
+SELECT id, user_id, token, expires_at, created_at, used_at FROM email_verification_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1
 `
 
 func (q *Queries) GetEmailVerificationTokenByUserID(ctx context.Context, userID uuid.UUID) (EmailVerificationToken, error) {
@@ -101,6 +103,7 @@ func (q *Queries) GetEmailVerificationTokenByUserID(ctx context.Context, userID 
 		&i.Token,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.UsedAt,
 	)
 	return i, err
 }

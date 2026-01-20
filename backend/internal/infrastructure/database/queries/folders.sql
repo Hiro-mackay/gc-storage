@@ -1,77 +1,62 @@
 -- name: CreateFolder :one
 INSERT INTO folders (
-    id, name, parent_id, owner_id, path, depth, is_root, created_at, updated_at
+    id, name, parent_id, owner_id, owner_type, depth, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
+    $1, $2, $3, $4, $5, $6, $7, $8
 ) RETURNING *;
 
 -- name: GetFolderByID :one
 SELECT * FROM folders WHERE id = $1;
 
--- name: GetRootFolderByOwnerID :one
-SELECT * FROM folders WHERE owner_id = $1 AND is_root = TRUE;
-
 -- name: UpdateFolder :one
 UPDATE folders SET
     name = COALESCE(sqlc.narg('name'), name),
     parent_id = COALESCE(sqlc.narg('parent_id'), parent_id),
-    path = COALESCE(sqlc.narg('path'), path),
     depth = COALESCE(sqlc.narg('depth'), depth),
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
--- name: TrashFolder :exec
-UPDATE folders SET trashed_at = NOW(), updated_at = NOW() WHERE id = $1;
-
--- name: RestoreFolder :exec
-UPDATE folders SET trashed_at = NULL, updated_at = NOW() WHERE id = $1;
+-- name: UpdateFolderDepth :exec
+UPDATE folders SET depth = $2, updated_at = NOW() WHERE id = $1;
 
 -- name: DeleteFolder :exec
 DELETE FROM folders WHERE id = $1;
 
+-- name: DeleteFoldersBulk :exec
+DELETE FROM folders WHERE id = ANY($1::uuid[]);
+
 -- name: ListFoldersByParentID :many
 SELECT * FROM folders
-WHERE parent_id = $1 AND trashed_at IS NULL
+WHERE parent_id = $1 AND owner_id = $2 AND owner_type = $3
 ORDER BY name ASC;
 
--- name: ListFoldersByOwnerID :many
+-- name: ListRootFoldersByOwner :many
 SELECT * FROM folders
-WHERE owner_id = $1 AND trashed_at IS NULL
+WHERE parent_id IS NULL AND owner_id = $1 AND owner_type = $2
+ORDER BY name ASC;
+
+-- name: ListFoldersByOwner :many
+SELECT * FROM folders
+WHERE owner_id = $1 AND owner_type = $2
 ORDER BY created_at DESC;
 
--- name: ListTrashedFoldersByOwnerID :many
-SELECT * FROM folders
-WHERE owner_id = $1 AND trashed_at IS NOT NULL
-ORDER BY trashed_at DESC;
-
--- name: ListFoldersByPath :many
-SELECT * FROM folders
-WHERE path LIKE $1 || '%'
-ORDER BY depth ASC;
-
--- name: CountChildFolders :one
-SELECT COUNT(*) FROM folders
-WHERE parent_id = $1 AND trashed_at IS NULL;
-
--- name: FolderExistsByName :one
+-- name: FolderExistsByNameAndParent :one
 SELECT EXISTS(
     SELECT 1 FROM folders
-    WHERE parent_id = $1 AND owner_id = $2 AND name = $3 AND trashed_at IS NULL
+    WHERE parent_id = $1 AND owner_id = $2 AND owner_type = $3 AND name = $4
 );
 
--- name: GetFoldersToAutoDelete :many
-SELECT * FROM folders
-WHERE trashed_at IS NOT NULL AND trashed_at < $1;
+-- name: FolderExistsByNameAtRoot :one
+SELECT EXISTS(
+    SELECT 1 FROM folders
+    WHERE parent_id IS NULL AND owner_id = $1 AND owner_type = $2 AND name = $3
+);
 
--- name: UpdateFolderPath :exec
-UPDATE folders SET
-    path = $2,
-    depth = $3,
-    updated_at = NOW()
-WHERE id = $1;
+-- name: FolderExistsByID :one
+SELECT EXISTS(SELECT 1 FROM folders WHERE id = $1);
 
--- name: ListDescendantFolders :many
-SELECT * FROM folders
-WHERE path LIKE $1 || '/%'
-ORDER BY depth ASC;
+-- name: BulkUpdateFolderDepth :exec
+UPDATE folders SET depth = upd.depth, updated_at = NOW()
+FROM (SELECT unnest($1::uuid[]) as id, unnest($2::int[]) as depth) as upd
+WHERE folders.id = upd.id;

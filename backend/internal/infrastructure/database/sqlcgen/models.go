@@ -5,90 +5,223 @@
 package sqlcgen
 
 import (
-	"encoding/json"
-	"net/netip"
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type FileStatus string
+
+const (
+	FileStatusUploading    FileStatus = "uploading"
+	FileStatusActive       FileStatus = "active"
+	FileStatusUploadFailed FileStatus = "upload_failed"
+)
+
+func (e *FileStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = FileStatus(s)
+	case string:
+		*e = FileStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for FileStatus: %T", src)
+	}
+	return nil
+}
+
+type NullFileStatus struct {
+	FileStatus FileStatus `json:"file_status"`
+	Valid      bool       `json:"valid"` // Valid is true if FileStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullFileStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.FileStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.FileStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullFileStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.FileStatus), nil
+}
+
+type OwnerType string
+
+const (
+	OwnerTypeUser  OwnerType = "user"
+	OwnerTypeGroup OwnerType = "group"
+)
+
+func (e *OwnerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OwnerType(s)
+	case string:
+		*e = OwnerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OwnerType: %T", src)
+	}
+	return nil
+}
+
+type NullOwnerType struct {
+	OwnerType OwnerType `json:"owner_type"`
+	Valid     bool      `json:"valid"` // Valid is true if OwnerType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOwnerType) Scan(value interface{}) error {
+	if value == nil {
+		ns.OwnerType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OwnerType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOwnerType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OwnerType), nil
+}
+
+type UploadSessionStatus string
+
+const (
+	UploadSessionStatusPending    UploadSessionStatus = "pending"
+	UploadSessionStatusInProgress UploadSessionStatus = "in_progress"
+	UploadSessionStatusCompleted  UploadSessionStatus = "completed"
+	UploadSessionStatusAborted    UploadSessionStatus = "aborted"
+	UploadSessionStatusExpired    UploadSessionStatus = "expired"
+)
+
+func (e *UploadSessionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UploadSessionStatus(s)
+	case string:
+		*e = UploadSessionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UploadSessionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullUploadSessionStatus struct {
+	UploadSessionStatus UploadSessionStatus `json:"upload_session_status"`
+	Valid               bool                `json:"valid"` // Valid is true if UploadSessionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUploadSessionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.UploadSessionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UploadSessionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUploadSessionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UploadSessionStatus), nil
+}
+
+type ArchivedFile struct {
+	ID               uuid.UUID   `json:"id"`
+	OriginalFileID   uuid.UUID   `json:"original_file_id"`
+	OriginalFolderID pgtype.UUID `json:"original_folder_id"`
+	OriginalPath     string      `json:"original_path"`
+	Name             string      `json:"name"`
+	MimeType         string      `json:"mime_type"`
+	Size             int64       `json:"size"`
+	OwnerID          uuid.UUID   `json:"owner_id"`
+	OwnerType        OwnerType   `json:"owner_type"`
+	StorageKey       string      `json:"storage_key"`
+	ArchivedAt       time.Time   `json:"archived_at"`
+	ArchivedBy       uuid.UUID   `json:"archived_by"`
+	ExpiresAt        time.Time   `json:"expires_at"`
+}
+
+type ArchivedFileVersion struct {
+	ID                uuid.UUID `json:"id"`
+	ArchivedFileID    uuid.UUID `json:"archived_file_id"`
+	OriginalVersionID uuid.UUID `json:"original_version_id"`
+	VersionNumber     int32     `json:"version_number"`
+	MinioVersionID    string    `json:"minio_version_id"`
+	Size              int64     `json:"size"`
+	Checksum          string    `json:"checksum"`
+	UploadedBy        uuid.UUID `json:"uploaded_by"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
 type EmailVerificationToken struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"user_id"`
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	Token     string             `json:"token"`
+	ExpiresAt time.Time          `json:"expires_at"`
+	CreatedAt time.Time          `json:"created_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
 }
 
 type File struct {
-	ID             uuid.UUID          `json:"id"`
-	Name           string             `json:"name"`
-	FolderID       pgtype.UUID        `json:"folder_id"`
-	OwnerID        uuid.UUID          `json:"owner_id"`
-	MimeType       string             `json:"mime_type"`
-	Size           int64              `json:"size"`
-	StorageKey     string             `json:"storage_key"`
-	CurrentVersion int32              `json:"current_version"`
-	Status         string             `json:"status"`
-	Checksum       *string            `json:"checksum"`
-	TrashedAt      pgtype.Timestamptz `json:"trashed_at"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	ID             uuid.UUID   `json:"id"`
+	OwnerID        uuid.UUID   `json:"owner_id"`
+	OwnerType      OwnerType   `json:"owner_type"`
+	FolderID       pgtype.UUID `json:"folder_id"`
+	Name           string      `json:"name"`
+	MimeType       string      `json:"mime_type"`
+	Size           int64       `json:"size"`
+	StorageKey     string      `json:"storage_key"`
+	CurrentVersion int32       `json:"current_version"`
+	Status         FileStatus  `json:"status"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
 type FileVersion struct {
-	ID            uuid.UUID `json:"id"`
-	FileID        uuid.UUID `json:"file_id"`
-	VersionNumber int32     `json:"version_number"`
-	Size          int64     `json:"size"`
-	StorageKey    string    `json:"storage_key"`
-	Checksum      *string   `json:"checksum"`
-	CreatedBy     uuid.UUID `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID             uuid.UUID `json:"id"`
+	FileID         uuid.UUID `json:"file_id"`
+	VersionNumber  int32     `json:"version_number"`
+	MinioVersionID *string   `json:"minio_version_id"`
+	Size           int64     `json:"size"`
+	Checksum       string    `json:"checksum"`
+	UploadedBy     uuid.UUID `json:"uploaded_by"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type Folder struct {
-	ID        uuid.UUID          `json:"id"`
-	Name      string             `json:"name"`
-	ParentID  pgtype.UUID        `json:"parent_id"`
-	OwnerID   uuid.UUID          `json:"owner_id"`
-	Path      string             `json:"path"`
-	Depth     int32              `json:"depth"`
-	IsRoot    bool               `json:"is_root"`
-	TrashedAt pgtype.Timestamptz `json:"trashed_at"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	ID        uuid.UUID   `json:"id"`
+	Name      string      `json:"name"`
+	ParentID  pgtype.UUID `json:"parent_id"`
+	OwnerID   uuid.UUID   `json:"owner_id"`
+	OwnerType OwnerType   `json:"owner_type"`
+	Depth     int32       `json:"depth"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
 }
 
-type Group struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description"`
-	OwnerID     uuid.UUID `json:"owner_id"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type Invitation struct {
-	ID         uuid.UUID          `json:"id"`
-	GroupID    uuid.UUID          `json:"group_id"`
-	Email      string             `json:"email"`
-	Role       string             `json:"role"`
-	Token      string             `json:"token"`
-	InvitedBy  uuid.UUID          `json:"invited_by"`
-	Status     string             `json:"status"`
-	ExpiresAt  time.Time          `json:"expires_at"`
-	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
-	CreatedAt  time.Time          `json:"created_at"`
-}
-
-type Membership struct {
-	ID       uuid.UUID `json:"id"`
-	GroupID  uuid.UUID `json:"group_id"`
-	UserID   uuid.UUID `json:"user_id"`
-	Role     string    `json:"role"`
-	JoinedAt time.Time `json:"joined_at"`
+type FolderPath struct {
+	AncestorID   uuid.UUID `json:"ancestor_id"`
+	DescendantID uuid.UUID `json:"descendant_id"`
+	PathLength   int32     `json:"path_length"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type OauthAccount struct {
@@ -108,80 +241,37 @@ type PasswordResetToken struct {
 	UserID    uuid.UUID          `json:"user_id"`
 	Token     string             `json:"token"`
 	ExpiresAt time.Time          `json:"expires_at"`
-	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	CreatedAt time.Time          `json:"created_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
 }
 
-type PermissionGrant struct {
-	ID           uuid.UUID          `json:"id"`
-	ResourceType string             `json:"resource_type"`
-	ResourceID   uuid.UUID          `json:"resource_id"`
-	GranteeType  string             `json:"grantee_type"`
-	GranteeID    uuid.UUID          `json:"grantee_id"`
-	Permission   string             `json:"permission"`
-	GrantedBy    uuid.UUID          `json:"granted_by"`
-	CreatedAt    time.Time          `json:"created_at"`
-	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
-}
-
-type Relationship struct {
-	ID              uuid.UUID `json:"id"`
-	ObjectType      string    `json:"object_type"`
-	ObjectID        uuid.UUID `json:"object_id"`
-	Relation        string    `json:"relation"`
-	SubjectType     string    `json:"subject_type"`
-	SubjectID       uuid.UUID `json:"subject_id"`
-	SubjectRelation *string   `json:"subject_relation"`
-	CreatedAt       time.Time `json:"created_at"`
-}
-
-type Session struct {
-	ID               uuid.UUID          `json:"id"`
-	UserID           uuid.UUID          `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        *string            `json:"user_agent"`
-	IpAddress        *netip.Addr        `json:"ip_address"`
-	ExpiresAt        time.Time          `json:"expires_at"`
-	CreatedAt        time.Time          `json:"created_at"`
-	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
-}
-
-type ShareLink struct {
-	ID            uuid.UUID          `json:"id"`
-	ResourceType  string             `json:"resource_type"`
-	ResourceID    uuid.UUID          `json:"resource_id"`
-	Token         string             `json:"token"`
-	Permission    string             `json:"permission"`
-	PasswordHash  *string            `json:"password_hash"`
-	MaxDownloads  *int32             `json:"max_downloads"`
-	DownloadCount int32              `json:"download_count"`
-	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
-	IsActive      bool               `json:"is_active"`
-	CreatedBy     uuid.UUID          `json:"created_by"`
-	CreatedAt     time.Time          `json:"created_at"`
-	UpdatedAt     time.Time          `json:"updated_at"`
-}
-
-type ShareLinkAccess struct {
-	ID          uuid.UUID   `json:"id"`
-	ShareLinkID uuid.UUID   `json:"share_link_id"`
-	AccessedBy  pgtype.UUID `json:"accessed_by"`
-	IpAddress   *netip.Addr `json:"ip_address"`
-	UserAgent   *string     `json:"user_agent"`
-	Action      string      `json:"action"`
-	AccessedAt  time.Time   `json:"accessed_at"`
+type UploadPart struct {
+	ID         uuid.UUID `json:"id"`
+	SessionID  uuid.UUID `json:"session_id"`
+	PartNumber int32     `json:"part_number"`
+	Size       int64     `json:"size"`
+	Etag       string    `json:"etag"`
+	UploadedAt time.Time `json:"uploaded_at"`
 }
 
 type UploadSession struct {
-	ID             uuid.UUID          `json:"id"`
-	FileID         uuid.UUID          `json:"file_id"`
-	UploadID       *string            `json:"upload_id"`
-	Status         string             `json:"status"`
-	TotalParts     *int32             `json:"total_parts"`
-	CompletedParts *int32             `json:"completed_parts"`
-	ExpiresAt      time.Time          `json:"expires_at"`
-	CreatedAt      time.Time          `json:"created_at"`
-	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	ID            uuid.UUID           `json:"id"`
+	FileID        uuid.UUID           `json:"file_id"`
+	OwnerID       uuid.UUID           `json:"owner_id"`
+	OwnerType     OwnerType           `json:"owner_type"`
+	FolderID      pgtype.UUID         `json:"folder_id"`
+	FileName      string              `json:"file_name"`
+	MimeType      string              `json:"mime_type"`
+	TotalSize     int64               `json:"total_size"`
+	StorageKey    string              `json:"storage_key"`
+	MinioUploadID *string             `json:"minio_upload_id"`
+	IsMultipart   bool                `json:"is_multipart"`
+	TotalParts    int32               `json:"total_parts"`
+	UploadedParts int32               `json:"uploaded_parts"`
+	Status        UploadSessionStatus `json:"status"`
+	CreatedAt     time.Time           `json:"created_at"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	ExpiresAt     time.Time           `json:"expires_at"`
 }
 
 type User struct {
@@ -197,12 +287,14 @@ type User struct {
 }
 
 type UserProfile struct {
-	UserID      uuid.UUID       `json:"user_id"`
-	DisplayName *string         `json:"display_name"`
-	AvatarUrl   *string         `json:"avatar_url"`
-	Bio         *string         `json:"bio"`
-	Locale      string          `json:"locale"`
-	Timezone    string          `json:"timezone"`
-	Settings    json.RawMessage `json:"settings"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID                      uuid.UUID `json:"id"`
+	UserID                  uuid.UUID `json:"user_id"`
+	AvatarUrl               *string   `json:"avatar_url"`
+	Bio                     *string   `json:"bio"`
+	Timezone                *string   `json:"timezone"`
+	Locale                  *string   `json:"locale"`
+	Theme                   *string   `json:"theme"`
+	NotificationPreferences []byte    `json:"notification_preferences"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }

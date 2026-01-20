@@ -1,45 +1,47 @@
 -- name: CreateUploadSession :one
 INSERT INTO upload_sessions (
-    id, file_id, upload_id, status, total_parts, completed_parts, expires_at, created_at
+    id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size,
+    storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status,
+    created_at, updated_at, expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 ) RETURNING *;
 
 -- name: GetUploadSessionByID :one
 SELECT * FROM upload_sessions WHERE id = $1;
 
--- name: GetActiveUploadSessionByFileID :one
+-- name: GetUploadSessionByFileID :one
 SELECT * FROM upload_sessions
-WHERE file_id = $1 AND status IN ('initiated', 'uploading', 'completing')
+WHERE file_id = $1
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: GetUploadSessionByStorageKey :one
+SELECT * FROM upload_sessions
+WHERE storage_key = $1
 ORDER BY created_at DESC
 LIMIT 1;
 
 -- name: UpdateUploadSession :one
 UPDATE upload_sessions SET
-    upload_id = COALESCE(sqlc.narg('upload_id'), upload_id),
+    minio_upload_id = COALESCE(sqlc.narg('minio_upload_id'), minio_upload_id),
+    uploaded_parts = COALESCE(sqlc.narg('uploaded_parts'), uploaded_parts),
     status = COALESCE(sqlc.narg('status'), status),
-    total_parts = COALESCE(sqlc.narg('total_parts'), total_parts),
-    completed_parts = COALESCE(sqlc.narg('completed_parts'), completed_parts),
-    completed_at = COALESCE(sqlc.narg('completed_at'), completed_at)
+    updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
--- name: IncrementCompletedParts :exec
-UPDATE upload_sessions SET completed_parts = completed_parts + 1 WHERE id = $1;
+-- name: UpdateUploadSessionStatus :exec
+UPDATE upload_sessions SET status = $2, updated_at = NOW() WHERE id = $1;
 
--- name: CompleteUploadSession :exec
-UPDATE upload_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1;
-
--- name: FailUploadSession :exec
-UPDATE upload_sessions SET status = 'failed' WHERE id = $1;
-
--- name: AbortUploadSession :exec
-UPDATE upload_sessions SET status = 'aborted' WHERE id = $1;
+-- name: IncrementUploadedParts :exec
+UPDATE upload_sessions
+SET uploaded_parts = uploaded_parts + 1, updated_at = NOW()
+WHERE id = $1;
 
 -- name: ListExpiredUploadSessions :many
 SELECT * FROM upload_sessions
-WHERE status IN ('initiated', 'uploading') AND expires_at < NOW();
+WHERE status IN ('pending', 'in_progress') AND expires_at < NOW();
 
--- name: DeleteExpiredUploadSessions :exec
-DELETE FROM upload_sessions
-WHERE status IN ('completed', 'failed', 'aborted') AND created_at < $1;
+-- name: DeleteUploadSession :exec
+DELETE FROM upload_sessions WHERE id = $1;

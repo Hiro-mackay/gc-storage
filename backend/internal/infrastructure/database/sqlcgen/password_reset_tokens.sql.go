@@ -14,7 +14,7 @@ import (
 
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :one
 INSERT INTO password_reset_tokens (id, user_id, token, expires_at, created_at)
-VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, token, expires_at, used_at, created_at
+VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, token, expires_at, created_at, used_at
 `
 
 type CreatePasswordResetTokenParams struct {
@@ -39,8 +39,8 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 		&i.UserID,
 		&i.Token,
 		&i.ExpiresAt,
-		&i.UsedAt,
 		&i.CreatedAt,
+		&i.UsedAt,
 	)
 	return i, err
 }
@@ -73,7 +73,7 @@ func (q *Queries) DeletePasswordResetTokensByUserID(ctx context.Context, userID 
 }
 
 const getPasswordResetTokenByToken = `-- name: GetPasswordResetTokenByToken :one
-SELECT id, user_id, token, expires_at, used_at, created_at FROM password_reset_tokens WHERE token = $1
+SELECT id, user_id, token, expires_at, created_at, used_at FROM password_reset_tokens WHERE token = $1
 `
 
 func (q *Queries) GetPasswordResetTokenByToken(ctx context.Context, token string) (PasswordResetToken, error) {
@@ -84,8 +84,8 @@ func (q *Queries) GetPasswordResetTokenByToken(ctx context.Context, token string
 		&i.UserID,
 		&i.Token,
 		&i.ExpiresAt,
-		&i.UsedAt,
 		&i.CreatedAt,
+		&i.UsedAt,
 	)
 	return i, err
 }

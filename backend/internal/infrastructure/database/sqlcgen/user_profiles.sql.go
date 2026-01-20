@@ -7,7 +7,6 @@ package sqlcgen
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,43 +14,49 @@ import (
 
 const createUserProfile = `-- name: CreateUserProfile :one
 INSERT INTO user_profiles (
-    user_id, display_name, avatar_url, bio, locale, timezone, settings, updated_at
+    id, user_id, avatar_url, bio, timezone, locale, theme, notification_preferences, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING user_id, display_name, avatar_url, bio, locale, timezone, settings, updated_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+) RETURNING id, user_id, avatar_url, bio, timezone, locale, theme, notification_preferences, created_at, updated_at
 `
 
 type CreateUserProfileParams struct {
-	UserID      uuid.UUID       `json:"user_id"`
-	DisplayName *string         `json:"display_name"`
-	AvatarUrl   *string         `json:"avatar_url"`
-	Bio         *string         `json:"bio"`
-	Locale      string          `json:"locale"`
-	Timezone    string          `json:"timezone"`
-	Settings    json.RawMessage `json:"settings"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID                      uuid.UUID `json:"id"`
+	UserID                  uuid.UUID `json:"user_id"`
+	AvatarUrl               *string   `json:"avatar_url"`
+	Bio                     *string   `json:"bio"`
+	Timezone                *string   `json:"timezone"`
+	Locale                  *string   `json:"locale"`
+	Theme                   *string   `json:"theme"`
+	NotificationPreferences []byte    `json:"notification_preferences"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 func (q *Queries) CreateUserProfile(ctx context.Context, arg CreateUserProfileParams) (UserProfile, error) {
 	row := q.db.QueryRow(ctx, createUserProfile,
+		arg.ID,
 		arg.UserID,
-		arg.DisplayName,
 		arg.AvatarUrl,
 		arg.Bio,
-		arg.Locale,
 		arg.Timezone,
-		arg.Settings,
+		arg.Locale,
+		arg.Theme,
+		arg.NotificationPreferences,
+		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
 	var i UserProfile
 	err := row.Scan(
+		&i.ID,
 		&i.UserID,
-		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
-		&i.Locale,
 		&i.Timezone,
-		&i.Settings,
+		&i.Locale,
+		&i.Theme,
+		&i.NotificationPreferences,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -67,20 +72,22 @@ func (q *Queries) DeleteUserProfile(ctx context.Context, userID uuid.UUID) error
 }
 
 const getUserProfileByUserID = `-- name: GetUserProfileByUserID :one
-SELECT user_id, display_name, avatar_url, bio, locale, timezone, settings, updated_at FROM user_profiles WHERE user_id = $1
+SELECT id, user_id, avatar_url, bio, timezone, locale, theme, notification_preferences, created_at, updated_at FROM user_profiles WHERE user_id = $1
 `
 
 func (q *Queries) GetUserProfileByUserID(ctx context.Context, userID uuid.UUID) (UserProfile, error) {
 	row := q.db.QueryRow(ctx, getUserProfileByUserID, userID)
 	var i UserProfile
 	err := row.Scan(
+		&i.ID,
 		&i.UserID,
-		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
-		&i.Locale,
 		&i.Timezone,
-		&i.Settings,
+		&i.Locale,
+		&i.Theme,
+		&i.NotificationPreferences,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -88,46 +95,48 @@ func (q *Queries) GetUserProfileByUserID(ctx context.Context, userID uuid.UUID) 
 
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE user_profiles SET
-    display_name = COALESCE($2, display_name),
-    avatar_url = COALESCE($3, avatar_url),
-    bio = COALESCE($4, bio),
-    locale = COALESCE($5, locale),
-    timezone = COALESCE($6, timezone),
-    settings = COALESCE($7, settings),
+    avatar_url = COALESCE($2, avatar_url),
+    bio = COALESCE($3, bio),
+    locale = COALESCE($4, locale),
+    timezone = COALESCE($5, timezone),
+    theme = COALESCE($6, theme),
+    notification_preferences = COALESCE($7, notification_preferences),
     updated_at = NOW()
 WHERE user_id = $1
-RETURNING user_id, display_name, avatar_url, bio, locale, timezone, settings, updated_at
+RETURNING id, user_id, avatar_url, bio, timezone, locale, theme, notification_preferences, created_at, updated_at
 `
 
 type UpdateUserProfileParams struct {
-	UserID      uuid.UUID `json:"user_id"`
-	DisplayName *string   `json:"display_name"`
-	AvatarUrl   *string   `json:"avatar_url"`
-	Bio         *string   `json:"bio"`
-	Locale      *string   `json:"locale"`
-	Timezone    *string   `json:"timezone"`
-	Settings    []byte    `json:"settings"`
+	UserID                  uuid.UUID `json:"user_id"`
+	AvatarUrl               *string   `json:"avatar_url"`
+	Bio                     *string   `json:"bio"`
+	Locale                  *string   `json:"locale"`
+	Timezone                *string   `json:"timezone"`
+	Theme                   *string   `json:"theme"`
+	NotificationPreferences []byte    `json:"notification_preferences"`
 }
 
 func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (UserProfile, error) {
 	row := q.db.QueryRow(ctx, updateUserProfile,
 		arg.UserID,
-		arg.DisplayName,
 		arg.AvatarUrl,
 		arg.Bio,
 		arg.Locale,
 		arg.Timezone,
-		arg.Settings,
+		arg.Theme,
+		arg.NotificationPreferences,
 	)
 	var i UserProfile
 	err := row.Scan(
+		&i.ID,
 		&i.UserID,
-		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
-		&i.Locale,
 		&i.Timezone,
-		&i.Settings,
+		&i.Locale,
+		&i.Theme,
+		&i.NotificationPreferences,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -135,50 +144,54 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 
 const upsertUserProfile = `-- name: UpsertUserProfile :one
 INSERT INTO user_profiles (
-    user_id, display_name, avatar_url, bio, locale, timezone, settings, updated_at
+    id, user_id, avatar_url, bio, locale, timezone, theme, notification_preferences, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
 )
 ON CONFLICT (user_id) DO UPDATE SET
-    display_name = COALESCE(EXCLUDED.display_name, user_profiles.display_name),
     avatar_url = COALESCE(EXCLUDED.avatar_url, user_profiles.avatar_url),
     bio = COALESCE(EXCLUDED.bio, user_profiles.bio),
     locale = COALESCE(EXCLUDED.locale, user_profiles.locale),
     timezone = COALESCE(EXCLUDED.timezone, user_profiles.timezone),
-    settings = COALESCE(EXCLUDED.settings, user_profiles.settings),
+    theme = COALESCE(EXCLUDED.theme, user_profiles.theme),
+    notification_preferences = COALESCE(EXCLUDED.notification_preferences, user_profiles.notification_preferences),
     updated_at = NOW()
-RETURNING user_id, display_name, avatar_url, bio, locale, timezone, settings, updated_at
+RETURNING id, user_id, avatar_url, bio, timezone, locale, theme, notification_preferences, created_at, updated_at
 `
 
 type UpsertUserProfileParams struct {
-	UserID      uuid.UUID       `json:"user_id"`
-	DisplayName *string         `json:"display_name"`
-	AvatarUrl   *string         `json:"avatar_url"`
-	Bio         *string         `json:"bio"`
-	Locale      string          `json:"locale"`
-	Timezone    string          `json:"timezone"`
-	Settings    json.RawMessage `json:"settings"`
+	ID                      uuid.UUID `json:"id"`
+	UserID                  uuid.UUID `json:"user_id"`
+	AvatarUrl               *string   `json:"avatar_url"`
+	Bio                     *string   `json:"bio"`
+	Locale                  *string   `json:"locale"`
+	Timezone                *string   `json:"timezone"`
+	Theme                   *string   `json:"theme"`
+	NotificationPreferences []byte    `json:"notification_preferences"`
 }
 
 func (q *Queries) UpsertUserProfile(ctx context.Context, arg UpsertUserProfileParams) (UserProfile, error) {
 	row := q.db.QueryRow(ctx, upsertUserProfile,
+		arg.ID,
 		arg.UserID,
-		arg.DisplayName,
 		arg.AvatarUrl,
 		arg.Bio,
 		arg.Locale,
 		arg.Timezone,
-		arg.Settings,
+		arg.Theme,
+		arg.NotificationPreferences,
 	)
 	var i UserProfile
 	err := row.Scan(
+		&i.ID,
 		&i.UserID,
-		&i.DisplayName,
 		&i.AvatarUrl,
 		&i.Bio,
-		&i.Locale,
 		&i.Timezone,
-		&i.Settings,
+		&i.Locale,
+		&i.Theme,
+		&i.NotificationPreferences,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
