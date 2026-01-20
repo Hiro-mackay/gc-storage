@@ -52,6 +52,7 @@ func (r *Router) setupAPIRoutes() {
 
 	r.setupAuthRoutes(api)
 	r.setupUserRoutes(api)
+	r.setupStorageRoutes(api)
 }
 
 // setupAuthRoutes は認証関連ルートを設定します
@@ -100,4 +101,40 @@ func (r *Router) setupUserRoutes(api *echo.Group) {
 	meGroup := api.Group("/me", r.middlewares.JWTAuth.Authenticate())
 	meGroup.GET("/profile", r.handlers.Profile.GetProfile)
 	meGroup.PUT("/profile", r.handlers.Profile.UpdateProfile)
+}
+
+// setupStorageRoutes はストレージ関連ルートを設定します
+func (r *Router) setupStorageRoutes(api *echo.Group) {
+	// Folder routes (authenticated)
+	if r.handlers.Folder != nil {
+		foldersGroup := api.Group("/folders", r.middlewares.JWTAuth.Authenticate())
+		foldersGroup.POST("", r.handlers.Folder.CreateFolder)
+		foldersGroup.GET("/root/contents", r.handlers.Folder.ListFolderContents)
+		foldersGroup.GET("/:id", r.handlers.Folder.GetFolder)
+		foldersGroup.GET("/:id/contents", r.handlers.Folder.ListFolderContents)
+		foldersGroup.GET("/:id/ancestors", r.handlers.Folder.GetAncestors)
+		foldersGroup.PATCH("/:id/rename", r.handlers.Folder.RenameFolder)
+		foldersGroup.PATCH("/:id/move", r.handlers.Folder.MoveFolder)
+		foldersGroup.DELETE("/:id", r.handlers.Folder.DeleteFolder)
+	}
+
+	// File routes (authenticated)
+	if r.handlers.File != nil {
+		filesGroup := api.Group("/files", r.middlewares.JWTAuth.Authenticate())
+		filesGroup.POST("/upload", r.handlers.File.InitiateUpload)
+		filesGroup.GET("/upload/:sessionId", r.handlers.File.GetUploadStatus)
+		filesGroup.GET("/:id/download", r.handlers.File.GetDownloadURL)
+		filesGroup.GET("/:id/versions", r.handlers.File.ListFileVersions)
+		filesGroup.PATCH("/:id/rename", r.handlers.File.RenameFile)
+		filesGroup.PATCH("/:id/move", r.handlers.File.MoveFile)
+		filesGroup.POST("/:id/trash", r.handlers.File.TrashFile)
+
+		// Upload completion webhook (unauthenticated for MinIO webhook)
+		api.POST("/files/upload/complete", r.handlers.File.CompleteUpload)
+
+		// Trash routes (authenticated)
+		trashGroup := api.Group("/trash", r.middlewares.JWTAuth.Authenticate())
+		trashGroup.GET("", r.handlers.File.ListTrash)
+		trashGroup.POST("/:id/restore", r.handlers.File.RestoreFile)
+	}
 }

@@ -48,6 +48,12 @@ type Container struct {
 	// Profile UseCases
 	Profile *ProfileUseCases
 
+	// Storage UseCases
+	Storage *StorageUseCases
+
+	// Storage Repositories (for tests and direct access)
+	StorageRepos *StorageRepositories
+
 	// config
 	config *config.Config
 }
@@ -149,6 +155,12 @@ func (c *Container) InitAuthUseCases() {
 // InitProfileUseCases はProfile UseCasesを初期化します
 func (c *Container) InitProfileUseCases() {
 	c.Profile = NewProfileUseCases(c)
+}
+
+// InitStorageUseCases はStorage UseCasesを初期化します
+func (c *Container) InitStorageUseCases(storageService service.StorageService) {
+	c.StorageRepos = NewStorageRepositories(c.TxManager)
+	c.Storage = NewStorageUseCases(c.StorageRepos, c.TxManager, storageService)
 }
 
 // Close はリソースをクリーンアップします
