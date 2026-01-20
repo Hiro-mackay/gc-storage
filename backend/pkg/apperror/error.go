@@ -151,8 +151,8 @@ func NewServiceUnavailableError(message string) *AppError {
 	}
 }
 
-// Is はエラーが特定のコードかどうかを判定します
-func (e *AppError) Is(code ErrorCode) bool {
+// HasCode はエラーが特定のコードかどうかを判定します
+func (e *AppError) HasCode(code ErrorCode) bool {
 	return e.Code == code
 }
 

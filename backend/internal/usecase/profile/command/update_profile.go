@@ -13,13 +13,13 @@ import (
 
 // UpdateProfileInput はプロファイル更新の入力を定義します
 type UpdateProfileInput struct {
-	UserID      uuid.UUID
-	DisplayName *string
-	AvatarURL   *string
-	Bio         *string
-	Locale      *string
-	Timezone    *string
-	Settings    *entity.UserProfileSettings
+	UserID                  uuid.UUID
+	AvatarURL               *string
+	Bio                     *string
+	Locale                  *string
+	Timezone                *string
+	Theme                   *string
+	NotificationPreferences *entity.NotificationPreferences
 }
 
 // UpdateProfileOutput はプロファイル更新の出力を定義します
@@ -63,9 +63,6 @@ func (c *UpdateProfileCommand) Execute(ctx context.Context, input UpdateProfileI
 	}
 
 	// フィールドを更新
-	if input.DisplayName != nil {
-		profile.DisplayName = *input.DisplayName
-	}
 	if input.AvatarURL != nil {
 		profile.AvatarURL = *input.AvatarURL
 	}
@@ -82,8 +79,11 @@ func (c *UpdateProfileCommand) Execute(ctx context.Context, input UpdateProfileI
 	if input.Timezone != nil {
 		profile.Timezone = *input.Timezone
 	}
-	if input.Settings != nil {
-		profile.Settings = *input.Settings
+	if input.Theme != nil {
+		profile.SetTheme(*input.Theme)
+	}
+	if input.NotificationPreferences != nil {
+		profile.SetNotificationPreferences(*input.NotificationPreferences)
 	}
 
 	profile.UpdatedAt = time.Now()

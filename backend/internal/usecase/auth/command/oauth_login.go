@@ -183,7 +183,6 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 
 		// UserProfileを作成（AvatarURLを含む）
 		profile := entity.NewUserProfile(user.ID)
-		profile.DisplayName = userInfo.Name
 		profile.AvatarURL = userInfo.AvatarURL
 		if txErr = c.profileRepo.Upsert(ctx, profile); txErr != nil {
 			return txErr

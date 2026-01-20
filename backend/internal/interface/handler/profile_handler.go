@@ -69,27 +69,24 @@ func (h *ProfileHandler) UpdateProfile(c echo.Context) error {
 
 	// リクエストからコマンド入力への変換
 	input := profilecmd.UpdateProfileInput{
-		UserID:      claims.UserID,
-		DisplayName: req.DisplayName,
-		AvatarURL:   req.AvatarURL,
-		Bio:         req.Bio,
-		Locale:      req.Locale,
-		Timezone:    req.Timezone,
+		UserID:    claims.UserID,
+		AvatarURL: req.AvatarURL,
+		Bio:       req.Bio,
+		Locale:    req.Locale,
+		Timezone:  req.Timezone,
+		Theme:     req.Theme,
 	}
 
-	// Settings の変換
-	if req.Settings != nil {
-		settings := &entity.UserProfileSettings{}
-		if req.Settings.NotificationsEnabled != nil {
-			settings.NotificationsEnabled = *req.Settings.NotificationsEnabled
+	// NotificationPreferences の変換
+	if req.NotificationPreferences != nil {
+		notifPrefs := &entity.NotificationPreferences{}
+		if req.NotificationPreferences.EmailEnabled != nil {
+			notifPrefs.EmailEnabled = *req.NotificationPreferences.EmailEnabled
 		}
-		if req.Settings.EmailNotifications != nil {
-			settings.EmailNotifications = *req.Settings.EmailNotifications
+		if req.NotificationPreferences.PushEnabled != nil {
+			notifPrefs.PushEnabled = *req.NotificationPreferences.PushEnabled
 		}
-		if req.Settings.Theme != nil {
-			settings.Theme = *req.Settings.Theme
-		}
-		input.Settings = settings
+		input.NotificationPreferences = notifPrefs
 	}
 
 	output, err := h.updateProfileCommand.Execute(c.Request().Context(), input)

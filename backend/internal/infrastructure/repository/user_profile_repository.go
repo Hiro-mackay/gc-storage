@@ -33,14 +33,9 @@ func (r *UserProfileRepository) Create(ctx context.Context, profile *entity.User
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	settingsJSON, err := json.Marshal(profile.Settings)
+	notificationPrefsJSON, err := json.Marshal(profile.NotificationPreferences)
 	if err != nil {
 		return apperror.NewInternalError(err)
-	}
-
-	var displayName *string
-	if profile.DisplayName != "" {
-		displayName = &profile.DisplayName
 	}
 
 	var avatarURL *string
@@ -53,15 +48,33 @@ func (r *UserProfileRepository) Create(ctx context.Context, profile *entity.User
 		bio = &profile.Bio
 	}
 
+	var timezone *string
+	if profile.Timezone != "" {
+		timezone = &profile.Timezone
+	}
+
+	var locale *string
+	if profile.Locale != "" {
+		locale = &profile.Locale
+	}
+
+	var theme *string
+	if profile.Theme != "" {
+		theme = &profile.Theme
+	}
+
+	now := time.Now()
 	_, err = queries.CreateUserProfile(ctx, sqlcgen.CreateUserProfileParams{
-		UserID:      profile.UserID,
-		DisplayName: displayName,
-		AvatarUrl:   avatarURL,
-		Bio:         bio,
-		Locale:      profile.Locale,
-		Timezone:    profile.Timezone,
-		Settings:    settingsJSON,
-		UpdatedAt:   time.Now(),
+		ID:                      profile.ID,
+		UserID:                  profile.UserID,
+		AvatarUrl:               avatarURL,
+		Bio:                     bio,
+		Timezone:                timezone,
+		Locale:                  locale,
+		Theme:                   theme,
+		NotificationPreferences: notificationPrefsJSON,
+		CreatedAt:               now,
+		UpdatedAt:               now,
 	})
 
 	return r.HandleError(err)
@@ -72,14 +85,9 @@ func (r *UserProfileRepository) Update(ctx context.Context, profile *entity.User
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	settingsJSON, err := json.Marshal(profile.Settings)
+	notificationPrefsJSON, err := json.Marshal(profile.NotificationPreferences)
 	if err != nil {
 		return apperror.NewInternalError(err)
-	}
-
-	var displayName *string
-	if profile.DisplayName != "" {
-		displayName = &profile.DisplayName
 	}
 
 	var avatarURL *string
@@ -92,14 +100,29 @@ func (r *UserProfileRepository) Update(ctx context.Context, profile *entity.User
 		bio = &profile.Bio
 	}
 
+	var timezone *string
+	if profile.Timezone != "" {
+		timezone = &profile.Timezone
+	}
+
+	var locale *string
+	if profile.Locale != "" {
+		locale = &profile.Locale
+	}
+
+	var theme *string
+	if profile.Theme != "" {
+		theme = &profile.Theme
+	}
+
 	_, err = queries.UpdateUserProfile(ctx, sqlcgen.UpdateUserProfileParams{
-		UserID:      profile.UserID,
-		DisplayName: displayName,
-		AvatarUrl:   avatarURL,
-		Bio:         bio,
-		Locale:      &profile.Locale,
-		Timezone:    &profile.Timezone,
-		Settings:    settingsJSON,
+		UserID:                  profile.UserID,
+		AvatarUrl:               avatarURL,
+		Bio:                     bio,
+		Timezone:                timezone,
+		Locale:                  locale,
+		Theme:                   theme,
+		NotificationPreferences: notificationPrefsJSON,
 	})
 
 	return r.HandleError(err)
@@ -126,14 +149,9 @@ func (r *UserProfileRepository) Upsert(ctx context.Context, profile *entity.User
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	settingsJSON, err := json.Marshal(profile.Settings)
+	notificationPrefsJSON, err := json.Marshal(profile.NotificationPreferences)
 	if err != nil {
 		return apperror.NewInternalError(err)
-	}
-
-	var displayName *string
-	if profile.DisplayName != "" {
-		displayName = &profile.DisplayName
 	}
 
 	var avatarURL *string
@@ -146,14 +164,30 @@ func (r *UserProfileRepository) Upsert(ctx context.Context, profile *entity.User
 		bio = &profile.Bio
 	}
 
+	var timezone *string
+	if profile.Timezone != "" {
+		timezone = &profile.Timezone
+	}
+
+	var locale *string
+	if profile.Locale != "" {
+		locale = &profile.Locale
+	}
+
+	var theme *string
+	if profile.Theme != "" {
+		theme = &profile.Theme
+	}
+
 	_, err = queries.UpsertUserProfile(ctx, sqlcgen.UpsertUserProfileParams{
-		UserID:      profile.UserID,
-		DisplayName: displayName,
-		AvatarUrl:   avatarURL,
-		Bio:         bio,
-		Locale:      profile.Locale,
-		Timezone:    profile.Timezone,
-		Settings:    settingsJSON,
+		ID:                      profile.ID,
+		UserID:                  profile.UserID,
+		AvatarUrl:               avatarURL,
+		Bio:                     bio,
+		Locale:                  locale,
+		Timezone:                timezone,
+		Theme:                   theme,
+		NotificationPreferences: notificationPrefsJSON,
 	})
 
 	return r.HandleError(err)
@@ -162,14 +196,10 @@ func (r *UserProfileRepository) Upsert(ctx context.Context, profile *entity.User
 // toEntity はsqlcgen.UserProfileをentity.UserProfileに変換します
 func (r *UserProfileRepository) toEntity(row sqlcgen.UserProfile) (*entity.UserProfile, error) {
 	profile := &entity.UserProfile{
+		ID:        row.ID,
 		UserID:    row.UserID,
-		Locale:    row.Locale,
-		Timezone:  row.Timezone,
+		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
-	}
-
-	if row.DisplayName != nil {
-		profile.DisplayName = *row.DisplayName
 	}
 
 	if row.AvatarUrl != nil {
@@ -180,8 +210,20 @@ func (r *UserProfileRepository) toEntity(row sqlcgen.UserProfile) (*entity.UserP
 		profile.Bio = *row.Bio
 	}
 
-	if row.Settings != nil {
-		if err := json.Unmarshal(row.Settings, &profile.Settings); err != nil {
+	if row.Timezone != nil {
+		profile.Timezone = *row.Timezone
+	}
+
+	if row.Locale != nil {
+		profile.Locale = *row.Locale
+	}
+
+	if row.Theme != nil {
+		profile.Theme = *row.Theme
+	}
+
+	if row.NotificationPreferences != nil {
+		if err := json.Unmarshal(row.NotificationPreferences, &profile.NotificationPreferences); err != nil {
 			return nil, apperror.NewInternalError(err)
 		}
 	}
