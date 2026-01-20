@@ -27,21 +27,24 @@ import (
 
 // TestServer holds all test server dependencies
 type TestServer struct {
-	Echo             *echo.Echo
-	Pool             *pgxpool.Pool
-	Redis            *redis.Client
-	Container        *di.Container
-	TxManager        *database.TxManager
-	JWTService       *jwt.JWTService
-	SessionRepo      repository.SessionRepository
-	JWTBlacklist     *cache.JWTBlacklist
-	RateLimiter      *cache.RateLimiter
-	UserRepo         *infraRepo.UserRepository
-	OAuthAccountRepo *infraRepo.OAuthAccountRepository
-	OAuthFactory     *oauth.ClientFactory
-	MockGoogleClient *oauth.MockOAuthClient
-	MockGitHubClient *oauth.MockOAuthClient
-	AuthHandler      *handler.AuthHandler
+	Echo               *echo.Echo
+	Pool               *pgxpool.Pool
+	Redis              *redis.Client
+	Container          *di.Container
+	TxManager          *database.TxManager
+	JWTService         *jwt.JWTService
+	SessionRepo        repository.SessionRepository
+	JWTBlacklist       *cache.JWTBlacklist
+	RateLimiter        *cache.RateLimiter
+	UserRepo           *infraRepo.UserRepository
+	OAuthAccountRepo   *infraRepo.OAuthAccountRepository
+	OAuthFactory       *oauth.ClientFactory
+	MockGoogleClient   *oauth.MockOAuthClient
+	MockGitHubClient   *oauth.MockOAuthClient
+	AuthHandler        *handler.AuthHandler
+	MockStorageService *MockStorageService
+	FolderHandler      *handler.FolderHandler
+	FileHandler        *handler.FileHandler
 }
 
 // NewTestServer creates a fully configured test server
@@ -85,9 +88,13 @@ func NewTestServer(t *testing.T) *TestServer {
 		t.Fatalf("Failed to create DI container: %v", err)
 	}
 
+	// Create mock storage service
+	mockStorageService := NewMockStorageService()
+
 	// Initialize UseCases, Handlers, and Middlewares
 	container.InitAuthUseCases()
 	container.InitProfileUseCases()
+	container.InitStorageUseCases(mockStorageService)
 	handlers := di.NewHandlersForTest(container)
 	middlewares := di.NewMiddlewares(container)
 
@@ -104,29 +111,45 @@ func NewTestServer(t *testing.T) *TestServer {
 	oauthAccountRepo, _ := container.OAuthAccountRepo.(*infraRepo.OAuthAccountRepository)
 
 	return &TestServer{
-		Echo:             e,
-		Pool:             pool,
-		Redis:            redisClient,
-		Container:        container,
-		TxManager:        container.TxManager,
-		JWTService:       container.JWTService,
-		SessionRepo:      container.SessionRepo,
-		JWTBlacklist:     container.JWTBlacklist,
-		RateLimiter:      container.RateLimiter,
-		UserRepo:         userRepo,
-		OAuthAccountRepo: oauthAccountRepo,
-		OAuthFactory:     oauthFactory,
-		MockGoogleClient: mockGoogleClient,
-		MockGitHubClient: mockGitHubClient,
-		AuthHandler:      handlers.Auth,
+		Echo:               e,
+		Pool:               pool,
+		Redis:              redisClient,
+		Container:          container,
+		TxManager:          container.TxManager,
+		JWTService:         container.JWTService,
+		SessionRepo:        container.SessionRepo,
+		JWTBlacklist:       container.JWTBlacklist,
+		RateLimiter:        container.RateLimiter,
+		UserRepo:           userRepo,
+		OAuthAccountRepo:   oauthAccountRepo,
+		OAuthFactory:       oauthFactory,
+		MockGoogleClient:   mockGoogleClient,
+		MockGitHubClient:   mockGitHubClient,
+		AuthHandler:        handlers.Auth,
+		MockStorageService: mockStorageService,
+		FolderHandler:      handlers.Folder,
+		FileHandler:        handlers.File,
 	}
 }
 
 // Cleanup cleans up test data
 func (ts *TestServer) Cleanup(t *testing.T) {
 	t.Helper()
-	TruncateTables(t, ts.Pool, "sessions", "oauth_accounts", "email_verification_tokens", "password_reset_tokens", "user_profiles", "users")
+	// Truncate storage tables first (due to foreign key constraints)
+	// Note: sessions are stored in Redis, not PostgreSQL
+	TruncateTables(t, ts.Pool,
+		"upload_parts", "upload_sessions",
+		"archived_file_versions", "archived_files",
+		"file_versions", "files",
+		"folder_paths", "folders",
+		"oauth_accounts", "email_verification_tokens", "password_reset_tokens", "user_profiles", "users",
+	)
 	FlushRedis(t, ts.Redis)
+
+	// Reset mock storage service
+	if ts.MockStorageService != nil {
+		ts.MockStorageService.Reset()
+	}
 
 	// Reset mock OAuth clients to default state
 	ts.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
