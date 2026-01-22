@@ -5,6 +5,12 @@
 Groupドメインは、ユーザーの集まりであるグループの作成、メンバー管理、ロール管理を担当します。
 Collaboration Contextの中核となるドメインで、グループ単位でのファイル共有・権限管理の基盤を提供します。
 
+### 設計方針
+
+- **グループとフォルダは分離**: グループ作成時にフォルダは作成しない
+- **グループはリソース共有の単位**: ストレージ構造とは独立して、共有の「受け皿」として機能
+- **権限はPermissionGrantで管理**: グループにフォルダ/ファイルへのロールを付与して共有を実現
+
 ---
 
 ## エンティティ
@@ -14,19 +20,23 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
 | id | UUID | Yes | グループの一意識別子 |
-| name | string | Yes | グループ名 (1-100文字) |
-| description | string | No | グループの説明 (最大500文字) |
+| name | GroupName | Yes | グループ名（値オブジェクト） |
+| description | string | No | グループの説明（最大500文字） |
 | owner_id | UUID | Yes | オーナーのユーザーID |
 | status | GroupStatus | Yes | グループ状態 |
 | created_at | timestamp | Yes | 作成日時 |
 | updated_at | timestamp | Yes | 更新日時 |
 
 **ビジネスルール:**
-- R-G001: グループには必ず1人のownerが存在する
-- R-G002: nameは空文字不可、1-100文字
-- R-G003: descriptionは最大500文字
-- R-G004: ownerはグループから脱退できない（所有権譲渡が必要）
-- R-G005: statusがdeletedのグループは操作不可
+
+| ID | ルール |
+|----|--------|
+| R-G001 | グループには必ず1人のownerが存在する |
+| R-G002 | nameは空文字不可、1-100文字 |
+| R-G003 | descriptionは最大500文字 |
+| R-G004 | ownerはグループから脱退できない（所有権譲渡が必要） |
+| R-G005 | statusがdeletedのグループは操作不可 |
+| R-G006 | グループ作成時にフォルダは作成しない |
 
 **ステータス遷移:**
 ```
@@ -40,6 +50,8 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | active | アクティブ |
 | deleted | 削除済み（論理削除） |
 
+---
+
 ### Membership
 
 | 属性 | 型 | 必須 | 説明 |
@@ -51,9 +63,14 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | joined_at | timestamp | Yes | 参加日時 |
 
 **ビジネスルール:**
-- R-M001: 同一ユーザーは同一グループに1つのMembershipのみ
-- R-M002: グループオーナーのMembershipはrole=ownerで固定
-- R-M003: ownerロールのMembershipは削除不可（所有権譲渡でのみ変更）
+
+| ID | ルール |
+|----|--------|
+| R-M001 | 同一ユーザーは同一グループに1つのMembershipのみ |
+| R-M002 | グループオーナーのMembershipはrole=ownerで固定 |
+| R-M003 | ownerロールのMembershipは削除不可（所有権譲渡でのみ変更） |
+
+---
 
 ### Invitation
 
@@ -63,18 +80,23 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | group_id | UUID | Yes | グループID |
 | email | Email | Yes | 招待先メールアドレス |
 | token | string | Yes | 招待トークン（一意） |
-| role | GroupRole | Yes | 付与予定のロール |
+| role | GroupRole | Yes | 付与予定のロール（デフォルト: viewer） |
 | invited_by | UUID | Yes | 招待者のユーザーID |
 | expires_at | timestamp | Yes | 有効期限 |
 | status | InvitationStatus | Yes | 招待状態 |
 | created_at | timestamp | Yes | 作成日時 |
 
 **ビジネスルール:**
-- R-I001: tokenは全招待で一意
-- R-I002: expires_atを過ぎた招待は自動でexpired
-- R-I003: 既にメンバーのユーザーへの招待は不可
-- R-I004: 同一グループ・同一メールへの有効な招待は1つのみ
-- R-I005: roleにownerは指定不可（所有権譲渡は別フロー）
+
+| ID | ルール |
+|----|--------|
+| R-I001 | tokenは全招待で一意 |
+| R-I002 | expires_atを過ぎた招待は自動でexpired |
+| R-I003 | 既にメンバーのユーザーへの招待は不可 |
+| R-I004 | 同一グループ・同一メールへの有効な招待は1つのみ |
+| R-I005 | roleにownerは指定不可（所有権譲渡は別フロー） |
+| R-I006 | デフォルトのroleはviewer |
+| R-I007 | 招待者は自分のロール以下のロールのみ指定可能 |
 
 **ステータス遷移:**
 ```
@@ -102,61 +124,50 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 
 ## 値オブジェクト
 
+### GroupName
+
+| 属性 | 型 | 説明 |
+|-----|-----|------|
+| value | string | グループ名文字列 |
+
+**要件:**
+
+| ID | 要件 |
+|----|------|
+| R-GN001 | 1-100文字 |
+| R-GN002 | 先頭・末尾の空白はトリム |
+| R-GN003 | 空文字は不可 |
+
 ### GroupRole
+
+グループ内でのロール階層: `owner > contributor > viewer`
 
 | 値 | 説明 | 権限 |
 |-----|------|------|
-| member | 一般メンバー | グループ情報閲覧、共有リソースアクセス |
-| admin | 管理者 | メンバー招待・削除、グループ設定変更 |
-| owner | オーナー | 全権限、グループ削除、オーナー譲渡 |
+| viewer | 閲覧者 | グループ情報閲覧、共有リソースアクセス |
+| contributor | 投稿者 | メンバー招待（Contributor以下のロール） |
+| owner | オーナー | 全権限、グループ削除、設定変更、オーナー譲渡 |
 
-**ロール階層:**
-```
-owner > admin > member
-```
+**権限マトリクス:**
 
-```go
-type GroupRole string
+| 操作 | viewer | contributor | owner |
+|------|:------:|:-----------:|:-----:|
+| グループ情報閲覧 | Yes | Yes | Yes |
+| 共有リソースアクセス | Yes | Yes | Yes |
+| メンバー招待（viewer） | No | Yes | Yes |
+| メンバー招待（contributor） | No | Yes | Yes |
+| メンバー削除 | No | No | Yes |
+| グループ設定変更 | No | No | Yes |
+| グループ削除 | No | No | Yes |
+| 所有権譲渡 | No | No | Yes |
 
-const (
-    GroupRoleMember GroupRole = "member"
-    GroupRoleAdmin  GroupRole = "admin"
-    GroupRoleOwner  GroupRole = "owner"
-)
+**招待時のロール付与制限:**
 
-func (r GroupRole) CanInviteMembers() bool {
-    return r == GroupRoleAdmin || r == GroupRoleOwner
-}
-
-func (r GroupRole) CanRemoveMembers() bool {
-    return r == GroupRoleAdmin || r == GroupRoleOwner
-}
-
-func (r GroupRole) CanUpdateGroup() bool {
-    return r == GroupRoleAdmin || r == GroupRoleOwner
-}
-
-func (r GroupRole) CanDeleteGroup() bool {
-    return r == GroupRoleOwner
-}
-
-func (r GroupRole) CanTransferOwnership() bool {
-    return r == GroupRoleOwner
-}
-
-func (r GroupRole) CanChangeRole(targetRole GroupRole) bool {
-    // ownerロールの付与は不可（所有権譲渡で行う）
-    if targetRole == GroupRoleOwner {
-        return false
-    }
-    // adminはadmin/memberロールを付与可能
-    if r == GroupRoleAdmin {
-        return targetRole == GroupRoleMember || targetRole == GroupRoleAdmin
-    }
-    // ownerは全ロール（owner除く）を付与可能
-    return r == GroupRoleOwner
-}
-```
+| 招待者のロール | 付与可能なロール |
+|----------------|------------------|
+| owner | viewer, contributor |
+| contributor | viewer, contributor |
+| viewer | なし（招待不可） |
 
 ### GroupStatus
 
@@ -176,175 +187,170 @@ func (r GroupRole) CanChangeRole(targetRole GroupRole) bool {
 
 ---
 
-## ドメインサービス
+## 定数
 
-### GroupMembershipService
+| 定数名 | 値 | 説明 |
+|--------|-----|------|
+| GroupNameMaxLength | 100 | グループ名最大長 |
+| GroupDescriptionMaxLength | 500 | 説明最大長 |
+| InvitationTokenLength | 32 | 招待トークン長（バイト） |
+| InvitationExpiry | 7日 | 招待有効期間 |
 
-**責務:** グループメンバーシップのライフサイクル管理
+---
 
-| 操作 | 入力 | 出力 | 説明 |
-|-----|------|------|------|
-| InviteMember | groupId, email, role, invitedBy | Invitation | メンバー招待 |
-| AcceptInvitation | token, userId | Membership | 招待承諾 |
-| DeclineInvitation | token, userId | void | 招待辞退 |
-| RemoveMember | groupId, userId, removedBy | void | メンバー削除 |
-| LeaveGroup | groupId, userId | void | グループ脱退 |
-| ChangeRole | groupId, userId, newRole, changedBy | Membership | ロール変更 |
+## 操作フロー
 
-```go
-type GroupMembershipService interface {
-    InviteMember(ctx context.Context, groupID uuid.UUID, email string, role GroupRole, invitedBy uuid.UUID) (*Invitation, error)
-    AcceptInvitation(ctx context.Context, token string, userID uuid.UUID) (*Membership, error)
-    DeclineInvitation(ctx context.Context, token string, userID uuid.UUID) error
-    RemoveMember(ctx context.Context, groupID, userID, removedBy uuid.UUID) error
-    LeaveGroup(ctx context.Context, groupID, userID uuid.UUID) error
-    ChangeRole(ctx context.Context, groupID, userID uuid.UUID, newRole GroupRole, changedBy uuid.UUID) (*Membership, error)
-}
+### グループ作成
+
+```
+1. クライアント → API: CreateGroup（name, description）
+2. API:
+   - グループ名バリデーション
+   - Groupエンティティ作成（status=active）
+   - 作成者をownerとしてMembership作成
+   ※ フォルダは作成しない
+3. API → クライアント: 作成されたGroup返却
 ```
 
-**InviteMemberのバリデーション:**
-```go
-func (s *GroupMembershipServiceImpl) InviteMember(
-    ctx context.Context,
-    groupID uuid.UUID,
-    email string,
-    role GroupRole,
-    invitedBy uuid.UUID,
-) (*Invitation, error) {
-    // 1. グループ存在確認
-    group, err := s.groupRepo.FindByID(ctx, groupID)
-    if err != nil {
-        return nil, err
-    }
-    if group.Status != GroupStatusActive {
-        return nil, errors.New("group is not active")
-    }
+### グループ更新
 
-    // 2. 招待者の権限確認
-    inviter, err := s.membershipRepo.FindByGroupAndUser(ctx, groupID, invitedBy)
-    if err != nil {
-        return nil, err
-    }
-    if !inviter.Role.CanInviteMembers() {
-        return nil, errors.New("insufficient permission to invite members")
-    }
-
-    // 3. ownerロールでの招待は不可
-    if role == GroupRoleOwner {
-        return nil, errors.New("cannot invite with owner role")
-    }
-
-    // 4. 既存メンバーチェック
-    user, _ := s.userRepo.FindByEmail(ctx, email)
-    if user != nil {
-        exists, _ := s.membershipRepo.Exists(ctx, groupID, user.ID)
-        if exists {
-            return nil, errors.New("user is already a member")
-        }
-    }
-
-    // 5. 既存の有効な招待チェック
-    existingInvite, _ := s.invitationRepo.FindPendingByGroupAndEmail(ctx, groupID, email)
-    if existingInvite != nil {
-        return nil, errors.New("invitation already exists")
-    }
-
-    // 6. 招待作成
-    invitation := &Invitation{
-        ID:        uuid.New(),
-        GroupID:   groupID,
-        Email:     email,
-        Token:     generateSecureToken(),
-        Role:      role,
-        InvitedBy: invitedBy,
-        ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7日間有効
-        Status:    InvitationStatusPending,
-        CreatedAt: time.Now(),
-    }
-
-    if err := s.invitationRepo.Create(ctx, invitation); err != nil {
-        return nil, err
-    }
-
-    // 7. 招待イベント発行
-    s.eventPublisher.Publish(MemberInvitedEvent{
-        GroupID:   groupID,
-        Email:     email,
-        Role:      role,
-        InvitedBy: invitedBy,
-    })
-
-    return invitation, nil
-}
+```
+1. クライアント → API: UpdateGroup（groupId, name?, description?）
+2. API:
+   - グループ存在・ステータス確認
+   - 操作者の権限確認（ownerのみ）
+   - グループ情報更新
+3. API → クライアント: 更新されたGroup返却
 ```
 
-### GroupOwnershipService
+### グループ削除
 
-**責務:** グループ所有権の管理
-
-| 操作 | 入力 | 出力 | 説明 |
-|-----|------|------|------|
-| TransferOwnership | groupId, currentOwner, newOwner | void | 所有権譲渡 |
-
-```go
-type GroupOwnershipService interface {
-    TransferOwnership(ctx context.Context, groupID, currentOwnerID, newOwnerID uuid.UUID) error
-}
+```
+1. クライアント → API: DeleteGroup（groupId）
+2. API:
+   - グループ存在確認
+   - 操作者の権限確認（ownerのみ）
+3. トランザクション内:
+   - 全招待を削除
+   - 全メンバーシップを削除
+   - グループをdeleted状態に変更
+   - グループへのPermissionGrantを削除
+4. API → クライアント: 成功レスポンス
 ```
 
-**所有権譲渡のフロー:**
-```go
-func (s *GroupOwnershipServiceImpl) TransferOwnership(
-    ctx context.Context,
-    groupID, currentOwnerID, newOwnerID uuid.UUID,
-) error {
-    return s.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-        // 1. グループ存在確認
-        group, err := s.groupRepo.FindByID(ctx, groupID)
-        if err != nil {
-            return err
-        }
+### メンバー招待
 
-        // 2. 現在のオーナー確認
-        if group.OwnerID != currentOwnerID {
-            return errors.New("not the current owner")
-        }
+```
+1. クライアント → API: InviteMember（groupId, email, role?）
+2. API:
+   - グループ存在・ステータス確認
+   - 操作者の権限確認（contributor以上）
+   - role未指定の場合はviewerをデフォルト設定
+   - roleがownerでないことを確認
+   - 招待者のロール以下であることを確認
+   - 既存メンバーでないことを確認
+   - 同一メールへの有効な招待がないことを確認
+   - Invitation作成（status=pending、token生成、expires_at設定）
+   - 招待メール送信
+3. API → クライアント: 作成されたInvitation返却
+```
 
-        // 3. 新オーナーがメンバーであることを確認
-        newOwnerMembership, err := s.membershipRepo.FindByGroupAndUser(ctx, groupID, newOwnerID)
-        if err != nil {
-            return errors.New("new owner must be a group member")
-        }
+### 招待承諾
 
-        // 4. 新オーナーのロールをownerに変更
-        newOwnerMembership.Role = GroupRoleOwner
-        if err := s.membershipRepo.Update(ctx, newOwnerMembership); err != nil {
-            return err
-        }
+```
+1. クライアント → API: AcceptInvitation（token）
+2. API:
+   - tokenで招待検索
+   - 招待の有効性確認（pending && 期限内）
+   - 操作者のメール一致確認
+   - 既存メンバーでないことを確認
+3. トランザクション内:
+   - Invitation.status = accepted
+   - Membership作成（role=招待時のrole）
+4. API → クライアント: 成功レスポンス（グループ情報含む）
+```
 
-        // 5. 現オーナーのロールをadminに変更
-        currentOwnerMembership, _ := s.membershipRepo.FindByGroupAndUser(ctx, groupID, currentOwnerID)
-        currentOwnerMembership.Role = GroupRoleAdmin
-        if err := s.membershipRepo.Update(ctx, currentOwnerMembership); err != nil {
-            return err
-        }
+### 招待辞退
 
-        // 6. グループのowner_idを更新
-        group.OwnerID = newOwnerID
-        if err := s.groupRepo.Update(ctx, group); err != nil {
-            return err
-        }
+```
+1. クライアント → API: DeclineInvitation（token）
+2. API:
+   - tokenで招待検索
+   - 招待がpendingであることを確認
+   - 操作者のメール一致確認
+   - Invitation.status = declined
+3. API → クライアント: 成功レスポンス
+```
 
-        // 7. イベント発行
-        s.eventPublisher.Publish(GroupOwnershipTransferredEvent{
-            GroupID:         groupID,
-            PreviousOwnerID: currentOwnerID,
-            NewOwnerID:      newOwnerID,
-        })
+### 招待取消
 
-        return nil
-    })
-}
+```
+1. クライアント → API: CancelInvitation（invitationId）
+2. API:
+   - 招待存在確認
+   - 操作者の権限確認（owner）
+   - 招待がpendingであることを確認
+   - 招待削除
+3. API → クライアント: 成功レスポンス
+```
+
+### メンバー削除
+
+```
+1. クライアント → API: RemoveMember（groupId, userId）
+2. API:
+   - メンバーシップ存在確認
+   - 対象がownerでないことを確認
+   - 操作者の権限確認（ownerのみ）
+   - Membership削除
+3. API → クライアント: 成功レスポンス
+```
+
+### グループ脱退
+
+```
+1. クライアント → API: LeaveGroup（groupId）
+2. API:
+   - メンバーシップ存在確認
+   - 操作者がownerでないことを確認
+   - Membership削除
+3. API → クライアント: 成功レスポンス
+```
+
+### ロール変更
+
+```
+1. クライアント → API: ChangeRole（groupId, userId, newRole）
+2. API:
+   - メンバーシップ存在確認
+   - newRoleがownerでないことを確認
+   - 操作者の権限確認（ownerのみ）
+   - Membership.role更新
+3. API → クライアント: 成功レスポンス
+```
+
+### 所有権譲渡
+
+```
+1. クライアント → API: TransferOwnership（groupId, newOwnerId）
+2. API:
+   - グループ存在・ステータス確認
+   - 操作者がownerであることを確認
+   - 新オーナーがグループメンバーであることを確認
+3. トランザクション内:
+   - Group.owner_id = newOwnerId
+   - 新オーナーのMembership.role = owner
+   - 旧オーナーのMembership.role = contributor
+4. API → クライアント: 成功レスポンス
+```
+
+### 期限切れ招待の処理
+
+```
+1. バックグラウンドジョブ: ExpireInvitations（定期実行）
+2. 処理:
+   - expires_at < 現在時刻 かつ status=pending の招待を検索
+   - 該当招待のstatus = expiredに更新
 ```
 
 ---
@@ -353,49 +359,127 @@ func (s *GroupOwnershipServiceImpl) TransferOwnership(
 
 ### GroupRepository
 
-```go
-type GroupRepository interface {
-    Create(ctx context.Context, group *Group) error
-    FindByID(ctx context.Context, id uuid.UUID) (*Group, error)
-    Update(ctx context.Context, group *Group) error
-    Delete(ctx context.Context, id uuid.UUID) error
-
-    // 検索
-    FindByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]*Group, error)
-    FindByMemberID(ctx context.Context, userID uuid.UUID) ([]*Group, error)
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | グループ作成 |
+| FindByID | ID検索 |
+| Update | 更新 |
+| Delete | 削除 |
+| FindByOwnerID | オーナーIDで検索 |
+| FindByMemberID | メンバーIDで所属グループ取得 |
+| ExistsByName | 名前の重複チェック |
 
 ### MembershipRepository
 
-```go
-type MembershipRepository interface {
-    Create(ctx context.Context, membership *Membership) error
-    FindByID(ctx context.Context, id uuid.UUID) (*Membership, error)
-    FindByGroupAndUser(ctx context.Context, groupID, userID uuid.UUID) (*Membership, error)
-    FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Membership, error)
-    FindByUserID(ctx context.Context, userID uuid.UUID) ([]*Membership, error)
-    Update(ctx context.Context, membership *Membership) error
-    Delete(ctx context.Context, id uuid.UUID) error
-    Exists(ctx context.Context, groupID, userID uuid.UUID) (bool, error)
-    CountByGroupID(ctx context.Context, groupID uuid.UUID) (int, error)
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | メンバーシップ作成 |
+| FindByID | ID検索 |
+| Update | 更新 |
+| Delete | 削除 |
+| FindByGroupID | グループのメンバーシップ一覧 |
+| FindByGroupIDWithUsers | ユーザー情報付きメンバーシップ一覧 |
+| FindByUserID | ユーザーのメンバーシップ一覧 |
+| FindByGroupAndUser | グループ・ユーザーで検索 |
+| Exists | 存在チェック |
+| CountByGroupID | グループのメンバー数 |
+| DeleteByGroupID | グループの全メンバーシップ削除 |
 
 ### InvitationRepository
 
-```go
-type InvitationRepository interface {
-    Create(ctx context.Context, invitation *Invitation) error
-    FindByID(ctx context.Context, id uuid.UUID) (*Invitation, error)
-    FindByToken(ctx context.Context, token string) (*Invitation, error)
-    FindPendingByGroupAndEmail(ctx context.Context, groupID uuid.UUID, email string) (*Invitation, error)
-    FindPendingByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Invitation, error)
-    FindPendingByEmail(ctx context.Context, email string) ([]*Invitation, error)
-    Update(ctx context.Context, invitation *Invitation) error
-    ExpireOld(ctx context.Context) (int64, error)
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | 招待作成 |
+| FindByID | ID検索 |
+| Update | 更新 |
+| Delete | 削除 |
+| FindByToken | トークンで検索 |
+| FindPendingByGroupID | グループの有効な招待一覧 |
+| FindPendingByEmail | メールアドレスへの有効な招待一覧 |
+| FindPendingByGroupAndEmail | グループ・メールで有効な招待検索 |
+| DeleteByGroupID | グループの全招待削除 |
+| ExpireOld | 期限切れ招待を一括更新 |
+
+---
+
+## 不変条件
+
+### オーナー制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-GO001 | グループには必ず1人のownerが存在する |
+| I-GO002 | ownerロールのMembershipは削除不可 |
+| I-GO003 | ownerはグループから脱退不可 |
+| I-GO004 | ownerの変更は所有権譲渡によってのみ可能 |
+
+### メンバーシップ制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-GM001 | 同一ユーザーは同一グループに1つのMembershipのみ |
+| I-GM002 | メンバーシップ作成時、グループがactiveであること |
+
+### 招待制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-GI001 | tokenは全招待で一意 |
+| I-GI002 | 同一グループ・同一メールへの有効な招待は1つのみ |
+| I-GI003 | ownerロールでの招待は不可 |
+| I-GI004 | 既存メンバーへの招待は不可 |
+| I-GI005 | 招待者は自分のロール以下のロールのみ指定可能 |
+
+### グループ削除制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-GD001 | 削除はownerのみ可能 |
+| I-GD002 | 削除時、全メンバーシップと招待も削除 |
+| I-GD003 | 削除時、グループへのPermissionGrantも削除 |
+
+---
+
+## ユースケース
+
+| ユースケース | アクター | 概要 |
+|------------|--------|------|
+| CreateGroup | User | グループ作成（作成者がowner） |
+| UpdateGroup | Owner | グループ名・説明の変更 |
+| DeleteGroup | Owner | グループ削除 |
+| InviteMember | Contributor/Owner | メンバー招待（デフォルトはviewer） |
+| AcceptInvitation | User | 招待承諾 |
+| DeclineInvitation | User | 招待辞退 |
+| CancelInvitation | Owner | 招待取消 |
+| RemoveMember | Owner | メンバー削除 |
+| LeaveGroup | Viewer/Contributor | グループ脱退 |
+| ChangeRole | Owner | メンバーロール変更 |
+| TransferOwnership | Owner | 所有権譲渡 |
+| GetGroup | Member | グループ詳細取得 |
+| ListMyGroups | User | 所属グループ一覧 |
+| ListMembers | Member | メンバー一覧表示 |
+| ListInvitations | Owner | 招待一覧表示 |
+| ListPendingInvitations | User | 自分への招待一覧 |
+
+---
+
+## ドメインイベント
+
+| イベント | トリガー | ペイロード |
+|---------|---------|-----------|
+| GroupCreated | グループ作成 | groupId, name, ownerId |
+| GroupUpdated | グループ更新 | groupId, changedFields |
+| GroupDeleted | グループ削除 | groupId, deletedBy |
+| MemberInvited | メンバー招待 | groupId, email, role, invitedBy |
+| InvitationAccepted | 招待承諾 | invitationId, groupId, userId |
+| InvitationDeclined | 招待辞退 | invitationId, groupId, userId |
+| InvitationExpired | 招待期限切れ | invitationId, groupId |
+| InvitationCancelled | 招待取消 | invitationId, groupId, cancelledBy |
+| MemberJoined | メンバー参加 | groupId, userId, role |
+| MemberLeft | メンバー脱退 | groupId, userId |
+| MemberRemoved | メンバー削除 | groupId, userId, removedBy |
+| MemberRoleChanged | ロール変更 | groupId, userId, oldRole, newRole, changedBy |
+| GroupOwnershipTransferred | 所有権譲渡 | groupId, previousOwnerId, newOwnerId |
 
 ---
 
@@ -458,84 +542,26 @@ type InvitationRepository interface {
 
 ---
 
-## 不変条件
-
-1. **オーナー制約**
-   - グループには必ず1人のownerが存在する
-   - ownerロールのMembershipは削除不可
-   - ownerはグループから脱退不可
-   - ownerの変更は所有権譲渡によってのみ可能
-
-2. **メンバーシップ制約**
-   - 同一ユーザーは同一グループに1つのMembershipのみ
-   - メンバーシップ作成時、グループがactiveであること
-
-3. **招待制約**
-   - tokenは全招待で一意
-   - 同一グループ・同一メールへの有効な招待は1つのみ
-   - ownerロールでの招待は不可
-   - 既存メンバーへの招待は不可
-
-4. **グループ削除制約**
-   - 削除はownerのみ可能
-   - 削除時、全メンバーシップと招待も削除
-   - グループ所有のリソース（フォルダ・ファイル）の処理が必要
-
----
-
-## ユースケース概要
-
-| ユースケース | アクター | 概要 |
-|------------|--------|------|
-| CreateGroup | User | グループ作成（作成者がowner） |
-| UpdateGroup | Admin/Owner | グループ名・説明の変更 |
-| DeleteGroup | Owner | グループ削除 |
-| InviteMember | Admin/Owner | メンバー招待 |
-| AcceptInvitation | User | 招待承諾 |
-| DeclineInvitation | User | 招待辞退 |
-| RemoveMember | Admin/Owner | メンバー削除 |
-| LeaveGroup | Member | グループ脱退 |
-| ChangeRole | Owner | メンバーロール変更 |
-| TransferOwnership | Owner | 所有権譲渡 |
-| ListMembers | Member | メンバー一覧表示 |
-| ListInvitations | Admin/Owner | 招待一覧表示 |
-| CancelInvitation | Admin/Owner | 招待取消 |
-| ListMyGroups | User | 所属グループ一覧 |
-
----
-
-## ドメインイベント
-
-| イベント | トリガー | ペイロード |
-|---------|---------|-----------|
-| GroupCreated | グループ作成 | groupId, name, ownerId |
-| GroupUpdated | グループ更新 | groupId, changedFields |
-| GroupDeleted | グループ削除 | groupId, deletedBy |
-| MemberInvited | メンバー招待 | groupId, email, role, invitedBy |
-| InvitationAccepted | 招待承諾 | invitationId, groupId, userId |
-| InvitationDeclined | 招待辞退 | invitationId, groupId, userId |
-| InvitationExpired | 招待期限切れ | invitationId, groupId |
-| MemberJoined | メンバー参加 | groupId, userId, role |
-| MemberLeft | メンバー脱退 | groupId, userId |
-| MemberRemoved | メンバー削除 | groupId, userId, removedBy |
-| MemberRoleChanged | ロール変更 | groupId, userId, oldRole, newRole, changedBy |
-| GroupOwnershipTransferred | 所有権譲渡 | groupId, previousOwnerId, newOwnerId |
-
----
-
 ## 他コンテキストとの連携
 
 ### Identity Context（上流）
+
 - UserIDの参照
 - ユーザー情報の取得（表示名、メール）
+- 招待時のメールアドレス検証
 
 ### Authorization Context（下流）
+
 - グループメンバーシップに基づく権限解決
 - Relationship Tuple: `(user, member, group)` の作成・削除
+- グループロールに基づくリソースアクセス制御
+- グループへのPermissionGrant管理
 
 ### Storage Context（下流）
-- グループ作成時にグループルートフォルダを作成
-- グループ削除時のリソース処理
+
+- グループにフォルダ/ファイルへのロールを付与
+- PermissionGrantでリソースへのアクセス権を管理
+- ※ グループ作成時にフォルダは作成しない
 
 ---
 
@@ -544,4 +570,5 @@ type InvitationRepository interface {
 - [イベントストーミング](./EVENT_STORMING.md) - ドメインイベント定義
 - [ユーザードメイン](./user.md) - ユーザー管理
 - [権限ドメイン](./permission.md) - 権限管理
-- [セキュリティ設計](../02-architecture/SECURITY.md) - グループロールの権限定義
+- [フォルダドメイン](./folder.md) - フォルダ管理
+- [Collaboration Group詳細設計](../04-specs/collab-group.md) - 実装仕様

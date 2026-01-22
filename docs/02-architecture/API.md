@@ -407,13 +407,16 @@ JWT (JSON Web Token) を使用したBearer認証:
 
 ### 7.3 認可モデル
 
-リソースベースのアクセス制御:
+リソースベースのアクセス制御（Hybrid PBAC + ReBAC）:
 
-| 権限レベル | できること |
+| ロール | できること |
 |-----------|-----------|
-| view | 閲覧のみ |
-| edit | 閲覧 + 編集 |
-| manage | 閲覧 + 編集 + 権限管理 + 削除 |
+| viewer | 閲覧のみ |
+| contributor | 閲覧 + 作成/編集/削除 + 共有（Contributor以下）+ 移動IN |
+| content_manager | contributor + 移動OUT |
+| owner | content_manager + ルートフォルダ削除 + 所有権譲渡 |
+
+**詳細は [SECURITY.md](./SECURITY.md) を参照**
 
 ---
 

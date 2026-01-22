@@ -101,12 +101,17 @@
   "name": "Documents",
   "parent_id": "uuid | null",
   "owner_id": "uuid",
-  "owner_type": "user",
+  "created_by": "uuid",
   "depth": 1,
   "created_at": "2026-01-20T00:00:00Z",
   "updated_at": "2026-01-20T00:00:00Z"
 }
 ```
+
+**Note:**
+- `owner_id`: 現在の所有者（所有権譲渡で変更可能）
+- `created_by`: 最初の作成者（不変、履歴追跡用）
+- 新規作成時は `owner_id = created_by = 作成者`
 
 **エラー:**
 | コード | 条件 |
@@ -130,7 +135,7 @@
   "name": "Documents",
   "parent_id": "uuid | null",
   "owner_id": "uuid",
-  "owner_type": "user",
+  "created_by": "uuid",
   "depth": 1,
   "created_at": "2026-01-20T00:00:00Z",
   "updated_at": "2026-01-20T00:00:00Z"
@@ -280,17 +285,20 @@
 
 ### GET /api/v1/folders/root/contents
 
-ルートレベルの内容を取得する。
+ルートレベルのフォルダ一覧を取得する。
+認証ユーザーのPersonal FolderおよびアクセスできるShared Folderの一覧を取得する。
 
 **Query Parameters:**
 | パラメータ | 型 | 説明 |
 |-----------|-----|------|
-| owner_type | string | user または group（デフォルト: user） |
-| owner_id | uuid | グループIDの場合に指定 |
 | sort | string | ソート順 |
 | order | string | 昇順/降順 |
 | limit | int | 取得件数 |
 | cursor | string | ページネーションカーソル |
+
+**Note:**
+- Personal Folder は `user.personal_folder_id` で特定（1ユーザーに1つ）
+- Shared Folder は親フォルダなし（parent_id = NULL）のフォルダ
 
 **Response (200 OK):**
 ```json
@@ -298,17 +306,15 @@
   "folders": [
     {
       "id": "uuid",
-      "name": "Documents",
+      "name": "My Files",
+      "is_personal": true,
       "created_at": "2026-01-20T00:00:00Z",
       "updated_at": "2026-01-20T00:00:00Z"
-    }
-  ],
-  "files": [
+    },
     {
       "id": "uuid",
-      "name": "readme.txt",
-      "mime_type": "text/plain",
-      "size": 1024,
+      "name": "Shared Project",
+      "is_personal": false,
       "created_at": "2026-01-20T00:00:00Z",
       "updated_at": "2026-01-20T00:00:00Z"
     }
@@ -316,6 +322,10 @@
   "next_cursor": "string | null"
 }
 ```
+
+**Note:**
+- ルートレベルにはフォルダのみ存在（ファイルは必ずフォルダ内に所属）
+- `is_personal` は `user.personal_folder_id` との一致で判定
 
 ---
 
@@ -365,19 +375,25 @@ CREATE TABLE folders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     parent_id UUID REFERENCES folders(id) ON DELETE CASCADE,
-    owner_id UUID NOT NULL,
-    owner_type VARCHAR(10) NOT NULL CHECK (owner_type IN ('user', 'group')),
+    owner_id UUID NOT NULL REFERENCES users(id),      -- 現在の所有者（所有権譲渡で変更可能）
+    created_by UUID NOT NULL REFERENCES users(id),    -- 最初の作成者（不変、履歴追跡用）
     depth INTEGER NOT NULL DEFAULT 0 CHECK (depth >= 0 AND depth <= 20),
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_folders_name_parent UNIQUE (parent_id, name) WHERE parent_id IS NOT NULL,
-    CONSTRAINT uq_folders_name_owner_root UNIQUE (owner_id, owner_type, name) WHERE parent_id IS NULL
+    CONSTRAINT uq_folders_name_parent UNIQUE (parent_id, name) WHERE parent_id IS NOT NULL
 );
 
+-- Note: owner_type は削除（フォルダは常にユーザーが作成者）
+-- Note: グループはPermissionGrantで関連付けてアクセス
+-- Note: Personal Folder は user.personal_folder_id で判定（Folder側にフラグ不要）
+
 CREATE INDEX idx_folders_parent ON folders(parent_id);
-CREATE INDEX idx_folders_owner ON folders(owner_id, owner_type);
+CREATE INDEX idx_folders_owner ON folders(owner_id);
+CREATE INDEX idx_folders_created_by ON folders(created_by);
 CREATE INDEX idx_folders_depth ON folders(depth);
+CREATE INDEX idx_folders_status ON folders(status);
 ```
 
 #### folder_paths (閉包テーブル)
@@ -422,8 +438,7 @@ backend/internal/
 │   ├── entity/
 │   │   └── folder.go              # Folder（リッチモデル）
 │   ├── valueobject/
-│   │   ├── folder_name.go
-│   │   └── owner_type.go
+│   │   └── folder_name.go
 │   ├── service/
 │   │   └── folder_hierarchy_service.go  # 階層操作ドメインサービス
 │   └── repository/
@@ -458,20 +473,25 @@ type Folder struct {
     id        uuid.UUID
     name      valueobject.FolderName
     parentID  *uuid.UUID
-    ownerID   uuid.UUID
-    ownerType valueobject.OwnerType
+    ownerID   uuid.UUID                   // 現在の所有者（所有権譲渡で変更可能）
+    createdBy uuid.UUID                   // 最初の作成者（不変、履歴追跡用）
     depth     int
+    status    valueobject.FolderStatus
     createdAt time.Time
     updatedAt time.Time
 }
 
+// Note: owner_type は削除（フォルダは常にユーザーが作成者）
+// Note: グループはPermissionGrantで関連付けてアクセス
+// Note: Personal Folder判定は user.personal_folder_id で行う（Folder側にフラグ不要）
+
 // ファクトリメソッド - 不変条件を保証
+// 新規作成時は owner_id = created_by = 作成者
 func NewFolder(
     name valueobject.FolderName,
     parentID *uuid.UUID,
-    ownerID uuid.UUID,
-    ownerType valueobject.OwnerType,
-    parentDepth int,  // 親の深さ（ルートなら-1）
+    creatorID uuid.UUID,     // 作成者ID（owner_id と created_by の両方に設定）
+    parentDepth int,         // 親の深さ（ルートなら-1）
 ) (*Folder, error) {
     depth := 0
     if parentID != nil {
@@ -487,9 +507,10 @@ func NewFolder(
         id:        uuid.New(),
         name:      name,
         parentID:  parentID,
-        ownerID:   ownerID,
-        ownerType: ownerType,
+        ownerID:   creatorID,   // 新規作成時は作成者がオーナー
+        createdBy: creatorID,   // 作成者は不変
         depth:     depth,
+        status:    valueobject.FolderStatusActive,
         createdAt: time.Now(),
         updatedAt: time.Now(),
     }, nil
@@ -548,12 +569,20 @@ func (f *Folder) IsRoot() bool {
     return f.parentID == nil
 }
 
+// 所有権譲渡
+func (f *Folder) TransferOwnership(newOwnerID uuid.UUID) {
+    f.ownerID = newOwnerID
+    f.updatedAt = time.Now()
+}
+
 // Getters
-func (f *Folder) ID() uuid.UUID              { return f.id }
+func (f *Folder) ID() uuid.UUID                { return f.id }
 func (f *Folder) Name() valueobject.FolderName { return f.name }
-func (f *Folder) ParentID() *uuid.UUID       { return f.parentID }
-func (f *Folder) OwnerID() uuid.UUID         { return f.ownerID }
-func (f *Folder) Depth() int                 { return f.depth }
+func (f *Folder) ParentID() *uuid.UUID         { return f.parentID }
+func (f *Folder) OwnerID() uuid.UUID           { return f.ownerID }
+func (f *Folder) CreatedBy() uuid.UUID         { return f.createdBy }
+func (f *Folder) Depth() int                   { return f.depth }
+func (f *Folder) Status() valueobject.FolderStatus { return f.status }
 ```
 
 ---
@@ -660,7 +689,7 @@ type FolderRepository interface {
     // 基本操作
     FindByID(ctx context.Context, id uuid.UUID) (*entity.Folder, error)
     FindByParentID(ctx context.Context, parentID uuid.UUID) ([]*entity.Folder, error)
-    FindRootByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.Folder, error)
+    FindRootByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.Folder, error)
 
     // ドメイン操作（閉包テーブル操作を内包）
     CreateWithHierarchy(ctx context.Context, folder *entity.Folder) error
@@ -674,7 +703,7 @@ type FolderRepository interface {
     GetMaxDescendantPathLength(ctx context.Context, folderID uuid.UUID) (int, error)
 
     // 存在チェック
-    ExistsByNameInParent(ctx context.Context, name valueobject.FolderName, parentID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) (bool, error)
+    ExistsByNameInParent(ctx context.Context, name valueobject.FolderName, parentID *uuid.UUID) (bool, error)
 }
 ```
 
@@ -770,13 +799,14 @@ type CreateFolderCommand struct {
 type CreateFolderInput struct {
     Name      valueobject.FolderName
     ParentID  *uuid.UUID
-    OwnerID   uuid.UUID
-    OwnerType valueobject.OwnerType
+    CreatorID uuid.UUID    // 作成者ID（owner_id と created_by の両方に設定）
 }
 
+// Note: owner_type は削除（フォルダは常にユーザーが作成者）
+// Note: 新規作成時は owner_id = created_by = CreatorID
 func (c *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInput) (*entity.Folder, error) {
     // 1. 名前重複チェック
-    exists, err := c.folderRepo.ExistsByNameInParent(ctx, input.Name, input.ParentID, input.OwnerID, input.OwnerType)
+    exists, err := c.folderRepo.ExistsByNameInParent(ctx, input.Name, input.ParentID)
     if err != nil {
         return nil, err
     }
@@ -795,7 +825,8 @@ func (c *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInp
     }
 
     // 3. フォルダ作成（エンティティファクトリで深さ制限チェック）
-    folder, err := entity.NewFolder(input.Name, input.ParentID, input.OwnerID, input.OwnerType, parentDepth)
+    // 新規作成時: owner_id = created_by = CreatorID
+    folder, err := entity.NewFolder(input.Name, input.ParentID, input.CreatorID, parentDepth)
     if err != nil {
         return nil, err
     }
@@ -954,10 +985,10 @@ var (
 
 ### 機能要件
 
-- [ ] ルートレベルにフォルダを作成できる
+- [ ] ルートレベルにフォルダを作成できる（Shared Folder）
 - [ ] サブフォルダを作成できる
 - [ ] フォルダ名を変更できる
-- [ ] フォルダを別の場所へ移動できる
+- [ ] フォルダを別の場所へ移動できる（移動元にmove_out、移動先にmove_in権限が必要）
 - [ ] フォルダをルートレベルへ移動できる
 - [ ] 循環参照となる移動が拒否される
 - [ ] 深さ20を超える操作が拒否される
@@ -966,6 +997,23 @@ var (
 - [ ] フォルダの内容一覧を取得できる
 - [ ] ルートレベルの内容一覧を取得できる
 - [ ] 祖先フォルダ一覧を取得できる（パンくずリスト）
+
+### Personal Folder / Shared Folder
+
+- [ ] Personal Folder はユーザー登録時に自動作成される（1ユーザーに1つ、1:1関係）
+- [ ] Personal Folder は `user.personal_folder_id` で判定（Folder側にフラグ不要）
+- [ ] Personal Folder はユーザーが名前を変更できる（初期値はユーザー名）
+- [ ] Personal Folder は削除不可（アカウント削除のみ）
+- [ ] Shared Folder はユーザーが明示的に作成（parent_id = NULL）
+- [ ] Shared Folder の作成者が自動的にOwner権限を取得
+- [ ] 新規フォルダ作成時は `owner_id = created_by = 作成者`
+- [ ] `created_by` は不変（所有権譲渡後も変更されない）
+
+### 所有権
+
+- [ ] `owner_id` は現在の所有者を表す（所有権譲渡で変更可能）
+- [ ] `created_by` は最初の作成者を表す（不変）
+- [ ] グループはPermissionGrantで関連付けてアクセス（owner_typeは廃止）
 
 ### 非機能要件
 

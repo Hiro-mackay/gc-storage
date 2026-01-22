@@ -10,7 +10,18 @@ Storage Contextの一部として、ファイルの論理的な配置とナビ�
 - **閉包テーブル（Closure Table）**: 階層構造の効率的なクエリのため閉包テーブルを使用
 - **暗黙的ルート**: parent_id=nullが所有者のルートレベル（明示的なルートフォルダは作成しない）
 - **ゴミ箱なし**: フォルダは直接削除、中のファイルのみアーカイブテーブルへ移動
-- **グループ所有対応**: フォルダはユーザーまたはグループが所有可能
+- **所有者と作成者の分離**: `owner_id`（現在の所有者）と`created_by`（最初の作成者）を分離
+
+---
+
+## フォルダの種類
+
+| 種類 | 説明 | 名前 | 削除 |
+|------|------|------|------|
+| **Personal Folder** | ユーザー登録時に自動生成。各ユーザーに必ず1つ（1:1関係） | 初期値はユーザー名。ユーザーが自由に変更可能 | アカウント削除と同時 |
+| **Shared Folder** | ユーザーが明示的に作成。作成者が自動的にOwner | ユーザー指定 | Ownerのみ削除可能 |
+
+**重要**: User と Personal Folder は必ず1対1の関係になる。Personal Folder かどうかの判定は `user.personal_folder_id` で行う。
 
 ---
 
@@ -21,11 +32,12 @@ Storage Contextの一部として、ファイルの論理的な配置とナビ�
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
 | id | UUID | Yes | フォルダの一意識別子 |
-| name | FolderName | Yes | フォルダ名（値オブジェクト） |
+| name | FolderName | Yes | フォルダ名（値オブジェクト）。Personal Folderはユーザーが自由に変更可能 |
 | parent_id | UUID | No | 親フォルダID（nullならルートレベル） |
-| owner_id | UUID | Yes | 所有者ID（ユーザーまたはグループ） |
-| owner_type | OwnerType | Yes | 所有者種別（user/group） |
+| owner_id | UUID | Yes | 現在の所有者ID（所有権譲渡で変更可能） |
+| created_by | UUID | Yes | 最初の作成者ID（不変、履歴追跡用） |
 | depth | int | Yes | 階層の深さ（ルートレベル=0） |
+| status | FolderStatus | Yes | フォルダ状態 |
 | created_at | timestamp | Yes | 作成日時 |
 | updated_at | timestamp | Yes | 更新日時 |
 
@@ -39,6 +51,15 @@ Storage Contextの一部として、ファイルの論理的な配置とナビ�
 | R-FD004 | 階層の最大深さは20 |
 | R-FD005 | 削除時、配下のファイルはArchivedFileへ移動 |
 | R-FD006 | 削除時、配下のサブフォルダも再帰的に削除 |
+| R-FD007 | 新規作成時は`owner_id = created_by = 作成者` |
+| R-FD008 | `created_by`は不変（所有権譲渡後も変更されない） |
+| R-FD009 | Personal Folderは削除不可（アカウント削除のみ） |
+
+**ステータス定義:**
+
+| ステータス | 説明 |
+|-----------|------|
+| active | アクティブ（通常利用可能） |
 
 ---
 
@@ -107,14 +128,13 @@ Root (A)
 
 ---
 
-### OwnerType
+### FolderStatus
 
-所有者タイプを表す値オブジェクト。
+フォルダ状態を表す値オブジェクト。
 
 | 値 | 説明 |
 |-----|------|
-| user | 個人ユーザー所有 |
-| group | グループ所有 |
+| active | アクティブ（通常利用可能） |
 
 ---
 
@@ -129,16 +149,28 @@ Root (A)
 
 ## 操作フロー
 
-### フォルダ作成
+### Personal Folder 作成（ユーザー登録時）
 
 ```
-1. クライアント → API: CreateFolder（name, parent_id, owner_id, owner_type）
+1. ユーザー登録処理内（トランザクション）:
+   - User作成
+   - Personal Folder作成（name=ユーザー名, parent_id=null, owner_id=userId, created_by=userId）
+   - FolderClosure挿入（自己参照）
+   - User.personal_folder_id を設定
+2. 完了
+```
+
+### Shared Folder 作成
+
+```
+1. クライアント → API: CreateFolder（name, parent_id?）
 2. API:
-   - parent_id検証（存在確認、所有者一致確認）
+   - parent_id検証（存在確認、権限確認）
    - 同一親/ルートレベルでの名前重複チェック
    - 階層深さチェック（parent.depth + 1 <= 20）
-   - Folder作成（depth = parent.depth + 1、またはparent_id=nullなら0）
+   - Folder作成（owner_id = created_by = 作成者, depth = parent.depth + 1、またはparent_id=nullなら0）
    - FolderClosure挿入（自己参照 + 全祖先への参照）
+   - 作成者にOwner権限を自動付与（PermissionGrant）
 3. API → クライアント: 作成されたFolder返却
 ```
 
@@ -148,7 +180,8 @@ Root (A)
 1. クライアント → API: MoveFolder（folder_id, new_parent_id）
 2. API:
    - フォルダ存在確認
-   - 移動先フォルダ存在確認、所有者一致確認
+   - 移動元フォルダに対するmove_out権限確認（Content Manager以上）
+   - 移動先フォルダに対するmove_in権限確認（Contributor以上）
    - 循環参照チェック（移動先が自身または子孫でないこと）
    - 階層深さチェック（移動後の最深部が20以下）
    - 同一親での名前重複チェック
@@ -168,6 +201,9 @@ Root (A)
 1. クライアント → API: DeleteFolder（folder_id）
 2. API:
    - フォルダ存在確認
+   - Personal Folderでないことを確認
+   - ルートレベルの場合、Owner権限確認（root:delete権限）
+   - サブフォルダの場合、folder:delete権限確認
    - FolderClosureから子孫フォルダID一覧取得
 3. トランザクション内:
    - 子孫フォルダ内の全ファイルをArchivedFileへ移動（Fileドメインと連携）
@@ -176,6 +212,7 @@ Root (A)
    - 子孫フォルダ削除（深い順）
    - 対象フォルダのFolderClosureエントリ削除
    - 対象フォルダ削除
+   - 関連するPermissionGrant削除
 4. API → クライアント: 成功レスポンス
 ```
 
@@ -185,6 +222,7 @@ Root (A)
 1. クライアント → API: RenameFolder（folder_id, new_name）
 2. API:
    - フォルダ存在確認
+   - folder:rename権限確認（Contributor以上）
    - 同一親/ルートレベルでの名前重複チェック
    - Folder.name更新
 3. API → クライアント: 更新されたFolder返却
@@ -203,13 +241,27 @@ Root (A)
 ### フォルダ内容一覧
 
 ```
-1. クライアント → API: ListFolderContents（folder_id または owner_id+owner_type）
+1. クライアント → API: ListFolderContents（folder_id または owner_id）
 2. API:
    - folder_id指定: 該当フォルダの直下を取得
    - folder_id=null: 所有者のルートレベルを取得
    - サブフォルダ一覧取得（parent_id = folder_id）
    - ファイル一覧取得（folder_id = folder_id）
 3. API → クライアント: フォルダとファイルの一覧返却
+```
+
+### 所有権譲渡
+
+```
+1. クライアント → API: TransferOwnership（folder_id, new_owner_id）
+2. API:
+   - フォルダ存在確認
+   - 操作者がOwnerであることを確認
+   - Personal Folderでないことを確認
+3. トランザクション内:
+   - Folder.owner_id = new_owner_id（created_byは変更しない）
+   - PermissionGrant更新（旧オーナーのOwner権限削除、新オーナーにOwner権限付与）
+4. API → クライアント: 成功レスポンス
 ```
 
 ---
@@ -227,6 +279,7 @@ Root (A)
 | FindByParentID | 親フォルダIDで子フォルダ取得 |
 | FindRootByOwner | 所有者のルートレベルフォルダ取得 |
 | FindByOwner | 所有者の全フォルダ取得 |
+| FindByCreatedBy | 作成者の全フォルダ取得 |
 | ExistsByNameAndParent | 親フォルダ内での名前重複チェック |
 | ExistsByNameAndOwnerRoot | 所有者ルートレベルでの名前重複チェック |
 | UpdateDepth | 深さ更新 |
@@ -269,9 +322,10 @@ Root (A)
 
 | ID | 不変条件 |
 |----|---------|
-| I-FO001 | フォルダは必ず所有者（ユーザーまたはグループ）を持つ |
-| I-FO002 | フォルダ移動は同一所有者内のみ可能 |
-| I-FO003 | 所有者の変更は所有権譲渡によってのみ可能 |
+| I-FO001 | フォルダは必ず所有者（owner_id）を持つ |
+| I-FO002 | フォルダは必ず作成者（created_by）を持つ |
+| I-FO003 | created_byは不変（所有権譲渡後も変更されない） |
+| I-FO004 | 新規作成時は owner_id = created_by = 作成者 |
 
 ### 削除制約
 
@@ -280,6 +334,16 @@ Root (A)
 | I-FD001 | フォルダ削除時、配下のファイルはArchivedFileへ移動 |
 | I-FD002 | フォルダ削除時、配下のサブフォルダも再帰的に削除 |
 | I-FD003 | 閉包テーブルエントリはフォルダ削除時に必ず削除 |
+| I-FD004 | Personal Folderは削除不可 |
+
+### Personal Folder制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-PF001 | User と Personal Folder は必ず1対1の関係 |
+| I-PF002 | Personal Folder はユーザー登録時に自動作成 |
+| I-PF003 | Personal Folder はアカウント削除時のみ削除可能 |
+| I-PF004 | Personal Folder の判定は user.personal_folder_id で行う |
 
 ### 閉包テーブル整合性
 
@@ -295,13 +359,14 @@ Root (A)
 
 | ユースケース | アクター | 概要 |
 |------------|--------|------|
-| CreateFolder | User | フォルダ作成 |
-| RenameFolder | User | フォルダ名変更 |
-| MoveFolder | User | フォルダ移動 |
-| DeleteFolder | User | フォルダ削除（ファイルはアーカイブ） |
-| ListFolderContents | User | フォルダ内容一覧 |
-| GetAncestors | User | パンくずリスト取得 |
-| GetFolderInfo | User | フォルダ情報取得 |
+| CreateFolder | User | Shared Folder作成（作成者がOwner） |
+| RenameFolder | Contributor/Content Manager/Owner | フォルダ名変更 |
+| MoveFolder | Content Manager/Owner | フォルダ移動（move_out + move_in権限必要） |
+| DeleteFolder | Owner | フォルダ削除（ファイルはアーカイブ） |
+| ListFolderContents | Viewer/Contributor/Content Manager/Owner | フォルダ内容一覧 |
+| GetAncestors | Viewer/Contributor/Content Manager/Owner | パンくずリスト取得 |
+| GetFolderInfo | Viewer/Contributor/Content Manager/Owner | フォルダ情報取得 |
+| TransferOwnership | Owner | 所有権譲渡 |
 
 ---
 
@@ -309,10 +374,11 @@ Root (A)
 
 | イベント | トリガー | ペイロード |
 |---------|---------|-----------|
-| FolderCreated | フォルダ作成 | folderId, name, parentId, ownerType, ownerId |
+| FolderCreated | フォルダ作成 | folderId, name, parentId, ownerId, createdBy |
 | FolderRenamed | 名前変更 | folderId, oldName, newName |
 | FolderMoved | 移動 | folderId, oldParentId, newParentId |
 | FolderDeleted | 削除 | folderId, archivedFileIds（アーカイブされたファイルID一覧） |
+| FolderOwnershipTransferred | 所有権譲渡 | folderId, previousOwnerId, newOwnerId |
 
 ---
 
@@ -320,12 +386,8 @@ Root (A)
 
 ### Identity Context（上流）
 
-- UserIDの参照（owner_type = userの場合）
-
-### Collaboration Context（上流）
-
-- GroupIDの参照（owner_type = groupの場合）
-- グループ作成時にグループの初期フォルダ作成は不要（暗黙的ルート）
+- UserIDの参照（owner_id, created_by）
+- ユーザー登録時にPersonal Folderを作成
 
 ### File Domain（同一コンテキスト）
 
@@ -334,9 +396,14 @@ Root (A)
 
 ### Authorization Context（下流）
 
-- フォルダに対する権限付与
+- フォルダに対する権限付与（PermissionGrant）
 - 親フォルダからの権限継承
-- グループ所有フォルダの管理権限はグループ管理者が持つ
+- ロール: Viewer / Contributor / Content Manager / Owner
+
+### Collaboration Context（上流）
+
+- グループにフォルダへのロールを付与（PermissionGrant経由）
+- ※ グループはフォルダを直接所有しない
 
 ---
 
@@ -345,3 +412,4 @@ Root (A)
 - [イベントストーミング](./EVENT_STORMING.md) - ドメインイベント定義
 - [ファイルドメイン](./file.md) - ファイル管理
 - [権限ドメイン](./permission.md) - 権限管理
+- [ユーザードメイン](./user.md) - Personal Folder連携

@@ -42,19 +42,26 @@ const (
     PermFileDelete          Permission = "file:delete"
     PermFileRestore         Permission = "file:restore"
     PermFilePermanentDelete Permission = "file:permanent_delete"
-    PermFileMove            Permission = "file:move"
+    PermFileMoveIn          Permission = "file:move_in"   // フォルダ内へ移動
+    PermFileMoveOut         Permission = "file:move_out"  // フォルダ外へ移動
     PermFileRename          Permission = "file:rename"
     PermFileShare           Permission = "file:share"
 )
 
 // Folder permissions
 const (
-    PermFolderRead   Permission = "folder:read"
-    PermFolderCreate Permission = "folder:create"
-    PermFolderDelete Permission = "folder:delete"
-    PermFolderMove   Permission = "folder:move"
-    PermFolderRename Permission = "folder:rename"
-    PermFolderShare  Permission = "folder:share"
+    PermFolderRead      Permission = "folder:read"
+    PermFolderCreate    Permission = "folder:create"
+    PermFolderDelete    Permission = "folder:delete"
+    PermFolderMoveIn    Permission = "folder:move_in"   // フォルダ内へ移動
+    PermFolderMoveOut   Permission = "folder:move_out"  // フォルダ外へ移動
+    PermFolderRename    Permission = "folder:rename"
+    PermFolderShare     Permission = "folder:share"
+)
+
+// Root permissions
+const (
+    PermRootDelete Permission = "root:delete"  // ルートフォルダ削除（Owner専用）
 )
 
 // Permission management
@@ -83,9 +90,12 @@ func (p Permission) IsValid() bool {
     validPerms := map[Permission]bool{
         PermFileRead: true, PermFileWrite: true, PermFileDelete: true,
         PermFileRestore: true, PermFilePermanentDelete: true,
-        PermFileMove: true, PermFileRename: true, PermFileShare: true,
+        PermFileMoveIn: true, PermFileMoveOut: true,
+        PermFileRename: true, PermFileShare: true,
         PermFolderRead: true, PermFolderCreate: true, PermFolderDelete: true,
-        PermFolderMove: true, PermFolderRename: true, PermFolderShare: true,
+        PermFolderMoveIn: true, PermFolderMoveOut: true,
+        PermFolderRename: true, PermFolderShare: true,
+        PermRootDelete: true,
         PermPermissionRead: true, PermPermissionGrant: true, PermPermissionRevoke: true,
         PermGroupRead: true, PermGroupUpdate: true, PermGroupDelete: true,
         PermGroupMemberRead: true, PermGroupMemberAdd: true,
@@ -161,43 +171,51 @@ package authz
 type Role string
 
 const (
-    RoleViewer  Role = "viewer"
-    RoleEditor  Role = "editor"
-    RoleManager Role = "manager"
-    RoleOwner   Role = "owner"
+    RoleViewer         Role = "viewer"
+    RoleContributor    Role = "contributor"
+    RoleContentManager Role = "content_manager"
+    RoleOwner          Role = "owner"
 )
 
 // Permissions returns the permissions included in this role
+// ロール階層: Owner > Content Manager > Contributor > Viewer
 func (r Role) Permissions() []Permission {
     switch r {
     case RoleViewer:
+        // 閲覧のみ
         return []Permission{
             PermFileRead,
             PermFolderRead,
         }
-    case RoleEditor:
+    case RoleContributor:
+        // 作成/編集/削除、move_in可能、共有可能
         return append(RoleViewer.Permissions(),
             PermFileWrite,
             PermFileRename,
-            PermFileMove,
-            PermFolderCreate,
-            PermFolderRename,
-            PermFolderMove,
-        )
-    case RoleManager:
-        return append(RoleEditor.Permissions(),
             PermFileDelete,
             PermFileRestore,
+            PermFileMoveIn,
             PermFileShare,
+            PermFolderCreate,
+            PermFolderRename,
             PermFolderDelete,
+            PermFolderMoveIn,
             PermFolderShare,
             PermPermissionRead,
             PermPermissionGrant,
             PermPermissionRevoke,
         )
+    case RoleContentManager:
+        // Contributor + move_out可能
+        return append(RoleContributor.Permissions(),
+            PermFileMoveOut,
+            PermFolderMoveOut,
+        )
     case RoleOwner:
-        return append(RoleManager.Permissions(),
+        // Content Manager + ルートフォルダ削除 + 完全削除
+        return append(RoleContentManager.Permissions(),
             PermFilePermanentDelete,
+            PermRootDelete,
         )
     default:
         return nil
@@ -207,16 +225,45 @@ func (r Role) Permissions() []Permission {
 // Includes returns true if this role includes the other role
 func (r Role) Includes(other Role) bool {
     hierarchy := map[Role]int{
-        RoleViewer:  1,
-        RoleEditor:  2,
-        RoleManager: 3,
-        RoleOwner:   4,
+        RoleViewer:         1,
+        RoleContributor:    2,
+        RoleContentManager: 3,
+        RoleOwner:          4,
     }
     return hierarchy[r] >= hierarchy[other]
 }
 
+// CanGrant returns true if this role can grant the specified role to others
+// 共有時のロール付与制限: 自分のロール以下のみ付与可能、Ownerは直接付与不可
+func (r Role) CanGrant(targetRole Role) bool {
+    // Viewerは共有不可
+    if r == RoleViewer {
+        return false
+    }
+    // Ownerロールは直接付与不可（所有権譲渡を使用）
+    if targetRole == RoleOwner {
+        return false
+    }
+    // 自分のロール以下のみ付与可能
+    return r.Includes(targetRole)
+}
+
+// GrantableRoles returns the roles that can be granted by this role
+func (r Role) GrantableRoles() []Role {
+    switch r {
+    case RoleOwner:
+        return []Role{RoleViewer, RoleContributor, RoleContentManager}
+    case RoleContentManager:
+        return []Role{RoleViewer, RoleContributor, RoleContentManager}
+    case RoleContributor:
+        return []Role{RoleViewer, RoleContributor}
+    default:
+        return nil
+    }
+}
+
 func (r Role) IsValid() bool {
-    return r == RoleViewer || r == RoleEditor || r == RoleManager || r == RoleOwner
+    return r == RoleViewer || r == RoleContributor || r == RoleContentManager || r == RoleOwner
 }
 
 func (r Role) String() string {
@@ -234,12 +281,12 @@ package authz
 type RelationType string
 
 const (
-    RelationOwner   RelationType = "owner"
-    RelationMember  RelationType = "member"
-    RelationParent  RelationType = "parent"
-    RelationViewer  RelationType = "viewer"
-    RelationEditor  RelationType = "editor"
-    RelationManager RelationType = "manager"
+    RelationOwner          RelationType = "owner"
+    RelationMember         RelationType = "member"
+    RelationParent         RelationType = "parent"
+    RelationViewer         RelationType = "viewer"
+    RelationContributor    RelationType = "contributor"
+    RelationContentManager RelationType = "content_manager"
 )
 
 // ToRole converts relation to role if applicable
@@ -247,10 +294,10 @@ func (r RelationType) ToRole() (Role, bool) {
     switch r {
     case RelationViewer:
         return RoleViewer, true
-    case RelationEditor:
-        return RoleEditor, true
-    case RelationManager:
-        return RoleManager, true
+    case RelationContributor:
+        return RoleContributor, true
+    case RelationContentManager:
+        return RoleContentManager, true
     case RelationOwner:
         return RoleOwner, true
     default:
@@ -614,9 +661,9 @@ func (r *PermissionResolverImpl) GetEffectiveRole(
     // Collect all applicable roles
     highestRole := authz.Role("")
     roleHierarchy := map[authz.Role]int{
-        authz.RoleViewer:  1,
-        authz.RoleEditor:  2,
-        authz.RoleManager: 3,
+        authz.RoleViewer:         1,
+        authz.RoleContributor:    2,
+        authz.RoleContentManager: 3,
     }
 
     // Check direct grants
@@ -756,12 +803,7 @@ func (uc *GrantRoleCommand) Execute(ctx context.Context, input GrantRoleInput) (
         return nil, apperror.NewValidation("invalid role", nil)
     }
 
-    // 2. Cannot grant owner role directly
-    if input.Role == authz.RoleOwner {
-        return nil, apperror.NewBadRequest("owner role cannot be directly granted, use ownership transfer", nil)
-    }
-
-    // 3. Verify granter has permission:grant permission
+    // 2. Verify granter has permission:grant permission
     hasGrant, err := uc.resolver.HasPermission(
         ctx, input.GrantedBy, input.ResourceType, input.ResourceID, authz.PermPermissionGrant,
     )
@@ -772,14 +814,19 @@ func (uc *GrantRoleCommand) Execute(ctx context.Context, input GrantRoleInput) (
         return nil, apperror.NewForbidden("insufficient permission to grant roles", nil)
     }
 
-    // 4. Verify granter's role is higher than the role being granted
+    // 3. Get granter's effective role
     granterRole, err := uc.resolver.GetEffectiveRole(
         ctx, input.GrantedBy, input.ResourceType, input.ResourceID,
     )
     if err != nil {
         return nil, err
     }
-    if !granterRole.Includes(input.Role) {
+
+    // 4. Verify granter can grant this role (自分のロール以下のみ付与可能、Owner直接付与不可)
+    if !granterRole.CanGrant(input.Role) {
+        if input.Role == authz.RoleOwner {
+            return nil, apperror.NewForbidden("owner role cannot be directly granted, use ownership transfer", nil)
+        }
         return nil, apperror.NewForbidden("cannot grant a role higher than your own", nil)
     }
 
@@ -1371,7 +1418,7 @@ import (
 type GrantRoleRequest struct {
     GranteeType string    `json:"grantee_type" validate:"required,oneof=user group"`
     GranteeID   uuid.UUID `json:"grantee_id" validate:"required"`
-    Role        string    `json:"role" validate:"required,oneof=viewer editor manager"`
+    Role        string    `json:"role" validate:"required,oneof=viewer contributor content_manager"`
 }
 
 type PermissionGrantResponse struct {
@@ -1426,6 +1473,7 @@ func SetupRoutes(e *echo.Echo, h *Handlers, m *Middlewares) {
         m.Permission.RequirePermission(authz.ResourceTypeFile, authz.PermFilePermanentDelete, "id"))
     files.POST("/:id/share", h.File.CreateShareLink,
         m.Permission.RequirePermission(authz.ResourceTypeFile, authz.PermFileShare, "id"))
+    // Note: ファイル移動は移動元にmove_out、移動先にmove_in権限が必要（ハンドラー内でチェック）
 
     // File permissions
     files.GET("/:id/permissions", h.Permission.ListGrants,
@@ -1441,6 +1489,8 @@ func SetupRoutes(e *echo.Echo, h *Handlers, m *Middlewares) {
         m.Permission.RequirePermission(authz.ResourceTypeFolder, authz.PermFolderCreate, "id"))
     folders.DELETE("/:id", h.Folder.Trash,
         m.Permission.RequirePermission(authz.ResourceTypeFolder, authz.PermFolderDelete, "id"))
+    // Note: フォルダ移動は移動元にmove_out、移動先にmove_in権限が必要（ハンドラー内でチェック）
+    // Note: ルートフォルダ削除はroot:delete権限が必要（Owner専用）
 
     // Folder permissions
     folders.GET("/:id/permissions", h.Permission.ListGrants,
@@ -1459,9 +1509,13 @@ func SetupRoutes(e *echo.Echo, h *Handlers, m *Middlewares) {
 ## 11. 受け入れ基準
 
 ### 権限付与
-- [ ] viewer/editor/managerロールを付与できる
+- [ ] viewer/contributor/content_managerロールを付与できる
 - [ ] ownerロールは直接付与できない（所有権譲渡を使用）
-- [ ] 自分より高いロールは付与できない
+- [ ] 自分のロール以下のみ付与可能
+  - Owner → Viewer, Contributor, Content Manager
+  - Content Manager → Viewer, Contributor, Content Manager
+  - Contributor → Viewer, Contributor
+  - Viewer → 共有不可
 - [ ] permission:grant権限がないと付与できない
 - [ ] 同じロールの重複付与は拒否される
 
@@ -1479,6 +1533,16 @@ func SetupRoutes(e *echo.Echo, h *Handlers, m *Middlewares) {
 - [ ] ownerは全権限を持つ
 - [ ] 直接付与 > グループ経由 > 階層経由の順で解決
 - [ ] 最も高いロールが有効になる
+
+### ロール別権限
+- [ ] Viewerは閲覧のみ（file:read, folder:read）
+- [ ] Contributorは作成/編集/削除/共有が可能、move_in可能
+- [ ] Content Managerはmove_outも可能
+- [ ] Ownerはルートフォルダ削除と完全削除が可能
+
+### 移動権限
+- [ ] 移動元フォルダにmove_out権限が必要（Content Manager以上）
+- [ ] 移動先フォルダにmove_in権限が必要（Contributor以上）
 
 ### ミドルウェア
 - [ ] RequirePermissionで特定権限をチェックできる

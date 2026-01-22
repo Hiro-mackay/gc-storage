@@ -203,6 +203,7 @@ func (s *JWTService) GetRefreshTokenExpiry() time.Duration {
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          User Registration Flow                              │
+│                    (Personal Folder 自動作成を含む)                           │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌────────┐          ┌──────────┐          ┌──────────┐          ┌───────┐
@@ -216,19 +217,33 @@ func (s *JWTService) GetRefreshTokenExpiry() time.Duration {
      │                   │  2. Check email exists                   │
      │                   │────────────────────▶│                    │
      │                   │                     │                    │
-     │                   │  3. Create User (status: pending)        │
+     │                   │  3. Create Personal Folder (1:1)         │
+     │                   │     (name: ユーザー名)                    │
      │                   │────────────────────▶│                    │
      │                   │                     │                    │
-     │                   │  4. Create verification token            │
+     │                   │  4. Create Folder Closure (self-ref)     │
      │                   │────────────────────▶│                    │
      │                   │                     │                    │
-     │                   │  5. Send verification email              │
+     │                   │  5. Create User (status: pending)        │
+     │                   │     (personal_folder_id = folder.id)     │
+     │                   │────────────────────▶│                    │
+     │                   │                     │                    │
+     │                   │  6. Create verification token            │
+     │                   │────────────────────▶│                    │
+     │                   │                     │                    │
+     │                   │  7. Send verification email              │
      │                   │─────────────────────────────────────────▶│
      │                   │                     │                    │
-     │  6. 201 Created   │                     │                    │
+     │  8. 201 Created   │                     │                    │
      │  {user_id, message: "Please verify..."}                      │
      │◀──────────────────│                     │                    │
 ```
+
+**Personal Folder 作成ルール:**
+- ユーザー登録時に必ずPersonal Folderを自動作成（1:1関係）
+- フォルダ名はユーザー名を初期値とし、後からユーザーが自由に変更可能
+- `user.personal_folder_id` でPersonal Folderを判定
+- Personal Folderは削除不可（アカウント削除時のみ削除）
 
 ### 2.2 登録コマンド（CQRS）
 
@@ -270,6 +285,8 @@ type RegisterOutput struct {
 type RegisterCommand struct {
     userRepo                   repository.UserRepository
     emailVerificationTokenRepo repository.EmailVerificationTokenRepository
+    folderRepo                 repository.FolderRepository
+    folderClosureRepo          repository.FolderClosureRepository
     txManager                  repository.TransactionManager
     emailSender                service.EmailSender
     appURL                     string
@@ -279,6 +296,8 @@ type RegisterCommand struct {
 func NewRegisterCommand(
     userRepo repository.UserRepository,
     emailVerificationTokenRepo repository.EmailVerificationTokenRepository,
+    folderRepo repository.FolderRepository,
+    folderClosureRepo repository.FolderClosureRepository,
     txManager repository.TransactionManager,
     emailSender service.EmailSender,
     appURL string,
@@ -286,6 +305,8 @@ func NewRegisterCommand(
     return &RegisterCommand{
         userRepo:                   userRepo,
         emailVerificationTokenRepo: emailVerificationTokenRepo,
+        folderRepo:                 folderRepo,
+        folderClosureRepo:          folderClosureRepo,
         txManager:                  txManager,
         emailSender:                emailSender,
         appURL:                     appURL,
@@ -321,17 +342,43 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
     // 4. トランザクションでユーザー作成
     err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
         now := time.Now()
+        userID := uuid.New()
+        personalFolderID := uuid.New()
+
+        // Personal Folder を作成（ユーザーと1:1の関係）
+        folderName, _ := valueobject.NewFolderName(input.Name) // 初期名はユーザー名
+        personalFolder := &entity.Folder{
+            ID:        personalFolderID,
+            Name:      folderName,
+            ParentID:  nil,        // ルートレベル
+            OwnerID:   userID,     // 作成者がオーナー
+            CreatedBy: userID,     // 作成者
+            Depth:     0,
+            Status:    valueobject.FolderStatusActive,
+            CreatedAt: now,
+            UpdatedAt: now,
+        }
+
+        if err := c.folderRepo.Create(ctx, personalFolder); err != nil {
+            return fmt.Errorf("failed to create personal folder: %w", err)
+        }
+
+        // フォルダのClosure Table エントリを作成（自己参照）
+        if err := c.folderClosureRepo.CreateSelfReference(ctx, personalFolderID); err != nil {
+            return fmt.Errorf("failed to create folder closure: %w", err)
+        }
 
         // ユーザー作成
         user = &entity.User{
-            ID:            uuid.New(),
-            Email:         email,
-            Name:          input.Name,
-            PasswordHash:  password.Hash(),
-            Status:        entity.UserStatusPending,
-            EmailVerified: false,
-            CreatedAt:     now,
-            UpdatedAt:     now,
+            ID:               userID,
+            Email:            email,
+            Name:             input.Name,
+            PasswordHash:     password.Hash(),
+            PersonalFolderID: personalFolderID, // Personal Folder への参照
+            Status:           entity.UserStatusPending,
+            EmailVerified:    false,
+            CreatedAt:        now,
+            UpdatedAt:        now,
         }
 
         if err := c.userRepo.Create(ctx, user); err != nil {
@@ -800,13 +847,15 @@ type OAuthLoginOutput struct {
 
 // OAuthLoginCommand はOAuthログインコマンドです
 type OAuthLoginCommand struct {
-    userRepo         repository.UserRepository
-    profileRepo      repository.UserProfileRepository
-    oauthAccountRepo repository.OAuthAccountRepository
-    oauthFactory     service.OAuthClientFactory
-    txManager        *database.TxManager
-    sessionRepo      repository.SessionRepository
-    jwtService       *jwt.JWTService
+    userRepo          repository.UserRepository
+    profileRepo       repository.UserProfileRepository
+    oauthAccountRepo  repository.OAuthAccountRepository
+    folderRepo        repository.FolderRepository
+    folderClosureRepo repository.FolderClosureRepository
+    oauthFactory      service.OAuthClientFactory
+    txManager         *database.TxManager
+    sessionRepo       repository.SessionRepository
+    jwtService        *jwt.JWTService
 }
 
 // NewOAuthLoginCommand は新しいOAuthLoginCommandを作成します
@@ -814,19 +863,23 @@ func NewOAuthLoginCommand(
     userRepo repository.UserRepository,
     profileRepo repository.UserProfileRepository,
     oauthAccountRepo repository.OAuthAccountRepository,
+    folderRepo repository.FolderRepository,
+    folderClosureRepo repository.FolderClosureRepository,
     oauthFactory service.OAuthClientFactory,
     txManager *database.TxManager,
     sessionRepo repository.SessionRepository,
     jwtService *jwt.JWTService,
 ) *OAuthLoginCommand {
     return &OAuthLoginCommand{
-        userRepo:         userRepo,
-        profileRepo:      profileRepo,
-        oauthAccountRepo: oauthAccountRepo,
-        oauthFactory:     oauthFactory,
-        txManager:        txManager,
-        sessionRepo:      sessionRepo,
-        jwtService:       jwtService,
+        userRepo:          userRepo,
+        profileRepo:       profileRepo,
+        oauthAccountRepo:  oauthAccountRepo,
+        folderRepo:        folderRepo,
+        folderClosureRepo: folderClosureRepo,
+        oauthFactory:      oauthFactory,
+        txManager:         txManager,
+        sessionRepo:       sessionRepo,
+        jwtService:        jwtService,
     }
 }
 
@@ -909,15 +962,42 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 
         // 5c. 新規ユーザーを作成
         now := time.Now()
+        userID := uuid.New()
+        personalFolderID := uuid.New()
+
+        // Personal Folder を作成（ユーザーと1:1の関係）
+        folderName, _ := valueobject.NewFolderName(userInfo.Name) // 初期名はユーザー名
+        personalFolder := &entity.Folder{
+            ID:        personalFolderID,
+            Name:      folderName,
+            ParentID:  nil,        // ルートレベル
+            OwnerID:   userID,     // 作成者がオーナー
+            CreatedBy: userID,     // 作成者
+            Depth:     0,
+            Status:    valueobject.FolderStatusActive,
+            CreatedAt: now,
+            UpdatedAt: now,
+        }
+
+        if txErr = c.folderRepo.Create(ctx, personalFolder); txErr != nil {
+            return fmt.Errorf("failed to create personal folder: %w", txErr)
+        }
+
+        // フォルダのClosure Table エントリを作成（自己参照）
+        if txErr = c.folderClosureRepo.CreateSelfReference(ctx, personalFolderID); txErr != nil {
+            return fmt.Errorf("failed to create folder closure: %w", txErr)
+        }
+
         user = &entity.User{
-            ID:            uuid.New(),
-            Email:         email,
-            Name:          userInfo.Name,
-            PasswordHash:  "", // OAuthユーザーはパスワードなし
-            Status:        entity.UserStatusActive,
-            EmailVerified: true, // OAuthはメール確認済みとみなす
-            CreatedAt:     now,
-            UpdatedAt:     now,
+            ID:               userID,
+            Email:            email,
+            Name:             userInfo.Name,
+            PasswordHash:     "", // OAuthユーザーはパスワードなし
+            PersonalFolderID: personalFolderID, // Personal Folder への参照
+            Status:           entity.UserStatusActive,
+            EmailVerified:    true, // OAuthはメール確認済みとみなす
+            CreatedAt:        now,
+            UpdatedAt:        now,
         }
 
         if txErr = c.userRepo.Create(ctx, user); txErr != nil {
@@ -1818,10 +1898,13 @@ func (h *AuthHandler) clearRefreshTokenCookie(c echo.Context) {
 | 項目 | 基準 |
 |------|------|
 | ユーザー登録 | メールアドレス・パスワードで登録できる |
+| Personal Folder自動作成 | ユーザー登録時にPersonal Folderが自動作成される |
+| User-PersonalFolder 1:1関係 | ユーザーとPersonal Folderは必ず1対1の関係を維持 |
 | メール確認 | 確認メールのリンクで認証完了できる |
 | 確認メール再送 | 未確認ユーザーに確認メールを再送できる |
 | ログイン | メール/パスワードでログインできる |
 | OAuth認証 | Google/GitHubでログインできる（POST /oauth/:provider） |
+| OAuth新規ユーザー | OAuthで新規ユーザー作成時もPersonal Folderが自動作成される |
 | トークンリフレッシュ | リフレッシュトークンで新しいトークンを取得できる |
 | ログアウト | セッションを終了できる |
 | パスワードリセット | メールでリセットリンクを受け取り、パスワードを変更できる |
@@ -1843,11 +1926,16 @@ func (h *AuthHandler) clearRefreshTokenCookie(c echo.Context) {
 ### 10.3 チェックリスト
 
 - [x] ユーザー登録が正常に動作する
+- [x] ユーザー登録時にPersonal Folderが自動作成される
+- [x] UserとPersonal Folderが1:1の関係を維持する
+- [x] personal_folder_idが正しく設定される
+- [x] Personal Folderの初期名がユーザー名になる
 - [x] メール確認が正常に動作する
 - [x] 確認メール再送が正常に動作する
 - [x] メール/パスワードログインが正常に動作する
 - [x] Google OAuthログインが正常に動作する
 - [x] GitHub OAuthログインが正常に動作する
+- [x] OAuth新規ユーザー作成時にPersonal Folderが自動作成される
 - [x] トークンリフレッシュが正常に動作する
 - [x] トークンローテーションが実装されている
 - [x] ログアウトでセッションが削除される
@@ -1868,3 +1956,5 @@ func (h *AuthHandler) clearRefreshTokenCookie(c echo.Context) {
 - [infra-api.md](./infra-api.md) - 認証ミドルウェア
 - [SECURITY.md](../02-architecture/SECURITY.md) - セキュリティ設計
 - [user.md](../03-domains/user.md) - ユーザードメイン
+- [folder.md](../03-domains/folder.md) - フォルダドメイン（Personal Folder連携）
+- [storage-folder.md](./storage-folder.md) - フォルダ機能仕様

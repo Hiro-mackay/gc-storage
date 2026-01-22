@@ -21,9 +21,9 @@ Storage Contextの中核として、ファイルの実体（MinIO）とメタデ
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
 | id | UUID | Yes | ファイルの一意識別子 |
-| owner_id | UUID | Yes | 所有者ID（UserまたはGroup） |
-| owner_type | OwnerType | Yes | 所有者タイプ（user/group） |
-| folder_id | UUID | No | 所属フォルダID（nullならルート） |
+| folder_id | UUID | Yes | 所属フォルダID（必須 - ファイルは必ずフォルダに所属） |
+| owner_id | UUID | Yes | 現在の所有者ID（所有権譲渡で変更可能） |
+| created_by | UUID | Yes | 最初の作成者ID（不変、履歴追跡用） |
 | name | FileName | Yes | ファイル名（値オブジェクト） |
 | mime_type | MimeType | Yes | MIMEタイプ（値オブジェクト） |
 | size | int64 | Yes | 現在のバージョンのファイルサイズ（バイト） |
@@ -80,6 +80,9 @@ Storage Contextの中核として、ファイルの実体（MinIO）とメタデ
 | R-FL004 | current_versionは1以上の連番 |
 | R-FL005 | statusがuploadingからactiveへの遷移はアップロード完了時のみ |
 | R-FL006 | statusがupload_failedのファイルは自動クリーンアップ対象 |
+| R-FL007 | folder_idは必須（ファイルは必ずフォルダに所属） |
+| R-FL008 | 新規作成時は`owner_id = created_by = 作成者` |
+| R-FL009 | `created_by`は不変（所有権譲渡後も変更されない） |
 
 ---
 
@@ -115,13 +118,13 @@ Storage Contextの中核として、ファイルの実体（MinIO）とメタデ
 |-----|-----|------|------|
 | id | UUID | Yes | アーカイブの一意識別子 |
 | original_file_id | UUID | Yes | 元のファイルID |
-| original_folder_id | UUID | No | 復元先フォルダID |
+| original_folder_id | UUID | Yes | 復元先フォルダID |
 | original_path | string | Yes | 復元時の参考パス（例: "/documents/report.pdf"） |
 | name | FileName | Yes | ファイル名 |
 | mime_type | MimeType | Yes | MIMEタイプ |
 | size | int64 | Yes | 最新バージョンのサイズ |
 | owner_id | UUID | Yes | 所有者ID |
-| owner_type | OwnerType | Yes | 所有者タイプ |
+| created_by | UUID | Yes | 最初の作成者ID |
 | storage_key | StorageKey | Yes | MinIOキー（復元・削除用） |
 | archived_at | timestamp | Yes | アーカイブ日時 |
 | archived_by | UUID | Yes | ゴミ箱に入れたユーザーID |
@@ -172,8 +175,8 @@ Storage Contextの中核として、ファイルの実体（MinIO）とメタデ
 | id | UUID | Yes | セッションID |
 | file_id | UUID | Yes | 作成予定のファイルID（事前生成） |
 | owner_id | UUID | Yes | 所有者ID |
-| owner_type | OwnerType | Yes | 所有者タイプ |
-| folder_id | UUID | No | アップロード先フォルダID |
+| created_by | UUID | Yes | 作成者ID（アップロード者） |
+| folder_id | UUID | Yes | アップロード先フォルダID（必須） |
 | file_name | FileName | Yes | ファイル名 |
 | mime_type | MimeType | Yes | MIMEタイプ |
 | total_size | int64 | Yes | 予定サイズ |
@@ -304,17 +307,6 @@ MIMEタイプを表す値オブジェクト。カテゴリ情報を持つ。
 | R-FN003 | 先頭・末尾の空白はトリム |
 | R-FN004 | 空文字は不可 |
 | R-FN005 | 拡張子は最後の`.`以降から取得 |
-
----
-
-### OwnerType
-
-所有者タイプを表す値オブジェクト。
-
-| 値 | 説明 |
-|-----|------|
-| user | 個人ユーザー所有 |
-| group | グループ所有 |
 
 ---
 
@@ -583,6 +575,21 @@ MIMEタイプを表す値オブジェクト。カテゴリ情報を持つ。
 | I-NM001 | 同一フォルダ内でファイル名は一意 |
 | I-NM002 | ファイル名に禁止文字を含まない |
 
+### 所有権制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-OW001 | ファイルは必ず所有者（owner_id）を持つ |
+| I-OW002 | ファイルは必ず作成者（created_by）を持つ |
+| I-OW003 | created_byは不変（所有権譲渡後も変更されない） |
+| I-OW004 | 新規作成時は owner_id = created_by = 作成者 |
+
+### フォルダ制約
+
+| ID | 不変条件 |
+|----|---------|
+| I-FO001 | ファイルは必ずフォルダに所属する（folder_id NOT NULL） |
+
 ### アップロードセッション
 
 | ID | 不変条件 |
@@ -644,21 +651,23 @@ MIMEタイプを表す値オブジェクト。カテゴリ情報を持つ。
 
 ### Folder Domain（同一コンテキスト）
 
-- ファイルはフォルダに所属（folder_id）
+- ファイルは必ずフォルダに所属（folder_id NOT NULL）
 - フォルダ削除時、配下のファイルもアーカイブ
 
 ### Identity Context（上流）
 
-- UserIDの参照（所有者、アップロード者）
-
-### Collaboration Context（上流）
-
-- GroupIDの参照（グループ所有の場合）
+- UserIDの参照（owner_id, created_by, uploaded_by）
 
 ### Authorization Context（下流）
 
-- ファイルに対する権限付与
+- ファイルに対する権限付与（PermissionGrant）
 - 親フォルダからの権限継承
+- ロール: Viewer / Contributor / Content Manager / Owner
+
+### Collaboration Context（上流）
+
+- グループにファイルへのロールを付与（PermissionGrant経由）
+- ※ グループはファイルを直接所有しない
 
 ### Sharing Context（下流）
 

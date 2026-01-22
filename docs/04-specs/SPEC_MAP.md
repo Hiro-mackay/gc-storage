@@ -256,7 +256,8 @@ gc-storage (メインバケット、バージョニング有効)
 ```
 User ─┬─ OAuthAccount (1:N)
       ├─ Session (1:N, max 10)
-      └─ UserProfile (1:1)
+      ├─ UserProfile (1:1)
+      └─ personal_folder_id → Folder (1:1、ユーザー登録時に自動作成)
 ```
 
 ### 重要なビジネスルール
@@ -265,6 +266,8 @@ User ─┬─ OAuthAccount (1:N)
 - パスワード or OAuth の少なくとも1つが必須
 - セッションは最大10個（古いものから自動失効）
 - status: pending → active → suspended/deactivated
+- UserとPersonal Folderは必ず1対1の関係
+- ユーザー登録時にPersonal Folderを自動作成
 
 ---
 
@@ -325,12 +328,17 @@ User ─┬─ OAuthAccount (1:N)
 
 ```
 Folder ─┬─ parent_id → Folder (自己参照)
-        └─ owner_id → User/Group
+        ├─ owner_id → User (現在の所有者)
+        └─ created_by → User (最初の作成者、不変)
 
-File ─┬─ folder_id → Folder
+File ─┬─ folder_id → Folder (必須、NOT NULL)
+      ├─ owner_id → User (現在の所有者)
+      ├─ created_by → User (最初の作成者、不変)
       ├─ FileVersion (1:N)
       ├─ FileMetadata (1:1)
       └─ UploadSession (1:N)
+
+User ──── personal_folder_id → Folder (1:1、ユーザー登録時に自動作成)
 ```
 
 ### 重要なビジネスルール
@@ -383,7 +391,7 @@ Group ─┬─ owner_id → User
        └─ Invitation (1:N)
 
 Membership ─── user_id → User
-               role: member | admin | owner
+               role: viewer | contributor | owner
 
 Invitation ─── email, token, expires_at
                status: pending | accepted | declined | expired
@@ -393,9 +401,11 @@ Invitation ─── email, token, expires_at
 
 - グループには必ず1人の owner が存在
 - owner はグループから脱退不可（譲渡が必要）
-- owner ロールでの招待は不可
+- owner ロールでの招待は不可（所有権譲渡で付与）
+- 招待時は自分のロール以下のみ付与可能
 - 同一ユーザーは同一グループに1つの Membership のみ
 - 招待トークンは7日間有効
+- デフォルト招待ロールは Viewer
 
 ---
 
@@ -424,12 +434,13 @@ Invitation ─── email, token, expires_at
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  Permission = {resource}:{action}                               │
-│  例: file:read, folder:write, group:invite                      │
+│  例: file:read, folder:write, file:move_in, file:move_out       │
 │                                                                  │
 │  Role = Permission の集合                                        │
 │  • viewer: file:read, folder:read                               │
-│  • editor: viewer + file:write, folder:write                    │
-│  • manager: editor + permission:grant, file:share               │
+│  • contributor: viewer + write, move_in, share                  │
+│  • content_manager: contributor + move_out                      │
+│  • owner: content_manager + root:delete                         │
 │                                                                  │
 │  Relationship Tuple (ReBAC)                                      │
 │  (subject_type, subject_id, relation, object_type, object_id)   │

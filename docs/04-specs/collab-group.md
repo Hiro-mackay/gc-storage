@@ -18,456 +18,142 @@ Collaboration Groupは、グループの作成・管理、メンバーシップ�
 
 ---
 
-## 1. エンティティ定義
+## 1. パッケージ構成
 
-### 1.1 Group
-
-```go
-// backend/internal/domain/group/group.go
-
-package group
-
-import (
-    "time"
-    "github.com/google/uuid"
-)
-
-type GroupStatus string
-
-const (
-    GroupStatusActive  GroupStatus = "active"
-    GroupStatusDeleted GroupStatus = "deleted"
-)
-
-type Group struct {
-    ID          uuid.UUID
-    Name        string
-    Description string
-    OwnerID     uuid.UUID
-    Status      GroupStatus
-    CreatedAt   time.Time
-    UpdatedAt   time.Time
-}
-
-// IsActive returns true if group is active
-func (g *Group) IsActive() bool {
-    return g.Status == GroupStatusActive
-}
-
-// CanUpdate returns true if group can be updated
-func (g *Group) CanUpdate(userID uuid.UUID, role GroupRole) bool {
-    return g.IsActive() && role.CanUpdateGroup()
-}
-
-// CanDelete returns true if group can be deleted
-func (g *Group) CanDelete(userID uuid.UUID) bool {
-    return g.IsActive() && g.OwnerID == userID
-}
 ```
-
-### 1.2 GroupRole
-
-```go
-// backend/internal/domain/group/role.go
-
-package group
-
-type GroupRole string
-
-const (
-    GroupRoleMember GroupRole = "member"
-    GroupRoleAdmin  GroupRole = "admin"
-    GroupRoleOwner  GroupRole = "owner"
-)
-
-// CanInviteMembers returns true if role can invite members
-func (r GroupRole) CanInviteMembers() bool {
-    return r == GroupRoleAdmin || r == GroupRoleOwner
-}
-
-// CanRemoveMembers returns true if role can remove members
-func (r GroupRole) CanRemoveMembers() bool {
-    return r == GroupRoleAdmin || r == GroupRoleOwner
-}
-
-// CanUpdateGroup returns true if role can update group settings
-func (r GroupRole) CanUpdateGroup() bool {
-    return r == GroupRoleAdmin || r == GroupRoleOwner
-}
-
-// CanDeleteGroup returns true if role can delete group
-func (r GroupRole) CanDeleteGroup() bool {
-    return r == GroupRoleOwner
-}
-
-// CanTransferOwnership returns true if role can transfer ownership
-func (r GroupRole) CanTransferOwnership() bool {
-    return r == GroupRoleOwner
-}
-
-// CanChangeRole returns true if role can change target to newRole
-func (r GroupRole) CanChangeRole(targetRole, newRole GroupRole) bool {
-    // Cannot grant owner role (use ownership transfer)
-    if newRole == GroupRoleOwner {
-        return false
-    }
-    // Cannot change owner's role
-    if targetRole == GroupRoleOwner {
-        return false
-    }
-    // Admin can manage member/admin roles
-    if r == GroupRoleAdmin {
-        return newRole == GroupRoleMember || newRole == GroupRoleAdmin
-    }
-    // Owner can manage all roles except owner
-    return r == GroupRoleOwner
-}
-
-// CanRemove returns true if role can remove target role
-func (r GroupRole) CanRemove(targetRole GroupRole) bool {
-    // Cannot remove owner
-    if targetRole == GroupRoleOwner {
-        return false
-    }
-    // Admin can remove members (not other admins)
-    if r == GroupRoleAdmin {
-        return targetRole == GroupRoleMember
-    }
-    // Owner can remove anyone except owner
-    return r == GroupRoleOwner
-}
-
-// IsHigherThan returns true if r has higher privilege than other
-func (r GroupRole) IsHigherThan(other GroupRole) bool {
-    roleOrder := map[GroupRole]int{
-        GroupRoleMember: 1,
-        GroupRoleAdmin:  2,
-        GroupRoleOwner:  3,
-    }
-    return roleOrder[r] > roleOrder[other]
-}
-```
-
-### 1.3 Membership
-
-```go
-// backend/internal/domain/group/membership.go
-
-package group
-
-import (
-    "time"
-    "github.com/google/uuid"
-)
-
-type Membership struct {
-    ID       uuid.UUID
-    GroupID  uuid.UUID
-    UserID   uuid.UUID
-    Role     GroupRole
-    JoinedAt time.Time
-}
-
-// IsOwner returns true if this membership is for the group owner
-func (m *Membership) IsOwner() bool {
-    return m.Role == GroupRoleOwner
-}
-
-// CanLeave returns true if member can leave the group
-func (m *Membership) CanLeave() bool {
-    // Owner cannot leave (must transfer ownership first)
-    return m.Role != GroupRoleOwner
-}
-```
-
-### 1.4 Invitation
-
-```go
-// backend/internal/domain/group/invitation.go
-
-package group
-
-import (
-    "crypto/rand"
-    "encoding/hex"
-    "time"
-    "github.com/google/uuid"
-)
-
-type InvitationStatus string
-
-const (
-    InvitationStatusPending  InvitationStatus = "pending"
-    InvitationStatusAccepted InvitationStatus = "accepted"
-    InvitationStatusDeclined InvitationStatus = "declined"
-    InvitationStatusExpired  InvitationStatus = "expired"
-)
-
-const (
-    InvitationTokenLength = 32
-    InvitationExpiry      = 7 * 24 * time.Hour // 7 days
-)
-
-type Invitation struct {
-    ID        uuid.UUID
-    GroupID   uuid.UUID
-    Email     string
-    Token     string
-    Role      GroupRole
-    InvitedBy uuid.UUID
-    ExpiresAt time.Time
-    Status    InvitationStatus
-    CreatedAt time.Time
-}
-
-// IsValid returns true if invitation can be used
-func (i *Invitation) IsValid() bool {
-    return i.Status == InvitationStatusPending && !i.IsExpired()
-}
-
-// IsExpired returns true if invitation has expired
-func (i *Invitation) IsExpired() bool {
-    return time.Now().After(i.ExpiresAt)
-}
-
-// CanAccept returns true if invitation can be accepted
-func (i *Invitation) CanAccept() bool {
-    return i.IsValid()
-}
-
-// CanDecline returns true if invitation can be declined
-func (i *Invitation) CanDecline() bool {
-    return i.Status == InvitationStatusPending
-}
-
-// CanCancel returns true if invitation can be cancelled
-func (i *Invitation) CanCancel() bool {
-    return i.Status == InvitationStatusPending
-}
-
-// GenerateToken generates a secure random token
-func GenerateInvitationToken() (string, error) {
-    bytes := make([]byte, InvitationTokenLength)
-    if _, err := rand.Read(bytes); err != nil {
-        return "", err
-    }
-    return hex.EncodeToString(bytes), nil
-}
+backend/internal/
+├── domain/
+│   ├── entity/
+│   │   ├── group.go           # Groupエンティティ
+│   │   ├── membership.go      # Membershipエンティティ
+│   │   └── invitation.go      # Invitationエンティティ
+│   ├── valueobject/
+│   │   ├── group_name.go      # GroupName値オブジェクト
+│   │   ├── group_role.go      # GroupRole値オブジェクト
+│   │   ├── group_status.go    # GroupStatus値オブジェクト
+│   │   └── invitation_status.go # InvitationStatus値オブジェクト
+│   └── repository/
+│       ├── group_repository.go      # GroupRepositoryインターフェース
+│       ├── membership_repository.go # MembershipRepositoryインターフェース
+│       └── invitation_repository.go # InvitationRepositoryインターフェース
+├── usecase/
+│   └── collaboration/
+│       ├── command/
+│       │   ├── create_group.go
+│       │   ├── update_group.go
+│       │   ├── delete_group.go
+│       │   ├── invite_member.go
+│       │   ├── accept_invitation.go
+│       │   ├── decline_invitation.go
+│       │   ├── cancel_invitation.go
+│       │   ├── remove_member.go
+│       │   ├── leave_group.go
+│       │   ├── change_role.go
+│       │   └── transfer_ownership.go
+│       └── query/
+│           ├── get_group.go
+│           ├── list_my_groups.go
+│           ├── list_members.go
+│           ├── list_invitations.go
+│           └── list_pending_invitations.go
+├── interface/
+│   ├── handler/
+│   │   └── group_handler.go
+│   └── dto/
+│       ├── request/
+│       │   └── group.go
+│       └── response/
+│           └── group.go
+└── infrastructure/
+    └── repository/
+        ├── group_repository.go
+        ├── membership_repository.go
+        └── invitation_repository.go
 ```
 
 ---
 
-## 2. リポジトリインターフェース
+## 2. ユースケース（Command）
 
-### 2.1 GroupRepository
+### 2.1 グループ作成
 
 ```go
-// backend/internal/domain/group/group_repository.go
+// backend/internal/usecase/collaboration/command/create_group.go
 
-package group
+package command
 
 import (
     "context"
+
     "github.com/google/uuid"
-)
 
-type GroupRepository interface {
-    // CRUD
-    Create(ctx context.Context, group *Group) error
-    FindByID(ctx context.Context, id uuid.UUID) (*Group, error)
-    Update(ctx context.Context, group *Group) error
-    Delete(ctx context.Context, id uuid.UUID) error
-
-    // Queries
-    FindByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]*Group, error)
-    FindByMemberID(ctx context.Context, userID uuid.UUID) ([]*Group, error)
-    ExistsByName(ctx context.Context, name string, ownerID uuid.UUID) (bool, error)
-}
-```
-
-### 2.2 MembershipRepository
-
-```go
-// backend/internal/domain/group/membership_repository.go
-
-package group
-
-import (
-    "context"
-    "github.com/google/uuid"
-)
-
-type MembershipWithUser struct {
-    Membership
-    UserName  string
-    UserEmail string
-}
-
-type MembershipRepository interface {
-    // CRUD
-    Create(ctx context.Context, membership *Membership) error
-    FindByID(ctx context.Context, id uuid.UUID) (*Membership, error)
-    Update(ctx context.Context, membership *Membership) error
-    Delete(ctx context.Context, id uuid.UUID) error
-
-    // Queries
-    FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Membership, error)
-    FindByGroupIDWithUsers(ctx context.Context, groupID uuid.UUID) ([]*MembershipWithUser, error)
-    FindByUserID(ctx context.Context, userID uuid.UUID) ([]*Membership, error)
-    FindByGroupAndUser(ctx context.Context, groupID, userID uuid.UUID) (*Membership, error)
-    Exists(ctx context.Context, groupID, userID uuid.UUID) (bool, error)
-    CountByGroupID(ctx context.Context, groupID uuid.UUID) (int, error)
-    DeleteByGroupID(ctx context.Context, groupID uuid.UUID) error
-}
-```
-
-### 2.3 InvitationRepository
-
-```go
-// backend/internal/domain/group/invitation_repository.go
-
-package group
-
-import (
-    "context"
-    "github.com/google/uuid"
-)
-
-type InvitationRepository interface {
-    // CRUD
-    Create(ctx context.Context, invitation *Invitation) error
-    FindByID(ctx context.Context, id uuid.UUID) (*Invitation, error)
-    Update(ctx context.Context, invitation *Invitation) error
-    Delete(ctx context.Context, id uuid.UUID) error
-
-    // Queries
-    FindByToken(ctx context.Context, token string) (*Invitation, error)
-    FindPendingByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Invitation, error)
-    FindPendingByEmail(ctx context.Context, email string) ([]*Invitation, error)
-    FindPendingByGroupAndEmail(ctx context.Context, groupID uuid.UUID, email string) (*Invitation, error)
-    DeleteByGroupID(ctx context.Context, groupID uuid.UUID) error
-
-    // Maintenance
-    ExpireOld(ctx context.Context) (int64, error)
-}
-```
-
----
-
-## 3. ユースケース
-
-### 3.1 グループ作成
-
-```go
-// backend/internal/usecase/group/create_group.go
-
-package group
-
-import (
-    "context"
-    "time"
-    "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// CreateGroupInput はグループ作成の入力を定義します
 type CreateGroupInput struct {
     Name        string
     Description string
     OwnerID     uuid.UUID
 }
 
+// CreateGroupOutput はグループ作成の出力を定義します
 type CreateGroupOutput struct {
-    Group      *group.Group
-    Membership *group.Membership
-    RootFolder *storage.Folder
+    Group      *entity.Group
+    Membership *entity.Membership
 }
 
+// CreateGroupCommand はグループ作成コマンドです
+// Note: グループとフォルダは分離されているため、グループ作成時にフォルダは作成しない
 type CreateGroupCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
-    folderRepo     storage.FolderRepository
-    txManager      TransactionManager
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+    txManager      repository.TransactionManager
 }
 
+// NewCreateGroupCommand は新しいCreateGroupCommandを作成します
 func NewCreateGroupCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
-    folderRepo storage.FolderRepository,
-    txManager TransactionManager,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+    txManager repository.TransactionManager,
 ) *CreateGroupCommand {
     return &CreateGroupCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
-        folderRepo:     folderRepo,
         txManager:      txManager,
     }
 }
 
-func (uc *CreateGroupCommand) Execute(ctx context.Context, input CreateGroupInput) (*CreateGroupOutput, error) {
-    // 1. Validate name
-    if len(input.Name) == 0 || len(input.Name) > 100 {
-        return nil, apperror.NewValidation("group name must be 1-100 characters", nil)
+// Execute はグループ作成を実行します
+// Note: グループとフォルダは分離されているため、グループ作成時にフォルダは作成しない
+// グループはリソース共有の「受け皿」として機能し、フォルダ/ファイルへのロールをPermissionGrantで付与して共有を実現する
+func (c *CreateGroupCommand) Execute(ctx context.Context, input CreateGroupInput) (*CreateGroupOutput, error) {
+    // 1. グループ名のバリデーション
+    groupName, err := valueobject.NewGroupName(input.Name)
+    if err != nil {
+        return nil, apperror.NewValidationError(err.Error(), nil)
     }
-    if len(input.Description) > 500 {
-        return nil, apperror.NewValidation("description must not exceed 500 characters", nil)
+
+    // 2. グループを作成
+    group, err := entity.NewGroup(groupName, input.Description, input.OwnerID)
+    if err != nil {
+        return nil, apperror.NewValidationError(err.Error(), nil)
     }
 
-    var output *CreateGroupOutput
+    // 3. オーナーメンバーシップを作成
+    membership := entity.NewOwnerMembership(group.ID, input.OwnerID)
 
-    err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-        now := time.Now()
-
-        // 2. Create group
-        grp := &group.Group{
-            ID:          uuid.New(),
-            Name:        input.Name,
-            Description: input.Description,
-            OwnerID:     input.OwnerID,
-            Status:      group.GroupStatusActive,
-            CreatedAt:   now,
-            UpdatedAt:   now,
-        }
-        if err := uc.groupRepo.Create(ctx, grp); err != nil {
+    // 4. トランザクションで保存
+    err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        if err := c.groupRepo.Create(ctx, group); err != nil {
             return err
         }
-
-        // 3. Create owner membership
-        membership := &group.Membership{
-            ID:       uuid.New(),
-            GroupID:  grp.ID,
-            UserID:   input.OwnerID,
-            Role:     group.GroupRoleOwner,
-            JoinedAt: now,
-        }
-        if err := uc.membershipRepo.Create(ctx, membership); err != nil {
+        if err := c.membershipRepo.Create(ctx, membership); err != nil {
             return err
         }
-
-        // 4. Create group root folder
-        rootFolder := &storage.Folder{
-            ID:        uuid.New(),
-            Name:      storage.MustNewFolderName(grp.Name),
-            ParentID:  nil,
-            OwnerID:   grp.ID,
-            OwnerType: storage.OwnerTypeGroup,
-            Path:      "/group/" + grp.ID.String(),
-            Depth:     0,
-            Status:    storage.FolderStatusActive,
-            CreatedAt: now,
-            UpdatedAt: now,
-        }
-        if err := uc.folderRepo.Create(ctx, rootFolder); err != nil {
-            return err
-        }
-
-        output = &CreateGroupOutput{
-            Group:      grp,
-            Membership: membership,
-            RootFolder: rootFolder,
-        }
-
         return nil
     })
 
@@ -475,53 +161,62 @@ func (uc *CreateGroupCommand) Execute(ctx context.Context, input CreateGroupInpu
         return nil, err
     }
 
-    return output, nil
+    return &CreateGroupOutput{
+        Group:      group,
+        Membership: membership,
+    }, nil
 }
 ```
 
-### 3.2 メンバー招待
+### 2.2 メンバー招待
 
 ```go
-// backend/internal/usecase/group/invite_member.go
+// backend/internal/usecase/collaboration/command/invite_member.go
 
-package group
+package command
 
 import (
     "context"
-    "time"
+
     "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/user"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/email"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// InviteMemberInput はメンバー招待の入力を定義します
 type InviteMemberInput struct {
     GroupID   uuid.UUID
     Email     string
-    Role      group.GroupRole
+    Role      string
     InviterID uuid.UUID
 }
 
+// InviteMemberOutput はメンバー招待の出力を定義します
 type InviteMemberOutput struct {
-    Invitation *group.Invitation
+    Invitation *entity.Invitation
 }
 
+// InviteMemberCommand はメンバー招待コマンドです
 type InviteMemberCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
-    invitationRepo group.InvitationRepository
-    userRepo       user.UserRepository
-    emailService   email.Service
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+    invitationRepo repository.InvitationRepository
+    userRepo       repository.UserRepository
+    emailSender    service.EmailSender
     baseURL        string
 }
 
+// NewInviteMemberCommand は新しいInviteMemberCommandを作成します
 func NewInviteMemberCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
-    invitationRepo group.InvitationRepository,
-    userRepo user.UserRepository,
-    emailService email.Service,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+    invitationRepo repository.InvitationRepository,
+    userRepo repository.UserRepository,
+    emailSender service.EmailSender,
     baseURL string,
 ) *InviteMemberCommand {
     return &InviteMemberCommand{
@@ -529,78 +224,77 @@ func NewInviteMemberCommand(
         membershipRepo: membershipRepo,
         invitationRepo: invitationRepo,
         userRepo:       userRepo,
-        emailService:   emailService,
+        emailSender:    emailSender,
         baseURL:        baseURL,
     }
 }
 
-func (uc *InviteMemberCommand) Execute(ctx context.Context, input InviteMemberInput) (*InviteMemberOutput, error) {
-    // 1. Validate role (cannot invite as owner)
-    if input.Role == group.GroupRoleOwner {
-        return nil, apperror.NewBadRequest("cannot invite with owner role", nil)
-    }
-
-    // 2. Get and validate group
-    grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
+// Execute はメンバー招待を実行します
+func (c *InviteMemberCommand) Execute(ctx context.Context, input InviteMemberInput) (*InviteMemberOutput, error) {
+    // 1. ロールのバリデーション
+    role, err := valueobject.NewGroupRole(input.Role)
     if err != nil {
-        return nil, apperror.NewNotFound("group not found", err)
-    }
-    if !grp.IsActive() {
-        return nil, apperror.NewBadRequest("group is not active", nil)
+        return nil, apperror.NewValidationError(err.Error(), nil)
     }
 
-    // 3. Verify inviter's permission
-    inviterMembership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.InviterID)
+    // 2. ownerロールでの招待は不可（所有権譲渡を使用）
+    if role == valueobject.GroupRoleOwner {
+        return nil, apperror.NewValidationError("cannot invite with owner role, use ownership transfer", nil)
+    }
+
+    // 3. グループの存在確認
+    group, err := c.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
-        return nil, apperror.NewForbidden("not a member of this group", err)
+        return nil, apperror.NewNotFoundError("group not found")
     }
-    if !inviterMembership.Role.CanInviteMembers() {
-        return nil, apperror.NewForbidden("insufficient permission to invite members", nil)
+    if !group.IsActive() {
+        return nil, apperror.NewValidationError("group is not active", nil)
     }
 
-    // 4. Check if user with email is already a member
-    existingUser, _ := uc.userRepo.FindByEmail(ctx, input.Email)
+    // 4. 招待者の権限確認
+    inviter, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.InviterID)
+    if err != nil {
+        return nil, apperror.NewForbiddenError("not a member of this group")
+    }
+    if !inviter.Role.CanInviteMembers() {
+        return nil, apperror.NewForbiddenError("insufficient permission to invite members")
+    }
+
+    // 5. 招待者は自分のロール以下のみ付与可能
+    if !inviter.Role.CanInviteWithRole(role) {
+        return nil, apperror.NewForbiddenError("cannot invite with a role higher than your own")
+    }
+
+    // 6. 既存メンバーチェック
+    existingUser, _ := c.userRepo.FindByEmail(ctx, input.Email)
     if existingUser != nil {
-        exists, _ := uc.membershipRepo.Exists(ctx, input.GroupID, existingUser.ID)
+        exists, _ := c.membershipRepo.Exists(ctx, input.GroupID, existingUser.ID)
         if exists {
-            return nil, apperror.NewConflict("user is already a member", nil)
+            return nil, apperror.NewConflictError("user is already a member")
         }
     }
 
-    // 5. Check for existing pending invitation
-    existingInvite, _ := uc.invitationRepo.FindPendingByGroupAndEmail(ctx, input.GroupID, input.Email)
+    // 7. 既存の有効な招待チェック
+    existingInvite, _ := c.invitationRepo.FindPendingByGroupAndEmail(ctx, input.GroupID, input.Email)
     if existingInvite != nil {
-        return nil, apperror.NewConflict("invitation already exists for this email", nil)
+        return nil, apperror.NewConflictError("invitation already exists for this email")
     }
 
-    // 6. Generate invitation token
-    token, err := group.GenerateInvitationToken()
+    // 8. 招待を作成
+    invitation, err := entity.NewInvitation(input.GroupID, input.Email, role, input.InviterID)
     if err != nil {
-        return nil, apperror.NewInternal("failed to generate invitation token", err)
+        return nil, apperror.NewValidationError(err.Error(), nil)
     }
 
-    // 7. Create invitation
-    now := time.Now()
-    invitation := &group.Invitation{
-        ID:        uuid.New(),
-        GroupID:   input.GroupID,
-        Email:     input.Email,
-        Token:     token,
-        Role:      input.Role,
-        InvitedBy: input.InviterID,
-        ExpiresAt: now.Add(group.InvitationExpiry),
-        Status:    group.InvitationStatusPending,
-        CreatedAt: now,
-    }
-    if err := uc.invitationRepo.Create(ctx, invitation); err != nil {
+    if err := c.invitationRepo.Create(ctx, invitation); err != nil {
         return nil, err
     }
 
-    // 8. Send invitation email (async)
-    inviteURL := uc.baseURL + "/invite/" + token
-    go uc.emailService.SendInvitation(context.Background(), email.InvitationData{
+    // 9. 招待メール送信（非同期）
+    inviteURL := c.baseURL + "/invite/" + invitation.Token
+    go c.emailSender.SendGroupInvitation(context.Background(), service.GroupInvitationData{
         To:        input.Email,
-        GroupName: grp.Name,
+        GroupName: group.Name.String(),
         InviteURL: inviteURL,
         ExpiresAt: invitation.ExpiresAt,
     })
@@ -609,46 +303,51 @@ func (uc *InviteMemberCommand) Execute(ctx context.Context, input InviteMemberIn
 }
 ```
 
-### 3.3 招待承諾
+### 2.3 招待承諾
 
 ```go
-// backend/internal/usecase/group/accept_invitation.go
+// backend/internal/usecase/collaboration/command/accept_invitation.go
 
-package group
+package command
 
 import (
     "context"
-    "time"
+
     "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/user"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// AcceptInvitationInput は招待承諾の入力を定義します
 type AcceptInvitationInput struct {
     Token  string
     UserID uuid.UUID
 }
 
+// AcceptInvitationOutput は招待承諾の出力を定義します
 type AcceptInvitationOutput struct {
-    Membership *group.Membership
-    Group      *group.Group
+    Membership *entity.Membership
+    Group      *entity.Group
 }
 
+// AcceptInvitationCommand は招待承諾コマンドです
 type AcceptInvitationCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
-    invitationRepo group.InvitationRepository
-    userRepo       user.UserRepository
-    txManager      TransactionManager
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+    invitationRepo repository.InvitationRepository
+    userRepo       repository.UserRepository
+    txManager      repository.TransactionManager
 }
 
+// NewAcceptInvitationCommand は新しいAcceptInvitationCommandを作成します
 func NewAcceptInvitationCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
-    invitationRepo group.InvitationRepository,
-    userRepo user.UserRepository,
-    txManager TransactionManager,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+    invitationRepo repository.InvitationRepository,
+    userRepo repository.UserRepository,
+    txManager repository.TransactionManager,
 ) *AcceptInvitationCommand {
     return &AcceptInvitationCommand{
         groupRepo:      groupRepo,
@@ -659,72 +358,68 @@ func NewAcceptInvitationCommand(
     }
 }
 
-func (uc *AcceptInvitationCommand) Execute(ctx context.Context, input AcceptInvitationInput) (*AcceptInvitationOutput, error) {
+// Execute は招待承諾を実行します
+func (c *AcceptInvitationCommand) Execute(ctx context.Context, input AcceptInvitationInput) (*AcceptInvitationOutput, error) {
     var output *AcceptInvitationOutput
 
-    err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-        // 1. Find invitation by token
-        invitation, err := uc.invitationRepo.FindByToken(ctx, input.Token)
+    err := c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        // 1. 招待をトークンで検索
+        invitation, err := c.invitationRepo.FindByToken(ctx, input.Token)
         if err != nil {
-            return apperror.NewNotFound("invitation not found", err)
+            return apperror.NewNotFoundError("invitation not found")
         }
 
-        // 2. Validate invitation
+        // 2. 招待のバリデーション
         if !invitation.CanAccept() {
             if invitation.IsExpired() {
-                return apperror.NewBadRequest("invitation has expired", nil)
+                return apperror.NewValidationError("invitation has expired", nil)
             }
-            return apperror.NewBadRequest("invitation is no longer valid", nil)
+            return apperror.NewValidationError("invitation is no longer valid", nil)
         }
 
-        // 3. Get user
-        usr, err := uc.userRepo.FindByID(ctx, input.UserID)
+        // 3. ユーザーの取得
+        user, err := c.userRepo.FindByID(ctx, input.UserID)
         if err != nil {
-            return apperror.NewNotFound("user not found", err)
+            return apperror.NewNotFoundError("user not found")
         }
 
-        // 4. Verify email matches
-        if usr.Email != invitation.Email {
-            return apperror.NewForbidden("email does not match invitation", nil)
+        // 4. メールアドレスの一致確認
+        if user.Email != invitation.Email {
+            return apperror.NewForbiddenError("email does not match invitation")
         }
 
-        // 5. Get group
-        grp, err := uc.groupRepo.FindByID(ctx, invitation.GroupID)
+        // 5. グループの取得
+        group, err := c.groupRepo.FindByID(ctx, invitation.GroupID)
         if err != nil {
-            return apperror.NewNotFound("group not found", err)
+            return apperror.NewNotFoundError("group not found")
         }
-        if !grp.IsActive() {
-            return apperror.NewBadRequest("group is no longer active", nil)
+        if !group.IsActive() {
+            return apperror.NewValidationError("group is no longer active", nil)
         }
 
-        // 6. Check if already a member
-        exists, _ := uc.membershipRepo.Exists(ctx, invitation.GroupID, input.UserID)
+        // 6. 既存メンバーチェック
+        exists, _ := c.membershipRepo.Exists(ctx, invitation.GroupID, input.UserID)
         if exists {
-            return apperror.NewConflict("already a member of this group", nil)
+            return apperror.NewConflictError("already a member of this group")
         }
 
-        // 7. Create membership
-        now := time.Now()
-        membership := &group.Membership{
-            ID:       uuid.New(),
-            GroupID:  invitation.GroupID,
-            UserID:   input.UserID,
-            Role:     invitation.Role,
-            JoinedAt: now,
-        }
-        if err := uc.membershipRepo.Create(ctx, membership); err != nil {
+        // 7. メンバーシップを作成
+        membership := entity.NewMembership(invitation.GroupID, input.UserID, invitation.Role)
+        if err := c.membershipRepo.Create(ctx, membership); err != nil {
             return err
         }
 
-        // 8. Update invitation status
-        invitation.Status = group.InvitationStatusAccepted
-        if err := uc.invitationRepo.Update(ctx, invitation); err != nil {
+        // 8. 招待ステータスを更新
+        if err := invitation.Accept(); err != nil {
+            return err
+        }
+        if err := c.invitationRepo.Update(ctx, invitation); err != nil {
             return err
         }
 
         output = &AcceptInvitationOutput{
             Membership: membership,
-            Group:      grp,
+            Group:      group,
         }
 
         return nil
@@ -738,36 +433,41 @@ func (uc *AcceptInvitationCommand) Execute(ctx context.Context, input AcceptInvi
 }
 ```
 
-### 3.4 メンバー削除
+### 2.4 メンバー削除
 
 ```go
-// backend/internal/usecase/group/remove_member.go
+// backend/internal/usecase/collaboration/command/remove_member.go
 
-package group
+package command
 
 import (
     "context"
+
     "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// RemoveMemberInput はメンバー削除の入力を定義します
 type RemoveMemberInput struct {
-    GroupID   uuid.UUID
-    TargetID  uuid.UUID  // User to remove
-    ActorID   uuid.UUID  // User performing the action
+    GroupID  uuid.UUID
+    TargetID uuid.UUID // 削除対象のユーザーID
+    ActorID  uuid.UUID // 操作実行者のユーザーID
 }
 
+// RemoveMemberCommand はメンバー削除コマンドです
 type RemoveMemberCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
-    txManager      TransactionManager
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+    txManager      repository.TransactionManager
 }
 
+// NewRemoveMemberCommand は新しいRemoveMemberCommandを作成します
 func NewRemoveMemberCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
-    txManager TransactionManager,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+    txManager repository.TransactionManager,
 ) *RemoveMemberCommand {
     return &RemoveMemberCommand{
         groupRepo:      groupRepo,
@@ -776,76 +476,78 @@ func NewRemoveMemberCommand(
     }
 }
 
-func (uc *RemoveMemberCommand) Execute(ctx context.Context, input RemoveMemberInput) error {
-    return uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-        // 1. Get group
-        grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
+// Execute はメンバー削除を実行します
+func (c *RemoveMemberCommand) Execute(ctx context.Context, input RemoveMemberInput) error {
+    return c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        // 1. グループの取得
+        group, err := c.groupRepo.FindByID(ctx, input.GroupID)
         if err != nil {
-            return apperror.NewNotFound("group not found", err)
+            return apperror.NewNotFoundError("group not found")
         }
-        if !grp.IsActive() {
-            return apperror.NewBadRequest("group is not active", nil)
+        if !group.IsActive() {
+            return apperror.NewValidationError("group is not active", nil)
         }
 
-        // 2. Get actor's membership
-        actorMembership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.ActorID)
+        // 2. 操作実行者のメンバーシップを取得
+        actorMembership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.ActorID)
         if err != nil {
-            return apperror.NewForbidden("not a member of this group", err)
+            return apperror.NewForbiddenError("not a member of this group")
         }
 
-        // 3. Get target's membership
-        targetMembership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.TargetID)
+        // 3. 削除対象のメンバーシップを取得
+        targetMembership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.TargetID)
         if err != nil {
-            return apperror.NewNotFound("target user is not a member", err)
+            return apperror.NewNotFoundError("target user is not a member")
         }
 
-        // 4. Verify permission
-        if !actorMembership.Role.CanRemove(targetMembership.Role) {
-            return apperror.NewForbidden("insufficient permission to remove this member", nil)
+        // 4. 権限チェック（ownerのみ削除可能）
+        if !actorMembership.IsOwner() {
+            return apperror.NewForbiddenError("only owner can remove members")
         }
 
-        // 5. Cannot remove owner
+        // 5. オーナーは削除不可
         if targetMembership.IsOwner() {
-            return apperror.NewBadRequest("cannot remove group owner", nil)
+            return apperror.NewValidationError("cannot remove group owner", nil)
         }
 
-        // 6. Delete membership
-        if err := uc.membershipRepo.Delete(ctx, targetMembership.ID); err != nil {
-            return err
-        }
-
-        return nil
+        // 6. メンバーシップを削除
+        return c.membershipRepo.Delete(ctx, targetMembership.ID)
     })
 }
 ```
 
-### 3.5 グループ脱退
+### 2.5 グループ脱退
 
 ```go
-// backend/internal/usecase/group/leave_group.go
+// backend/internal/usecase/collaboration/command/leave_group.go
 
-package group
+package command
 
 import (
     "context"
+
     "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// LeaveGroupInput はグループ脱退の入力を定義します
 type LeaveGroupInput struct {
     GroupID uuid.UUID
     UserID  uuid.UUID
 }
 
+// LeaveGroupCommand はグループ脱退コマンドです
 type LeaveGroupCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
 }
 
+// NewLeaveGroupCommand は新しいLeaveGroupCommandを作成します
 func NewLeaveGroupCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
 ) *LeaveGroupCommand {
     return &LeaveGroupCommand{
         groupRepo:      groupRepo,
@@ -853,67 +555,74 @@ func NewLeaveGroupCommand(
     }
 }
 
-func (uc *LeaveGroupCommand) Execute(ctx context.Context, input LeaveGroupInput) error {
-    // 1. Get group
-    grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
+// Execute はグループ脱退を実行します
+func (c *LeaveGroupCommand) Execute(ctx context.Context, input LeaveGroupInput) error {
+    // 1. グループの取得
+    group, err := c.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
-        return apperror.NewNotFound("group not found", err)
+        return apperror.NewNotFoundError("group not found")
     }
-    if !grp.IsActive() {
-        return apperror.NewBadRequest("group is not active", nil)
+    if !group.IsActive() {
+        return apperror.NewValidationError("group is not active", nil)
     }
 
-    // 2. Get membership
-    membership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.UserID)
+    // 2. メンバーシップの取得
+    membership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.UserID)
     if err != nil {
-        return apperror.NewNotFound("not a member of this group", err)
+        return apperror.NewNotFoundError("not a member of this group")
     }
 
-    // 3. Check if can leave
+    // 3. 脱退可能かチェック
     if !membership.CanLeave() {
-        return apperror.NewBadRequest("owner cannot leave the group, transfer ownership first", nil)
+        return apperror.NewValidationError("owner cannot leave the group, transfer ownership first", nil)
     }
 
-    // 4. Delete membership
-    return uc.membershipRepo.Delete(ctx, membership.ID)
+    // 4. メンバーシップを削除
+    return c.membershipRepo.Delete(ctx, membership.ID)
 }
 ```
 
-### 3.6 所有権譲渡
+### 2.6 所有権譲渡
 
 ```go
-// backend/internal/usecase/group/transfer_ownership.go
+// backend/internal/usecase/collaboration/command/transfer_ownership.go
 
-package group
+package command
 
 import (
     "context"
-    "time"
+
     "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// TransferOwnershipInput は所有権譲渡の入力を定義します
 type TransferOwnershipInput struct {
-    GroupID       uuid.UUID
-    CurrentOwner  uuid.UUID
-    NewOwner      uuid.UUID
+    GroupID      uuid.UUID
+    CurrentOwner uuid.UUID
+    NewOwner     uuid.UUID
 }
 
+// TransferOwnershipOutput は所有権譲渡の出力を定義します
 type TransferOwnershipOutput struct {
-    Group *group.Group
+    Group *entity.Group
 }
 
+// TransferOwnershipCommand は所有権譲渡コマンドです
 type TransferOwnershipCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
-    txManager      TransactionManager
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+    txManager      repository.TransactionManager
 }
 
+// NewTransferOwnershipCommand は新しいTransferOwnershipCommandを作成します
 func NewTransferOwnershipCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
-    txManager TransactionManager,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+    txManager repository.TransactionManager,
 ) *TransferOwnershipCommand {
     return &TransferOwnershipCommand{
         groupRepo:      groupRepo,
@@ -922,63 +631,61 @@ func NewTransferOwnershipCommand(
     }
 }
 
-func (uc *TransferOwnershipCommand) Execute(ctx context.Context, input TransferOwnershipInput) (*TransferOwnershipOutput, error) {
+// Execute は所有権譲渡を実行します
+func (c *TransferOwnershipCommand) Execute(ctx context.Context, input TransferOwnershipInput) (*TransferOwnershipOutput, error) {
     var output *TransferOwnershipOutput
 
-    err := uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-        // 1. Get group
-        grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
+    err := c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        // 1. グループの取得
+        group, err := c.groupRepo.FindByID(ctx, input.GroupID)
         if err != nil {
-            return apperror.NewNotFound("group not found", err)
+            return apperror.NewNotFoundError("group not found")
         }
-        if !grp.IsActive() {
-            return apperror.NewBadRequest("group is not active", nil)
-        }
-
-        // 2. Verify current owner
-        if grp.OwnerID != input.CurrentOwner {
-            return apperror.NewForbidden("not the current owner", nil)
+        if !group.IsActive() {
+            return apperror.NewValidationError("group is not active", nil)
         }
 
-        // 3. Cannot transfer to self
+        // 2. 現在のオーナー確認
+        if !group.IsOwnedBy(input.CurrentOwner) {
+            return apperror.NewForbiddenError("not the current owner")
+        }
+
+        // 3. 自分自身への譲渡は不可
         if input.CurrentOwner == input.NewOwner {
-            return apperror.NewBadRequest("cannot transfer ownership to yourself", nil)
+            return apperror.NewValidationError("cannot transfer ownership to yourself", nil)
         }
 
-        // 4. Verify new owner is a member
-        newOwnerMembership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.NewOwner)
+        // 4. 新オーナーがメンバーであることを確認
+        newOwnerMembership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.NewOwner)
         if err != nil {
-            return apperror.NewBadRequest("new owner must be a group member", err)
+            return apperror.NewValidationError("new owner must be a group member", nil)
         }
 
-        // 5. Get current owner's membership
-        currentOwnerMembership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.CurrentOwner)
+        // 5. 現オーナーのメンバーシップを取得
+        currentOwnerMembership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.CurrentOwner)
         if err != nil {
             return err
         }
 
-        now := time.Now()
-
-        // 6. Update new owner's role to owner
-        newOwnerMembership.Role = group.GroupRoleOwner
-        if err := uc.membershipRepo.Update(ctx, newOwnerMembership); err != nil {
+        // 6. 新オーナーをownerに昇格
+        newOwnerMembership.PromoteToOwner()
+        if err := c.membershipRepo.Update(ctx, newOwnerMembership); err != nil {
             return err
         }
 
-        // 7. Downgrade current owner to admin
-        currentOwnerMembership.Role = group.GroupRoleAdmin
-        if err := uc.membershipRepo.Update(ctx, currentOwnerMembership); err != nil {
+        // 7. 現オーナーをcontributorに降格
+        currentOwnerMembership.DemoteToContributor()
+        if err := c.membershipRepo.Update(ctx, currentOwnerMembership); err != nil {
             return err
         }
 
-        // 8. Update group's owner_id
-        grp.OwnerID = input.NewOwner
-        grp.UpdatedAt = now
-        if err := uc.groupRepo.Update(ctx, grp); err != nil {
+        // 8. グループのowner_idを更新
+        group.TransferOwnership(input.NewOwner)
+        if err := c.groupRepo.Update(ctx, group); err != nil {
             return err
         }
 
-        output = &TransferOwnershipOutput{Group: grp}
+        output = &TransferOwnershipOutput{Group: group}
         return nil
     })
 
@@ -990,39 +697,47 @@ func (uc *TransferOwnershipCommand) Execute(ctx context.Context, input TransferO
 }
 ```
 
-### 3.7 ロール変更
+### 2.7 ロール変更
 
 ```go
-// backend/internal/usecase/group/change_role.go
+// backend/internal/usecase/collaboration/command/change_role.go
 
-package group
+package command
 
 import (
     "context"
+
     "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// ChangeRoleInput はロール変更の入力を定義します
 type ChangeRoleInput struct {
     GroupID  uuid.UUID
     TargetID uuid.UUID
-    NewRole  group.GroupRole
+    NewRole  string
     ActorID  uuid.UUID
 }
 
+// ChangeRoleOutput はロール変更の出力を定義します
 type ChangeRoleOutput struct {
-    Membership *group.Membership
+    Membership *entity.Membership
 }
 
+// ChangeRoleCommand はロール変更コマンドです
 type ChangeRoleCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
 }
 
+// NewChangeRoleCommand は新しいChangeRoleCommandを作成します
 func NewChangeRoleCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
 ) *ChangeRoleCommand {
     return &ChangeRoleCommand{
         groupRepo:      groupRepo,
@@ -1030,46 +745,54 @@ func NewChangeRoleCommand(
     }
 }
 
-func (uc *ChangeRoleCommand) Execute(ctx context.Context, input ChangeRoleInput) (*ChangeRoleOutput, error) {
-    // 1. Get group
-    grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
+// Execute はロール変更を実行します
+// GroupRole: viewer < contributor < owner
+func (c *ChangeRoleCommand) Execute(ctx context.Context, input ChangeRoleInput) (*ChangeRoleOutput, error) {
+    // 1. 新ロールのバリデーション
+    newRole, err := valueobject.NewGroupRole(input.NewRole)
     if err != nil {
-        return nil, apperror.NewNotFound("group not found", err)
-    }
-    if !grp.IsActive() {
-        return nil, apperror.NewBadRequest("group is not active", nil)
+        return nil, apperror.NewValidationError(err.Error(), nil)
     }
 
-    // 2. Cannot assign owner role (use transfer ownership)
-    if input.NewRole == group.GroupRoleOwner {
-        return nil, apperror.NewBadRequest("use ownership transfer to assign owner role", nil)
+    // 2. ownerロールへの変更は不可（所有権譲渡を使用）
+    if newRole == valueobject.GroupRoleOwner {
+        return nil, apperror.NewValidationError("use ownership transfer to assign owner role", nil)
     }
 
-    // 3. Get actor's membership
-    actorMembership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.ActorID)
+    // 3. グループの取得
+    group, err := c.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
-        return nil, apperror.NewForbidden("not a member of this group", err)
+        return nil, apperror.NewNotFoundError("group not found")
+    }
+    if !group.IsActive() {
+        return nil, apperror.NewValidationError("group is not active", nil)
     }
 
-    // 4. Get target's membership
-    targetMembership, err := uc.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.TargetID)
+    // 4. 操作実行者のメンバーシップを取得
+    actorMembership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.ActorID)
     if err != nil {
-        return nil, apperror.NewNotFound("target user is not a member", err)
+        return nil, apperror.NewForbiddenError("not a member of this group")
     }
 
-    // 5. Verify permission
-    if !actorMembership.Role.CanChangeRole(targetMembership.Role, input.NewRole) {
-        return nil, apperror.NewForbidden("insufficient permission to change role", nil)
+    // 5. 対象のメンバーシップを取得
+    targetMembership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.TargetID)
+    if err != nil {
+        return nil, apperror.NewNotFoundError("target user is not a member")
     }
 
-    // 6. Cannot change own role
+    // 6. 権限チェック（ownerのみロール変更可能）
+    if !actorMembership.IsOwner() {
+        return nil, apperror.NewForbiddenError("only owner can change member roles")
+    }
+
+    // 7. 自分自身のロールは変更不可
     if input.ActorID == input.TargetID {
-        return nil, apperror.NewBadRequest("cannot change your own role", nil)
+        return nil, apperror.NewValidationError("cannot change your own role", nil)
     }
 
-    // 7. Update role
-    targetMembership.Role = input.NewRole
-    if err := uc.membershipRepo.Update(ctx, targetMembership); err != nil {
+    // 8. ロールを更新
+    targetMembership.ChangeRole(newRole)
+    if err := c.membershipRepo.Update(ctx, targetMembership); err != nil {
         return nil, err
     }
 
@@ -1077,98 +800,321 @@ func (uc *ChangeRoleCommand) Execute(ctx context.Context, input ChangeRoleInput)
 }
 ```
 
-### 3.8 グループ削除
+### 2.8 グループ削除
 
 ```go
-// backend/internal/usecase/group/delete_group.go
+// backend/internal/usecase/collaboration/command/delete_group.go
 
-package group
+package command
 
 import (
     "context"
-    "time"
+
     "github.com/google/uuid"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/storage"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
     "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
+// DeleteGroupInput はグループ削除の入力を定義します
 type DeleteGroupInput struct {
     GroupID uuid.UUID
     ActorID uuid.UUID
 }
 
+// DeleteGroupCommand はグループ削除コマンドです
+// Note: グループとフォルダは分離されているため、グループ削除時にフォルダは削除しない
+// グループに付与されていたPermissionGrantは別途削除される
 type DeleteGroupCommand struct {
-    groupRepo      group.GroupRepository
-    membershipRepo group.MembershipRepository
-    invitationRepo group.InvitationRepository
-    folderRepo     storage.FolderRepository
-    txManager      TransactionManager
+    groupRepo       repository.GroupRepository
+    membershipRepo  repository.MembershipRepository
+    invitationRepo  repository.InvitationRepository
+    permGrantRepo   repository.PermissionGrantRepository
+    txManager       repository.TransactionManager
 }
 
+// NewDeleteGroupCommand は新しいDeleteGroupCommandを作成します
 func NewDeleteGroupCommand(
-    groupRepo group.GroupRepository,
-    membershipRepo group.MembershipRepository,
-    invitationRepo group.InvitationRepository,
-    folderRepo storage.FolderRepository,
-    txManager TransactionManager,
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+    invitationRepo repository.InvitationRepository,
+    permGrantRepo repository.PermissionGrantRepository,
+    txManager repository.TransactionManager,
 ) *DeleteGroupCommand {
     return &DeleteGroupCommand{
         groupRepo:      groupRepo,
         membershipRepo: membershipRepo,
         invitationRepo: invitationRepo,
-        folderRepo:     folderRepo,
+        permGrantRepo:  permGrantRepo,
         txManager:      txManager,
     }
 }
 
-func (uc *DeleteGroupCommand) Execute(ctx context.Context, input DeleteGroupInput) error {
-    return uc.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-        // 1. Get group
-        grp, err := uc.groupRepo.FindByID(ctx, input.GroupID)
+// Execute はグループ削除を実行します
+func (c *DeleteGroupCommand) Execute(ctx context.Context, input DeleteGroupInput) error {
+    return c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
+        // 1. グループの取得
+        group, err := c.groupRepo.FindByID(ctx, input.GroupID)
         if err != nil {
-            return apperror.NewNotFound("group not found", err)
+            return apperror.NewNotFoundError("group not found")
         }
-        if !grp.IsActive() {
-            return apperror.NewBadRequest("group is already deleted", nil)
-        }
-
-        // 2. Verify actor is owner
-        if grp.OwnerID != input.ActorID {
-            return apperror.NewForbidden("only the owner can delete the group", nil)
+        if !group.IsActive() {
+            return apperror.NewValidationError("group is already deleted", nil)
         }
 
-        now := time.Now()
+        // 2. オーナーのみ削除可能
+        if !group.IsOwnedBy(input.ActorID) {
+            return apperror.NewForbiddenError("only the owner can delete the group")
+        }
 
-        // 3. Delete all invitations
-        if err := uc.invitationRepo.DeleteByGroupID(ctx, input.GroupID); err != nil {
+        // 3. 招待を全削除
+        if err := c.invitationRepo.DeleteByGroupID(ctx, input.GroupID); err != nil {
             return err
         }
 
-        // 4. Delete all memberships
-        if err := uc.membershipRepo.DeleteByGroupID(ctx, input.GroupID); err != nil {
+        // 4. メンバーシップを全削除
+        if err := c.membershipRepo.DeleteByGroupID(ctx, input.GroupID); err != nil {
             return err
         }
 
-        // 5. Trash group's root folder (this will cascade to all contents)
-        rootFolder, err := uc.folderRepo.FindRootByOwner(ctx, storage.OwnerTypeGroup, input.GroupID)
-        if err == nil && rootFolder != nil {
-            rootFolder.Status = storage.FolderStatusTrashed
-            rootFolder.TrashedAt = &now
-            if err := uc.folderRepo.Update(ctx, rootFolder); err != nil {
-                return err
-            }
-        }
-
-        // 6. Soft delete group
-        grp.Status = group.GroupStatusDeleted
-        grp.UpdatedAt = now
-        if err := uc.groupRepo.Update(ctx, grp); err != nil {
+        // 5. グループに付与されていたPermissionGrantを全削除
+        // Note: グループとフォルダは分離されているため、グループ削除時にフォルダは削除しない
+        if err := c.permGrantRepo.DeleteByGrantee(ctx, authz.GranteeTypeGroup, input.GroupID); err != nil {
             return err
         }
 
-        return nil
+        // 6. グループを論理削除
+        group.Delete()
+        return c.groupRepo.Update(ctx, group)
     })
+}
+```
+
+---
+
+## 3. ユースケース（Query）
+
+### 3.1 グループ詳細取得
+
+```go
+// backend/internal/usecase/collaboration/query/get_group.go
+
+package query
+
+import (
+    "context"
+
+    "github.com/google/uuid"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
+)
+
+// GetGroupInput はグループ詳細取得の入力を定義します
+type GetGroupInput struct {
+    GroupID uuid.UUID
+    ActorID uuid.UUID
+}
+
+// GetGroupOutput はグループ詳細取得の出力を定義します
+type GetGroupOutput struct {
+    Group       *entity.Group
+    Membership  *entity.Membership
+    MemberCount int
+}
+
+// GetGroupQuery はグループ詳細取得クエリです
+type GetGroupQuery struct {
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+}
+
+// NewGetGroupQuery は新しいGetGroupQueryを作成します
+func NewGetGroupQuery(
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+) *GetGroupQuery {
+    return &GetGroupQuery{
+        groupRepo:      groupRepo,
+        membershipRepo: membershipRepo,
+    }
+}
+
+// Execute はグループ詳細取得を実行します
+func (q *GetGroupQuery) Execute(ctx context.Context, input GetGroupInput) (*GetGroupOutput, error) {
+    // 1. グループの取得
+    group, err := q.groupRepo.FindByID(ctx, input.GroupID)
+    if err != nil {
+        return nil, apperror.NewNotFoundError("group not found")
+    }
+
+    // 2. メンバーシップの確認（閲覧権限チェック）
+    membership, err := q.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.ActorID)
+    if err != nil {
+        return nil, apperror.NewForbiddenError("not a member of this group")
+    }
+
+    // 3. メンバー数の取得
+    memberCount, err := q.membershipRepo.CountByGroupID(ctx, input.GroupID)
+    if err != nil {
+        return nil, err
+    }
+
+    return &GetGroupOutput{
+        Group:       group,
+        Membership:  membership,
+        MemberCount: memberCount,
+    }, nil
+}
+```
+
+### 3.2 所属グループ一覧
+
+```go
+// backend/internal/usecase/collaboration/query/list_my_groups.go
+
+package query
+
+import (
+    "context"
+
+    "github.com/google/uuid"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+)
+
+// ListMyGroupsInput は所属グループ一覧の入力を定義します
+type ListMyGroupsInput struct {
+    UserID uuid.UUID
+}
+
+// GroupWithMembership はメンバーシップ付きグループ
+type GroupWithMembership struct {
+    Group      *entity.Group
+    Membership *entity.Membership
+}
+
+// ListMyGroupsOutput は所属グループ一覧の出力を定義します
+type ListMyGroupsOutput struct {
+    Groups []*GroupWithMembership
+}
+
+// ListMyGroupsQuery は所属グループ一覧クエリです
+type ListMyGroupsQuery struct {
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+}
+
+// NewListMyGroupsQuery は新しいListMyGroupsQueryを作成します
+func NewListMyGroupsQuery(
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+) *ListMyGroupsQuery {
+    return &ListMyGroupsQuery{
+        groupRepo:      groupRepo,
+        membershipRepo: membershipRepo,
+    }
+}
+
+// Execute は所属グループ一覧を実行します
+func (q *ListMyGroupsQuery) Execute(ctx context.Context, input ListMyGroupsInput) (*ListMyGroupsOutput, error) {
+    // 1. ユーザーのメンバーシップ一覧を取得
+    memberships, err := q.membershipRepo.FindByUserID(ctx, input.UserID)
+    if err != nil {
+        return nil, err
+    }
+
+    // 2. 各メンバーシップのグループを取得
+    groups := make([]*GroupWithMembership, 0, len(memberships))
+    for _, m := range memberships {
+        group, err := q.groupRepo.FindByID(ctx, m.GroupID)
+        if err != nil {
+            continue // グループが見つからない場合はスキップ
+        }
+        if !group.IsActive() {
+            continue // 削除済みグループはスキップ
+        }
+        groups = append(groups, &GroupWithMembership{
+            Group:      group,
+            Membership: m,
+        })
+    }
+
+    return &ListMyGroupsOutput{Groups: groups}, nil
+}
+```
+
+### 3.3 メンバー一覧
+
+```go
+// backend/internal/usecase/collaboration/query/list_members.go
+
+package query
+
+import (
+    "context"
+
+    "github.com/google/uuid"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
+)
+
+// ListMembersInput はメンバー一覧の入力を定義します
+type ListMembersInput struct {
+    GroupID uuid.UUID
+    ActorID uuid.UUID
+}
+
+// ListMembersOutput はメンバー一覧の出力を定義します
+type ListMembersOutput struct {
+    Members []*repository.MembershipWithUser
+}
+
+// ListMembersQuery はメンバー一覧クエリです
+type ListMembersQuery struct {
+    groupRepo      repository.GroupRepository
+    membershipRepo repository.MembershipRepository
+}
+
+// NewListMembersQuery は新しいListMembersQueryを作成します
+func NewListMembersQuery(
+    groupRepo repository.GroupRepository,
+    membershipRepo repository.MembershipRepository,
+) *ListMembersQuery {
+    return &ListMembersQuery{
+        groupRepo:      groupRepo,
+        membershipRepo: membershipRepo,
+    }
+}
+
+// Execute はメンバー一覧を実行します
+func (q *ListMembersQuery) Execute(ctx context.Context, input ListMembersInput) (*ListMembersOutput, error) {
+    // 1. グループの存在確認
+    group, err := q.groupRepo.FindByID(ctx, input.GroupID)
+    if err != nil {
+        return nil, apperror.NewNotFoundError("group not found")
+    }
+    if !group.IsActive() {
+        return nil, apperror.NewValidationError("group is not active", nil)
+    }
+
+    // 2. 操作実行者のメンバーシップ確認
+    _, err = q.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.ActorID)
+    if err != nil {
+        return nil, apperror.NewForbiddenError("not a member of this group")
+    }
+
+    // 3. メンバー一覧（ユーザー情報付き）を取得
+    members, err := q.membershipRepo.FindByGroupIDWithUsers(ctx, input.GroupID)
+    if err != nil {
+        return nil, err
+    }
+
+    return &ListMembersOutput{Members: members}, nil
 }
 ```
 
@@ -1183,34 +1129,76 @@ package handler
 
 import (
     "net/http"
+
     "github.com/google/uuid"
     "github.com/labstack/echo/v4"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/request"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/response"
     "github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/group"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/collaboration/command"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/collaboration/query"
 )
 
+// GroupHandler はグループ関連のHTTPハンドラーです
 type GroupHandler struct {
-    createGroup       *group.CreateGroupCommand
-    getGroup          *group.GetGroupQuery
-    updateGroup       *group.UpdateGroupCommand
-    deleteGroup       *group.DeleteGroupCommand
-    listMyGroups      *group.ListMyGroupsQuery
-    inviteMember      *group.InviteMemberCommand
-    acceptInvitation  *group.AcceptInvitationCommand
-    declineInvitation *group.DeclineInvitationCommand
-    cancelInvitation  *group.CancelInvitationCommand
-    listInvitations   *group.ListInvitationsQuery
-    listMembers       *group.ListMembersQuery
-    removeMember      *group.RemoveMemberCommand
-    leaveGroup        *group.LeaveGroupCommand
-    changeRole        *group.ChangeRoleCommand
-    transferOwnership *group.TransferOwnershipCommand
+    createGroup       *command.CreateGroupCommand
+    updateGroup       *command.UpdateGroupCommand
+    deleteGroup       *command.DeleteGroupCommand
+    inviteMember      *command.InviteMemberCommand
+    acceptInvitation  *command.AcceptInvitationCommand
+    declineInvitation *command.DeclineInvitationCommand
+    cancelInvitation  *command.CancelInvitationCommand
+    removeMember      *command.RemoveMemberCommand
+    leaveGroup        *command.LeaveGroupCommand
+    changeRole        *command.ChangeRoleCommand
+    transferOwnership *command.TransferOwnershipCommand
+    getGroup          *query.GetGroupQuery
+    listMyGroups      *query.ListMyGroupsQuery
+    listMembers       *query.ListMembersQuery
+    listInvitations   *query.ListInvitationsQuery
 }
 
-// POST /api/v1/groups
+// NewGroupHandler は新しいGroupHandlerを作成します
+func NewGroupHandler(
+    createGroup *command.CreateGroupCommand,
+    updateGroup *command.UpdateGroupCommand,
+    deleteGroup *command.DeleteGroupCommand,
+    inviteMember *command.InviteMemberCommand,
+    acceptInvitation *command.AcceptInvitationCommand,
+    declineInvitation *command.DeclineInvitationCommand,
+    cancelInvitation *command.CancelInvitationCommand,
+    removeMember *command.RemoveMemberCommand,
+    leaveGroup *command.LeaveGroupCommand,
+    changeRole *command.ChangeRoleCommand,
+    transferOwnership *command.TransferOwnershipCommand,
+    getGroup *query.GetGroupQuery,
+    listMyGroups *query.ListMyGroupsQuery,
+    listMembers *query.ListMembersQuery,
+    listInvitations *query.ListInvitationsQuery,
+) *GroupHandler {
+    return &GroupHandler{
+        createGroup:       createGroup,
+        updateGroup:       updateGroup,
+        deleteGroup:       deleteGroup,
+        inviteMember:      inviteMember,
+        acceptInvitation:  acceptInvitation,
+        declineInvitation: declineInvitation,
+        cancelInvitation:  cancelInvitation,
+        removeMember:      removeMember,
+        leaveGroup:        leaveGroup,
+        changeRole:        changeRole,
+        transferOwnership: transferOwnership,
+        getGroup:          getGroup,
+        listMyGroups:      listMyGroups,
+        listMembers:       listMembers,
+        listInvitations:   listInvitations,
+    }
+}
+
+// Create handles POST /api/v1/groups
 func (h *GroupHandler) Create(c echo.Context) error {
-    var req dto.CreateGroupRequest
+    var req request.CreateGroupRequest
     if err := c.Bind(&req); err != nil {
         return err
     }
@@ -1219,7 +1207,7 @@ func (h *GroupHandler) Create(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    output, err := h.createGroup.Execute(c.Request().Context(), group.CreateGroupInput{
+    output, err := h.createGroup.Execute(c.Request().Context(), command.CreateGroupInput{
         Name:        req.Name,
         Description: req.Description,
         OwnerID:     claims.UserID,
@@ -1228,17 +1216,10 @@ func (h *GroupHandler) Create(c echo.Context) error {
         return err
     }
 
-    return c.JSON(http.StatusCreated, dto.GroupResponse{
-        ID:          output.Group.ID,
-        Name:        output.Group.Name,
-        Description: output.Group.Description,
-        OwnerID:     output.Group.OwnerID,
-        Role:        string(output.Membership.Role),
-        CreatedAt:   output.Group.CreatedAt,
-    })
+    return c.JSON(http.StatusCreated, response.ToGroupResponse(output.Group, output.Membership))
 }
 
-// GET /api/v1/groups/:id
+// Get handles GET /api/v1/groups/:id
 func (h *GroupHandler) Get(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
@@ -1246,7 +1227,7 @@ func (h *GroupHandler) Get(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    output, err := h.getGroup.Execute(c.Request().Context(), group.GetGroupInput{
+    output, err := h.getGroup.Execute(c.Request().Context(), query.GetGroupInput{
         GroupID: groupID,
         ActorID: claims.UserID,
     })
@@ -1254,33 +1235,23 @@ func (h *GroupHandler) Get(c echo.Context) error {
         return err
     }
 
-    return c.JSON(http.StatusOK, dto.GroupDetailResponse{
-        ID:          output.Group.ID,
-        Name:        output.Group.Name,
-        Description: output.Group.Description,
-        OwnerID:     output.Group.OwnerID,
-        Role:        string(output.Membership.Role),
-        MemberCount: output.MemberCount,
-        CreatedAt:   output.Group.CreatedAt,
-    })
+    return c.JSON(http.StatusOK, response.ToGroupDetailResponse(output.Group, output.Membership, output.MemberCount))
 }
 
-// GET /api/v1/groups
+// ListMyGroups handles GET /api/v1/groups
 func (h *GroupHandler) ListMyGroups(c echo.Context) error {
     claims := middleware.GetClaims(c)
-    output, err := h.listMyGroups.Execute(c.Request().Context(), group.ListMyGroupsInput{
+    output, err := h.listMyGroups.Execute(c.Request().Context(), query.ListMyGroupsInput{
         UserID: claims.UserID,
     })
     if err != nil {
         return err
     }
 
-    return c.JSON(http.StatusOK, dto.GroupListResponse{
-        Groups: dto.ToGroupResponses(output.Groups, output.Memberships),
-    })
+    return c.JSON(http.StatusOK, response.ToGroupListResponse(output.Groups))
 }
 
-// DELETE /api/v1/groups/:id
+// Delete handles DELETE /api/v1/groups/:id
 func (h *GroupHandler) Delete(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
@@ -1288,7 +1259,7 @@ func (h *GroupHandler) Delete(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    err = h.deleteGroup.Execute(c.Request().Context(), group.DeleteGroupInput{
+    err = h.deleteGroup.Execute(c.Request().Context(), command.DeleteGroupInput{
         GroupID: groupID,
         ActorID: claims.UserID,
     })
@@ -1299,14 +1270,14 @@ func (h *GroupHandler) Delete(c echo.Context) error {
     return c.NoContent(http.StatusNoContent)
 }
 
-// POST /api/v1/groups/:id/invitations
+// InviteMember handles POST /api/v1/groups/:id/invitations
 func (h *GroupHandler) InviteMember(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
         return echo.NewHTTPError(http.StatusBadRequest, "invalid group id")
     }
 
-    var req dto.InviteMemberRequest
+    var req request.InviteMemberRequest
     if err := c.Bind(&req); err != nil {
         return err
     }
@@ -1315,31 +1286,25 @@ func (h *GroupHandler) InviteMember(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    output, err := h.inviteMember.Execute(c.Request().Context(), group.InviteMemberInput{
+    output, err := h.inviteMember.Execute(c.Request().Context(), command.InviteMemberInput{
         GroupID:   groupID,
         Email:     req.Email,
-        Role:      group.GroupRole(req.Role),
+        Role:      req.Role,
         InviterID: claims.UserID,
     })
     if err != nil {
         return err
     }
 
-    return c.JSON(http.StatusCreated, dto.InvitationResponse{
-        ID:        output.Invitation.ID,
-        Email:     output.Invitation.Email,
-        Role:      string(output.Invitation.Role),
-        ExpiresAt: output.Invitation.ExpiresAt,
-        Status:    string(output.Invitation.Status),
-    })
+    return c.JSON(http.StatusCreated, response.ToInvitationResponse(output.Invitation))
 }
 
-// POST /api/v1/invitations/:token/accept
+// AcceptInvitation handles POST /api/v1/invitations/:token/accept
 func (h *GroupHandler) AcceptInvitation(c echo.Context) error {
     token := c.Param("token")
 
     claims := middleware.GetClaims(c)
-    output, err := h.acceptInvitation.Execute(c.Request().Context(), group.AcceptInvitationInput{
+    output, err := h.acceptInvitation.Execute(c.Request().Context(), command.AcceptInvitationInput{
         Token:  token,
         UserID: claims.UserID,
     })
@@ -1347,19 +1312,15 @@ func (h *GroupHandler) AcceptInvitation(c echo.Context) error {
         return err
     }
 
-    return c.JSON(http.StatusOK, dto.AcceptInvitationResponse{
-        GroupID:   output.Group.ID,
-        GroupName: output.Group.Name,
-        Role:      string(output.Membership.Role),
-    })
+    return c.JSON(http.StatusOK, response.ToAcceptInvitationResponse(output.Group, output.Membership))
 }
 
-// POST /api/v1/invitations/:token/decline
+// DeclineInvitation handles POST /api/v1/invitations/:token/decline
 func (h *GroupHandler) DeclineInvitation(c echo.Context) error {
     token := c.Param("token")
 
     claims := middleware.GetClaims(c)
-    err := h.declineInvitation.Execute(c.Request().Context(), group.DeclineInvitationInput{
+    err := h.declineInvitation.Execute(c.Request().Context(), command.DeclineInvitationInput{
         Token:  token,
         UserID: claims.UserID,
     })
@@ -1370,7 +1331,7 @@ func (h *GroupHandler) DeclineInvitation(c echo.Context) error {
     return c.NoContent(http.StatusNoContent)
 }
 
-// GET /api/v1/groups/:id/members
+// ListMembers handles GET /api/v1/groups/:id/members
 func (h *GroupHandler) ListMembers(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
@@ -1378,7 +1339,7 @@ func (h *GroupHandler) ListMembers(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    output, err := h.listMembers.Execute(c.Request().Context(), group.ListMembersInput{
+    output, err := h.listMembers.Execute(c.Request().Context(), query.ListMembersInput{
         GroupID: groupID,
         ActorID: claims.UserID,
     })
@@ -1386,12 +1347,10 @@ func (h *GroupHandler) ListMembers(c echo.Context) error {
         return err
     }
 
-    return c.JSON(http.StatusOK, dto.MemberListResponse{
-        Members: dto.ToMemberResponses(output.Members),
-    })
+    return c.JSON(http.StatusOK, response.ToMemberListResponse(output.Members))
 }
 
-// DELETE /api/v1/groups/:id/members/:userId
+// RemoveMember handles DELETE /api/v1/groups/:id/members/:userId
 func (h *GroupHandler) RemoveMember(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
@@ -1403,7 +1362,7 @@ func (h *GroupHandler) RemoveMember(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    err = h.removeMember.Execute(c.Request().Context(), group.RemoveMemberInput{
+    err = h.removeMember.Execute(c.Request().Context(), command.RemoveMemberInput{
         GroupID:  groupID,
         TargetID: targetID,
         ActorID:  claims.UserID,
@@ -1415,7 +1374,7 @@ func (h *GroupHandler) RemoveMember(c echo.Context) error {
     return c.NoContent(http.StatusNoContent)
 }
 
-// POST /api/v1/groups/:id/leave
+// Leave handles POST /api/v1/groups/:id/leave
 func (h *GroupHandler) Leave(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
@@ -1423,7 +1382,7 @@ func (h *GroupHandler) Leave(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    err = h.leaveGroup.Execute(c.Request().Context(), group.LeaveGroupInput{
+    err = h.leaveGroup.Execute(c.Request().Context(), command.LeaveGroupInput{
         GroupID: groupID,
         UserID:  claims.UserID,
     })
@@ -1434,7 +1393,7 @@ func (h *GroupHandler) Leave(c echo.Context) error {
     return c.NoContent(http.StatusNoContent)
 }
 
-// PATCH /api/v1/groups/:id/members/:userId/role
+// ChangeRole handles PATCH /api/v1/groups/:id/members/:userId/role
 func (h *GroupHandler) ChangeRole(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
@@ -1445,7 +1404,7 @@ func (h *GroupHandler) ChangeRole(c echo.Context) error {
         return echo.NewHTTPError(http.StatusBadRequest, "invalid user id")
     }
 
-    var req dto.ChangeRoleRequest
+    var req request.ChangeRoleRequest
     if err := c.Bind(&req); err != nil {
         return err
     }
@@ -1454,31 +1413,27 @@ func (h *GroupHandler) ChangeRole(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    output, err := h.changeRole.Execute(c.Request().Context(), group.ChangeRoleInput{
+    output, err := h.changeRole.Execute(c.Request().Context(), command.ChangeRoleInput{
         GroupID:  groupID,
         TargetID: targetID,
-        NewRole:  group.GroupRole(req.Role),
+        NewRole:  req.Role,
         ActorID:  claims.UserID,
     })
     if err != nil {
         return err
     }
 
-    return c.JSON(http.StatusOK, dto.MemberResponse{
-        UserID:   output.Membership.UserID,
-        Role:     string(output.Membership.Role),
-        JoinedAt: output.Membership.JoinedAt,
-    })
+    return c.JSON(http.StatusOK, response.ToMemberResponse(output.Membership, "", ""))
 }
 
-// POST /api/v1/groups/:id/transfer
+// TransferOwnership handles POST /api/v1/groups/:id/transfer
 func (h *GroupHandler) TransferOwnership(c echo.Context) error {
     groupID, err := uuid.Parse(c.Param("id"))
     if err != nil {
         return echo.NewHTTPError(http.StatusBadRequest, "invalid group id")
     }
 
-    var req dto.TransferOwnershipRequest
+    var req request.TransferOwnershipRequest
     if err := c.Bind(&req); err != nil {
         return err
     }
@@ -1487,7 +1442,7 @@ func (h *GroupHandler) TransferOwnership(c echo.Context) error {
     }
 
     claims := middleware.GetClaims(c)
-    output, err := h.transferOwnership.Execute(c.Request().Context(), group.TransferOwnershipInput{
+    output, err := h.transferOwnership.Execute(c.Request().Context(), command.TransferOwnershipInput{
         GroupID:      groupID,
         CurrentOwner: claims.UserID,
         NewOwner:     req.NewOwnerID,
@@ -1496,11 +1451,7 @@ func (h *GroupHandler) TransferOwnership(c echo.Context) error {
         return err
     }
 
-    return c.JSON(http.StatusOK, dto.GroupResponse{
-        ID:      output.Group.ID,
-        Name:    output.Group.Name,
-        OwnerID: output.Group.OwnerID,
-    })
+    return c.JSON(http.StatusOK, response.ToGroupSimpleResponse(output.Group))
 }
 ```
 
@@ -1508,93 +1459,219 @@ func (h *GroupHandler) TransferOwnership(c echo.Context) error {
 
 ## 5. DTO定義
 
+### 5.1 Request DTO
+
 ```go
-// backend/internal/interface/dto/group.go
+// backend/internal/interface/dto/request/group.go
 
-package dto
+package request
 
-import (
-    "time"
-    "github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
-// Group DTOs
+// CreateGroupRequest はグループ作成リクエスト
 type CreateGroupRequest struct {
     Name        string `json:"name" validate:"required,min=1,max=100"`
     Description string `json:"description" validate:"max=500"`
 }
 
+// UpdateGroupRequest はグループ更新リクエスト
 type UpdateGroupRequest struct {
     Name        *string `json:"name" validate:"omitempty,min=1,max=100"`
     Description *string `json:"description" validate:"omitempty,max=500"`
 }
 
+// InviteMemberRequest はメンバー招待リクエスト
+// GroupRole: viewer, contributor（ownerは所有権譲渡で付与）
+// デフォルトロール: viewer
+type InviteMemberRequest struct {
+    Email string `json:"email" validate:"required,email"`
+    Role  string `json:"role" validate:"omitempty,oneof=viewer contributor"`  // 省略時はviewer
+}
+
+// ChangeRoleRequest はロール変更リクエスト
+// GroupRole: viewer, contributor（ownerは所有権譲渡で付与）
+type ChangeRoleRequest struct {
+    Role string `json:"role" validate:"required,oneof=viewer contributor"`
+}
+
+// TransferOwnershipRequest は所有権譲渡リクエスト
+type TransferOwnershipRequest struct {
+    NewOwnerID uuid.UUID `json:"newOwnerId" validate:"required"`
+}
+```
+
+### 5.2 Response DTO
+
+```go
+// backend/internal/interface/dto/response/group.go
+
+package response
+
+import (
+    "time"
+
+    "github.com/google/uuid"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+    "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/collaboration/query"
+)
+
+// GroupResponse はグループレスポンス
 type GroupResponse struct {
     ID          uuid.UUID `json:"id"`
     Name        string    `json:"name"`
     Description string    `json:"description,omitempty"`
-    OwnerID     uuid.UUID `json:"owner_id"`
+    OwnerID     uuid.UUID `json:"ownerId"`
     Role        string    `json:"role"`
-    CreatedAt   time.Time `json:"created_at"`
+    CreatedAt   time.Time `json:"createdAt"`
 }
 
+// GroupDetailResponse はグループ詳細レスポンス
 type GroupDetailResponse struct {
     ID          uuid.UUID `json:"id"`
     Name        string    `json:"name"`
     Description string    `json:"description,omitempty"`
-    OwnerID     uuid.UUID `json:"owner_id"`
+    OwnerID     uuid.UUID `json:"ownerId"`
     Role        string    `json:"role"`
-    MemberCount int       `json:"member_count"`
-    CreatedAt   time.Time `json:"created_at"`
+    MemberCount int       `json:"memberCount"`
+    CreatedAt   time.Time `json:"createdAt"`
 }
 
+// GroupSimpleResponse はシンプルなグループレスポンス
+type GroupSimpleResponse struct {
+    ID      uuid.UUID `json:"id"`
+    Name    string    `json:"name"`
+    OwnerID uuid.UUID `json:"ownerId"`
+}
+
+// GroupListResponse はグループ一覧レスポンス
 type GroupListResponse struct {
     Groups []GroupResponse `json:"groups"`
 }
 
-// Invitation DTOs
-type InviteMemberRequest struct {
-    Email string `json:"email" validate:"required,email"`
-    Role  string `json:"role" validate:"required,oneof=member admin"`
-}
-
+// InvitationResponse は招待レスポンス
 type InvitationResponse struct {
     ID        uuid.UUID `json:"id"`
     Email     string    `json:"email"`
     Role      string    `json:"role"`
-    ExpiresAt time.Time `json:"expires_at"`
+    ExpiresAt time.Time `json:"expiresAt"`
     Status    string    `json:"status"`
 }
 
+// InvitationListResponse は招待一覧レスポンス
 type InvitationListResponse struct {
     Invitations []InvitationResponse `json:"invitations"`
 }
 
+// AcceptInvitationResponse は招待承諾レスポンス
 type AcceptInvitationResponse struct {
-    GroupID   uuid.UUID `json:"group_id"`
-    GroupName string    `json:"group_name"`
+    GroupID   uuid.UUID `json:"groupId"`
+    GroupName string    `json:"groupName"`
     Role      string    `json:"role"`
 }
 
-// Member DTOs
+// MemberResponse はメンバーレスポンス
 type MemberResponse struct {
-    UserID   uuid.UUID `json:"user_id"`
-    UserName string    `json:"user_name"`
+    UserID   uuid.UUID `json:"userId"`
+    UserName string    `json:"userName"`
     Email    string    `json:"email"`
     Role     string    `json:"role"`
-    JoinedAt time.Time `json:"joined_at"`
+    JoinedAt time.Time `json:"joinedAt"`
 }
 
+// MemberListResponse はメンバー一覧レスポンス
 type MemberListResponse struct {
     Members []MemberResponse `json:"members"`
 }
 
-type ChangeRoleRequest struct {
-    Role string `json:"role" validate:"required,oneof=member admin"`
+// ToGroupResponse はGroupResponseを生成します
+func ToGroupResponse(group *entity.Group, membership *entity.Membership) GroupResponse {
+    return GroupResponse{
+        ID:          group.ID,
+        Name:        group.Name.String(),
+        Description: group.Description,
+        OwnerID:     group.OwnerID,
+        Role:        membership.Role.String(),
+        CreatedAt:   group.CreatedAt,
+    }
 }
 
-type TransferOwnershipRequest struct {
-    NewOwnerID uuid.UUID `json:"new_owner_id" validate:"required"`
+// ToGroupDetailResponse はGroupDetailResponseを生成します
+func ToGroupDetailResponse(group *entity.Group, membership *entity.Membership, memberCount int) GroupDetailResponse {
+    return GroupDetailResponse{
+        ID:          group.ID,
+        Name:        group.Name.String(),
+        Description: group.Description,
+        OwnerID:     group.OwnerID,
+        Role:        membership.Role.String(),
+        MemberCount: memberCount,
+        CreatedAt:   group.CreatedAt,
+    }
+}
+
+// ToGroupSimpleResponse はGroupSimpleResponseを生成します
+func ToGroupSimpleResponse(group *entity.Group) GroupSimpleResponse {
+    return GroupSimpleResponse{
+        ID:      group.ID,
+        Name:    group.Name.String(),
+        OwnerID: group.OwnerID,
+    }
+}
+
+// ToGroupListResponse はGroupListResponseを生成します
+func ToGroupListResponse(groups []*query.GroupWithMembership) GroupListResponse {
+    responses := make([]GroupResponse, 0, len(groups))
+    for _, g := range groups {
+        responses = append(responses, ToGroupResponse(g.Group, g.Membership))
+    }
+    return GroupListResponse{Groups: responses}
+}
+
+// ToInvitationResponse はInvitationResponseを生成します
+func ToInvitationResponse(invitation *entity.Invitation) InvitationResponse {
+    return InvitationResponse{
+        ID:        invitation.ID,
+        Email:     invitation.Email,
+        Role:      invitation.Role.String(),
+        ExpiresAt: invitation.ExpiresAt,
+        Status:    invitation.Status.String(),
+    }
+}
+
+// ToAcceptInvitationResponse はAcceptInvitationResponseを生成します
+func ToAcceptInvitationResponse(group *entity.Group, membership *entity.Membership) AcceptInvitationResponse {
+    return AcceptInvitationResponse{
+        GroupID:   group.ID,
+        GroupName: group.Name.String(),
+        Role:      membership.Role.String(),
+    }
+}
+
+// ToMemberResponse はMemberResponseを生成します
+func ToMemberResponse(membership *entity.Membership, userName, email string) MemberResponse {
+    return MemberResponse{
+        UserID:   membership.UserID,
+        UserName: userName,
+        Email:    email,
+        Role:     membership.Role.String(),
+        JoinedAt: membership.JoinedAt,
+    }
+}
+
+// ToMemberListResponse はMemberListResponseを生成します
+func ToMemberListResponse(members []*repository.MembershipWithUser) MemberListResponse {
+    responses := make([]MemberResponse, 0, len(members))
+    for _, m := range members {
+        responses = append(responses, MemberResponse{
+            UserID:   m.UserID,
+            UserName: m.UserName,
+            Email:    m.UserEmail,
+            Role:     m.Role.String(),
+            JoinedAt: m.JoinedAt,
+        })
+    }
+    return MemberListResponse{Members: responses}
 }
 ```
 
@@ -1635,16 +1712,19 @@ package job
 import (
     "context"
     "log/slog"
-    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/group"
+
+    "github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 )
 
+// InvitationExpiryJob は招待期限切れ処理ジョブです
 type InvitationExpiryJob struct {
-    invitationRepo group.InvitationRepository
+    invitationRepo repository.InvitationRepository
     logger         *slog.Logger
 }
 
+// NewInvitationExpiryJob は新しいInvitationExpiryJobを作成します
 func NewInvitationExpiryJob(
-    invitationRepo group.InvitationRepository,
+    invitationRepo repository.InvitationRepository,
     logger *slog.Logger,
 ) *InvitationExpiryJob {
     return &InvitationExpiryJob{
@@ -1653,7 +1733,7 @@ func NewInvitationExpiryJob(
     }
 }
 
-// Run executes every hour
+// Run は招待期限切れ処理を実行します（毎時実行）
 func (j *InvitationExpiryJob) Run(ctx context.Context) error {
     expired, err := j.invitationRepo.ExpireOld(ctx)
     if err != nil {
@@ -1674,40 +1754,44 @@ func (j *InvitationExpiryJob) Run(ctx context.Context) error {
 
 ### グループ管理
 - [ ] グループを作成できる（作成者がオーナーになる）
-- [ ] グループ名・説明を更新できる（admin/owner）
+- [ ] グループ作成時にフォルダは作成されない（グループとフォルダは分離）
+- [ ] グループ名・説明を更新できる（contributor/owner）
 - [ ] グループを削除できる（ownerのみ）
-- [ ] 削除時にメンバーシップ・招待・ルートフォルダも削除される
+- [ ] 削除時にメンバーシップ・招待・PermissionGrantが削除される
 - [ ] 所属グループ一覧を取得できる
 
 ### メンバー招待
-- [ ] admin/ownerがメンバーを招待できる
+- [ ] contributor/ownerがメンバーを招待できる
 - [ ] 招待メールが送信される
+- [ ] デフォルト招待ロールはviewerになる
+- [ ] 招待者は自分のロール以下のみ付与可能
+  - Owner → Viewer, Contributor
+  - Contributor → Viewer, Contributor
 - [ ] 招待リンクから承諾できる
 - [ ] 招待を辞退できる
-- [ ] 招待を取消できる（admin/owner）
+- [ ] 招待を取消できる（contributor/owner）
 - [ ] 同じメールへの重複招待は拒否される
 - [ ] 既存メンバーへの招待は拒否される
-- [ ] ownerロールでの招待は拒否される
+- [ ] ownerロールでの招待は拒否される（所有権譲渡を使用）
 - [ ] 7日後に招待が期限切れになる
 
 ### メンバー管理
 - [ ] メンバー一覧を取得できる
-- [ ] admin/ownerがメンバーを削除できる
+- [ ] ownerがメンバーを削除できる
 - [ ] メンバーが自発的に脱退できる
 - [ ] ownerは脱退できない（所有権譲渡が必要）
 - [ ] ownerがメンバーのロールを変更できる
-- [ ] adminはmember/adminロールを変更できる
 - [ ] 自分のロールは変更できない
 
 ### 所有権譲渡
 - [ ] ownerが他のメンバーに所有権を譲渡できる
-- [ ] 譲渡後、旧ownerはadminになる
+- [ ] 譲渡後、旧ownerはcontributorになる
 - [ ] 非メンバーへの譲渡は拒否される
 
-### 権限検証
-- [ ] member: グループ情報閲覧、共有リソースアクセス
-- [ ] admin: 招待、メンバー削除、グループ設定変更
-- [ ] owner: 全権限、グループ削除、所有権譲渡
+### 権限検証（GroupRole: viewer < contributor < owner）
+- [ ] viewer: グループ情報閲覧、共有リソースアクセス
+- [ ] contributor: 招待（Contributor以下のロール）、メンバー削除
+- [ ] owner: 全権限、グループ削除、設定変更、オーナー譲渡
 
 ---
 

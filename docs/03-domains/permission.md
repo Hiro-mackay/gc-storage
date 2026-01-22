@@ -34,6 +34,38 @@ Authorization Contextの中核として、PBAC（Policy-Based）とReBAC（Relat
 
 ---
 
+## ロールモデル
+
+### リソースロール（4段階）
+
+```
+Owner > Content Manager > Contributor > Viewer
+```
+
+| ロール | 閲覧 | 作成/編集/削除 | 共有設定 | 移動IN | 移動OUT | ルートフォルダ削除 |
+|--------|:----:|:--------------:|:--------:|:------:|:-------:|:------------------:|
+| Viewer | Yes | No | No | No | No | No |
+| Contributor | Yes | Yes | Yes | Yes | No | No |
+| Content Manager | Yes | Yes | Yes | Yes | Yes | No |
+| Owner | Yes | Yes | Yes | Yes | Yes | Yes |
+
+**権限継承**: 各ロールはサブディレクトリに対して同じ権限を継承する
+
+### 共有時のロール付与制限
+
+| 操作者のロール | 付与可能なロール |
+|----------------|------------------|
+| Owner | Viewer, Contributor, Content Manager |
+| Content Manager | Viewer, Contributor, Content Manager |
+| Contributor | Viewer, Contributor |
+| Viewer | なし（共有不可） |
+
+**重要ルール:**
+- Ownerロールは直接付与不可（所有権譲渡で移転）
+- 自分のロール以下のロールのみ付与可能
+
+---
+
 ## エンティティ
 
 ### PermissionGrant（集約ルート）
@@ -41,7 +73,7 @@ Authorization Contextの中核として、PBAC（Policy-Based）とReBAC（Relat
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
 | id | UUID | Yes | 権限付与の一意識別子 |
-| resource_type | ResourceType | Yes | リソース種別（file/folder/group） |
+| resource_type | ResourceType | Yes | リソース種別（file/folder） |
 | resource_id | UUID | Yes | リソースID |
 | grantee_type | GranteeType | Yes | 付与先種別（user/group） |
 | grantee_id | UUID | Yes | 付与先ID |
@@ -55,6 +87,7 @@ Authorization Contextの中核として、PBAC（Policy-Based）とReBAC（Relat
 - R-PG002: 同一(resource, grantee, role, permission)の組み合わせは一意
 - R-PG003: ownerロールは直接付与不可（所有権譲渡で管理）
 - R-PG004: 付与者は対象リソースに対してpermission:grant権限を持つ必要がある
+- R-PG005: 付与者は自分のロール以下のロールのみ付与可能
 
 ### Relationship（集約ルート）
 
@@ -66,7 +99,7 @@ Google Zanzibar スタイルの関係性タプルを管理します。
 | subject_type | string | Yes | 主体の種別（user/group/folder） |
 | subject_id | UUID | Yes | 主体のID |
 | relation | RelationType | Yes | 関係性の種類 |
-| object_type | string | Yes | 対象の種別（file/folder/group） |
+| object_type | string | Yes | 対象の種別（file/folder） |
 | object_id | UUID | Yes | 対象のID |
 | created_at | timestamp | Yes | 作成日時 |
 
@@ -88,78 +121,36 @@ Google Zanzibar スタイルの関係性タプルを管理します。
 |------------|------|
 | file:read | ファイルの閲覧・ダウンロード |
 | file:write | ファイルのアップロード・更新 |
+| file:rename | ファイル名の変更 |
 | file:delete | ファイルの削除（ゴミ箱へ） |
 | file:restore | ゴミ箱からの復元 |
 | file:permanent_delete | 完全削除 |
-| file:move | ファイルの移動 |
-| file:rename | ファイル名の変更 |
+| file:move_in | ファイルをフォルダ内へ移動（移動先権限） |
+| file:move_out | ファイルをフォルダ外へ移動（移動元権限） |
 | file:share | 共有リンクの作成 |
 
 **フォルダ操作:**
 | Permission | 説明 |
 |------------|------|
 | folder:read | フォルダ内容の閲覧 |
-| folder:create | サブフォルダの作成 |
-| folder:delete | フォルダの削除 |
-| folder:move | フォルダの移動 |
+| folder:create | サブフォルダ・ファイルの作成 |
 | folder:rename | フォルダ名の変更 |
+| folder:delete | フォルダの削除 |
+| folder:move_in | フォルダをこのフォルダ内へ移動（移動先権限） |
+| folder:move_out | フォルダをこのフォルダ外へ移動（移動元権限） |
 | folder:share | 共有リンクの作成 |
 
 **権限管理:**
 | Permission | 説明 |
 |------------|------|
-| permission:read | リソースの権限設定を閲覧 |
+| permission:read | リソースの権限一覧の閲覧 |
 | permission:grant | 他ユーザー/グループへの権限付与 |
-| permission:revoke | 権限の取り消し |
+| permission:revoke | 他ユーザー/グループからの権限取り消し |
 
-**グループ管理:**
+**ルート操作:**
 | Permission | 説明 |
 |------------|------|
-| group:read | グループ情報の閲覧 |
-| group:update | グループ設定の変更 |
-| group:delete | グループの削除 |
-| group:member:read | メンバー一覧の閲覧 |
-| group:member:add | メンバーの追加 |
-| group:member:remove | メンバーの削除 |
-| group:member:role | メンバーのロール変更 |
-
-```go
-type Permission string
-
-const (
-    // File permissions
-    PermFileRead            Permission = "file:read"
-    PermFileWrite           Permission = "file:write"
-    PermFileDelete          Permission = "file:delete"
-    PermFileRestore         Permission = "file:restore"
-    PermFilePermanentDelete Permission = "file:permanent_delete"
-    PermFileMove            Permission = "file:move"
-    PermFileRename          Permission = "file:rename"
-    PermFileShare           Permission = "file:share"
-
-    // Folder permissions
-    PermFolderRead   Permission = "folder:read"
-    PermFolderCreate Permission = "folder:create"
-    PermFolderDelete Permission = "folder:delete"
-    PermFolderMove   Permission = "folder:move"
-    PermFolderRename Permission = "folder:rename"
-    PermFolderShare  Permission = "folder:share"
-
-    // Permission management
-    PermPermissionRead   Permission = "permission:read"
-    PermPermissionGrant  Permission = "permission:grant"
-    PermPermissionRevoke Permission = "permission:revoke"
-
-    // Group permissions
-    PermGroupRead         Permission = "group:read"
-    PermGroupUpdate       Permission = "group:update"
-    PermGroupDelete       Permission = "group:delete"
-    PermGroupMemberRead   Permission = "group:member:read"
-    PermGroupMemberAdd    Permission = "group:member:add"
-    PermGroupMemberRemove Permission = "group:member:remove"
-    PermGroupMemberRole   Permission = "group:member:role"
-)
-```
+| root:delete | ルートレベルの Shared Folder を削除（Ownerのみ） |
 
 ### Role
 
@@ -170,66 +161,34 @@ Permissionの集合として定義されるロール。
 | Role | Permissions |
 |------|-------------|
 | viewer | file:read, folder:read |
-| editor | viewer + file:write, file:rename, file:move, folder:create, folder:rename, folder:move |
-| manager | editor + file:delete, file:restore, file:share, folder:delete, folder:share, permission:read, permission:grant, permission:revoke |
-| owner | manager + file:permanent_delete + 完全制御 |
+| contributor | viewer + file:write, file:rename, file:delete, file:restore, file:move_in, folder:create, folder:rename, folder:delete, folder:move_in, file:share, folder:share, permission:read, permission:grant, permission:revoke |
+| content_manager | contributor + file:move_out, folder:move_out |
+| owner | content_manager + file:permanent_delete, root:delete + 完全制御 |
 
-```go
-type Role string
+**ロールとPermissionのマッピング:**
 
-const (
-    RoleViewer  Role = "viewer"
-    RoleEditor  Role = "editor"
-    RoleManager Role = "manager"
-    RoleOwner   Role = "owner"
-)
-
-func (r Role) Permissions() []Permission {
-    switch r {
-    case RoleViewer:
-        return []Permission{
-            PermFileRead,
-            PermFolderRead,
-        }
-    case RoleEditor:
-        return append(RoleViewer.Permissions(),
-            PermFileWrite,
-            PermFileRename,
-            PermFileMove,
-            PermFolderCreate,
-            PermFolderRename,
-            PermFolderMove,
-        )
-    case RoleManager:
-        return append(RoleEditor.Permissions(),
-            PermFileDelete,
-            PermFileRestore,
-            PermFileShare,
-            PermFolderDelete,
-            PermFolderShare,
-            PermPermissionRead,
-            PermPermissionGrant,
-            PermPermissionRevoke,
-        )
-    case RoleOwner:
-        return append(RoleManager.Permissions(),
-            PermFilePermanentDelete,
-        )
-    default:
-        return nil
-    }
-}
-
-func (r Role) Includes(other Role) bool {
-    hierarchy := map[Role]int{
-        RoleViewer:  1,
-        RoleEditor:  2,
-        RoleManager: 3,
-        RoleOwner:   4,
-    }
-    return hierarchy[r] >= hierarchy[other]
-}
-```
+| Permission | Viewer | Contributor | Content Manager | Owner |
+|------------|:------:|:-----------:|:---------------:|:-----:|
+| file:read | Yes | Yes | Yes | Yes |
+| folder:read | Yes | Yes | Yes | Yes |
+| file:write | No | Yes | Yes | Yes |
+| file:rename | No | Yes | Yes | Yes |
+| file:delete | No | Yes | Yes | Yes |
+| file:restore | No | Yes | Yes | Yes |
+| file:move_in | No | Yes | Yes | Yes |
+| file:move_out | No | No | Yes | Yes |
+| file:share | No | Yes | Yes | Yes |
+| folder:create | No | Yes | Yes | Yes |
+| folder:rename | No | Yes | Yes | Yes |
+| folder:delete | No | Yes | Yes | Yes |
+| folder:move_in | No | Yes | Yes | Yes |
+| folder:move_out | No | No | Yes | Yes |
+| folder:share | No | Yes | Yes | Yes |
+| permission:read | No | Yes | Yes | Yes |
+| permission:grant | No | Yes | Yes | Yes |
+| permission:revoke | No | Yes | Yes | Yes |
+| file:permanent_delete | No | No | No | Yes |
+| root:delete | No | No | No | Yes |
 
 ### RelationType
 
@@ -241,36 +200,8 @@ func (r Role) Includes(other Role) bool {
 | member | メンバー | user ──member──▶ group |
 | parent | 親子関係 | folder ──parent──▶ file |
 | viewer | 閲覧者ロール | group ──viewer──▶ folder |
-| editor | 編集者ロール | user ──editor──▶ folder |
-| manager | 管理者ロール | user ──manager──▶ folder |
-
-```go
-type RelationType string
-
-const (
-    RelationOwner   RelationType = "owner"
-    RelationMember  RelationType = "member"
-    RelationParent  RelationType = "parent"
-    RelationViewer  RelationType = "viewer"
-    RelationEditor  RelationType = "editor"
-    RelationManager RelationType = "manager"
-)
-
-func (r RelationType) ToRole() (Role, bool) {
-    switch r {
-    case RelationViewer:
-        return RoleViewer, true
-    case RelationEditor:
-        return RoleEditor, true
-    case RelationManager:
-        return RoleManager, true
-    case RelationOwner:
-        return RoleOwner, true
-    default:
-        return "", false
-    }
-}
-```
+| contributor | 投稿者ロール | user ──contributor──▶ folder |
+| content_manager | コンテンツ管理者ロール | user ──content_manager──▶ folder |
 
 ### ResourceType
 
@@ -278,7 +209,6 @@ func (r RelationType) ToRole() (Role, bool) {
 |-----|------|
 | file | ファイル |
 | folder | フォルダ |
-| group | グループ |
 
 ### GranteeType
 
@@ -301,144 +231,12 @@ func (r RelationType) ToRole() (Role, bool) {
 | CollectPermissions | userId, resourceType, resourceId | PermissionSet | 全権限収集 |
 | GetEffectiveRole | userId, resourceType, resourceId | Role | 有効なロール取得 |
 
-```go
-type PermissionResolver interface {
-    HasPermission(ctx context.Context, userID uuid.UUID, resourceType string, resourceID uuid.UUID, permission Permission) (bool, error)
-    CollectPermissions(ctx context.Context, userID uuid.UUID, resourceType string, resourceID uuid.UUID) (PermissionSet, error)
-    GetEffectiveRole(ctx context.Context, userID uuid.UUID, resourceType string, resourceID uuid.UUID) (Role, error)
-}
-```
-
 **権限収集アルゴリズム:**
-```go
-func (r *PermissionResolverImpl) CollectPermissions(
-    ctx context.Context,
-    userID uuid.UUID,
-    resourceType string,
-    resourceID uuid.UUID,
-) (PermissionSet, error) {
-    permissions := NewPermissionSet()
 
-    // Step 1: 所有者チェック (user ──owner──▶ resource)
-    isOwner, err := r.relationshipRepo.Exists(ctx, Tuple{
-        SubjectType: "user",
-        SubjectID:   userID,
-        Relation:    RelationOwner,
-        ObjectType:  resourceType,
-        ObjectID:    resourceID,
-    })
-    if err != nil {
-        return nil, err
-    }
-    if isOwner {
-        permissions.AddAll(RoleOwner.Permissions())
-        return permissions, nil // オーナーは全権限
-    }
-
-    // Step 2: 直接付与された権限 (user ──{role}──▶ resource)
-    directGrants, err := r.grantRepo.FindByResourceAndGrantee(ctx, resourceType, resourceID, "user", userID)
-    if err != nil {
-        return nil, err
-    }
-    for _, grant := range directGrants {
-        if grant.Role != "" {
-            if role := Role(grant.Role); role.IsValid() {
-                permissions.AddAll(role.Permissions())
-            }
-        }
-        if grant.Permission != "" {
-            permissions.Add(Permission(grant.Permission))
-        }
-    }
-
-    // Step 3: グループ経由の権限 (user ──member──▶ group ──{role}──▶ resource)
-    groups, err := r.relationshipRepo.FindRelated(ctx, "user", userID, RelationMember, "group")
-    if err != nil {
-        return nil, err
-    }
-    for _, groupID := range groups {
-        groupGrants, err := r.grantRepo.FindByResourceAndGrantee(ctx, resourceType, resourceID, "group", groupID)
-        if err != nil {
-            continue
-        }
-        for _, grant := range groupGrants {
-            if grant.Role != "" {
-                if role := Role(grant.Role); role.IsValid() {
-                    permissions.AddAll(role.Permissions())
-                }
-            }
-            if grant.Permission != "" {
-                permissions.Add(Permission(grant.Permission))
-            }
-        }
-    }
-
-    // Step 4: 階層経由の権限 (resource ◀──parent── ancestor)
-    if resourceType == "file" || resourceType == "folder" {
-        ancestors, err := r.getAncestors(ctx, resourceType, resourceID)
-        if err != nil {
-            return nil, err
-        }
-        for _, ancestor := range ancestors {
-            // 祖先への直接権限
-            ancestorGrants, err := r.grantRepo.FindByResourceAndGrantee(ctx, ancestor.Type, ancestor.ID, "user", userID)
-            if err != nil {
-                continue
-            }
-            for _, grant := range ancestorGrants {
-                if grant.Role != "" {
-                    if role := Role(grant.Role); role.IsValid() {
-                        permissions.AddAll(role.Permissions())
-                    }
-                }
-            }
-
-            // 祖先へのグループ経由権限
-            for _, groupID := range groups {
-                groupGrants, err := r.grantRepo.FindByResourceAndGrantee(ctx, ancestor.Type, ancestor.ID, "group", groupID)
-                if err != nil {
-                    continue
-                }
-                for _, grant := range groupGrants {
-                    if grant.Role != "" {
-                        if role := Role(grant.Role); role.IsValid() {
-                            permissions.AddAll(role.Permissions())
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return permissions, nil
-}
-
-func (r *PermissionResolverImpl) getAncestors(
-    ctx context.Context,
-    resourceType string,
-    resourceID uuid.UUID,
-) ([]Resource, error) {
-    var ancestors []Resource
-
-    currentType := resourceType
-    currentID := resourceID
-
-    for {
-        // parent関係を探す
-        parents, err := r.relationshipRepo.FindRelatedReverse(ctx, currentType, currentID, RelationParent)
-        if err != nil || len(parents) == 0 {
-            break
-        }
-
-        parent := parents[0]
-        ancestors = append(ancestors, parent)
-        currentType = parent.Type
-        currentID = parent.ID
-    }
-
-    return ancestors, nil
-}
-```
+1. **所有者チェック**: user ──owner──▶ resource の場合、全権限を付与
+2. **直接付与された権限**: user ──{role}──▶ resource
+3. **グループ経由の権限**: user ──member──▶ group ──{role}──▶ resource
+4. **階層経由の権限**: resource ◀──parent── ancestor（サブディレクトリへの継承）
 
 ### PermissionGrantService
 
@@ -451,93 +249,10 @@ func (r *PermissionResolverImpl) getAncestors(
 | Revoke | grantId | void | 権限取り消し |
 | RevokeAll | resourceType, resourceId, granteeType, granteeId | void | 全権限取り消し |
 
-```go
-type PermissionGrantService interface {
-    GrantRole(ctx context.Context, cmd GrantRoleCommand) (*PermissionGrant, error)
-    GrantPermission(ctx context.Context, cmd GrantPermissionCommand) (*PermissionGrant, error)
-    Revoke(ctx context.Context, grantID uuid.UUID) error
-    RevokeAll(ctx context.Context, resourceType string, resourceID uuid.UUID, granteeType string, granteeID uuid.UUID) error
-}
-```
-
-**ロール付与の処理:**
-```go
-func (s *PermissionGrantServiceImpl) GrantRole(
-    ctx context.Context,
-    cmd GrantRoleCommand,
-) (*PermissionGrant, error) {
-    // 1. 付与者の権限チェック
-    hasGrant, err := s.resolver.HasPermission(ctx, cmd.GrantedBy, cmd.ResourceType, cmd.ResourceID, PermPermissionGrant)
-    if err != nil {
-        return nil, err
-    }
-    if !hasGrant {
-        return nil, errors.New("insufficient permission to grant roles")
-    }
-
-    // 2. 付与者のロールチェック（自分より高いロールは付与不可）
-    granterRole, err := s.resolver.GetEffectiveRole(ctx, cmd.GrantedBy, cmd.ResourceType, cmd.ResourceID)
-    if err != nil {
-        return nil, err
-    }
-    if !granterRole.Includes(cmd.Role) {
-        return nil, errors.New("cannot grant a role higher than your own")
-    }
-
-    // 3. ownerロールは直接付与不可
-    if cmd.Role == RoleOwner {
-        return nil, errors.New("owner role cannot be directly granted")
-    }
-
-    // 4. 既存の付与チェック
-    existing, _ := s.grantRepo.FindByResourceGranteeAndRole(ctx, cmd.ResourceType, cmd.ResourceID, cmd.GranteeType, cmd.GranteeID, cmd.Role)
-    if existing != nil {
-        return nil, errors.New("role already granted")
-    }
-
-    // 5. 権限付与作成
-    grant := &PermissionGrant{
-        ID:           uuid.New(),
-        ResourceType: cmd.ResourceType,
-        ResourceID:   cmd.ResourceID,
-        GranteeType:  cmd.GranteeType,
-        GranteeID:    cmd.GranteeID,
-        Role:         cmd.Role,
-        GrantedBy:    cmd.GrantedBy,
-        GrantedAt:    time.Now(),
-    }
-
-    if err := s.grantRepo.Create(ctx, grant); err != nil {
-        return nil, err
-    }
-
-    // 6. Relationshipタプル作成
-    relationshipTuple := &Relationship{
-        ID:          uuid.New(),
-        SubjectType: cmd.GranteeType,
-        SubjectID:   cmd.GranteeID,
-        Relation:    RelationType(cmd.Role),
-        ObjectType:  cmd.ResourceType,
-        ObjectID:    cmd.ResourceID,
-        CreatedAt:   time.Now(),
-    }
-    if err := s.relationshipRepo.Create(ctx, relationshipTuple); err != nil {
-        return nil, err
-    }
-
-    // 7. イベント発行
-    s.eventPublisher.Publish(PermissionGrantedEvent{
-        ResourceType: cmd.ResourceType,
-        ResourceID:   cmd.ResourceID,
-        GranteeType:  cmd.GranteeType,
-        GranteeID:    cmd.GranteeID,
-        Role:         cmd.Role,
-        GrantedBy:    cmd.GrantedBy,
-    })
-
-    return grant, nil
-}
-```
+**ロール付与の制約:**
+1. 付与者はpermission:grant権限を持つ必要がある
+2. 付与者は自分のロール以下のロールのみ付与可能
+3. ownerロールは直接付与不可（所有権譲渡で管理）
 
 ### RelationshipService
 
@@ -551,58 +266,35 @@ func (s *PermissionGrantServiceImpl) GrantRole(
 | AddMember | userId, groupId | void | グループメンバー追加 |
 | RemoveMember | userId, groupId | void | グループメンバー削除 |
 
-```go
-type RelationshipService interface {
-    SetOwner(ctx context.Context, resourceType string, resourceID, ownerID uuid.UUID) error
-    TransferOwnership(ctx context.Context, resourceType string, resourceID, currentOwnerID, newOwnerID uuid.UUID) error
-    SetParent(ctx context.Context, childType string, childID uuid.UUID, parentType string, parentID uuid.UUID) error
-    AddMember(ctx context.Context, userID, groupID uuid.UUID) error
-    RemoveMember(ctx context.Context, userID, groupID uuid.UUID) error
-}
-```
-
 ---
 
 ## リポジトリ
 
 ### PermissionGrantRepository
 
-```go
-type PermissionGrantRepository interface {
-    Create(ctx context.Context, grant *PermissionGrant) error
-    FindByID(ctx context.Context, id uuid.UUID) (*PermissionGrant, error)
-    FindByResource(ctx context.Context, resourceType string, resourceID uuid.UUID) ([]*PermissionGrant, error)
-    FindByResourceAndGrantee(ctx context.Context, resourceType string, resourceID uuid.UUID, granteeType string, granteeID uuid.UUID) ([]*PermissionGrant, error)
-    FindByResourceGranteeAndRole(ctx context.Context, resourceType string, resourceID uuid.UUID, granteeType string, granteeID uuid.UUID, role Role) (*PermissionGrant, error)
-    FindByGrantee(ctx context.Context, granteeType string, granteeID uuid.UUID) ([]*PermissionGrant, error)
-    Delete(ctx context.Context, id uuid.UUID) error
-    DeleteByResourceAndGrantee(ctx context.Context, resourceType string, resourceID uuid.UUID, granteeType string, granteeID uuid.UUID) error
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | 権限付与作成 |
+| FindByID | ID検索 |
+| FindByResource | リソースへの権限一覧 |
+| FindByResourceAndGrantee | リソース・付与先での検索 |
+| FindByResourceGranteeAndRole | リソース・付与先・ロールでの検索 |
+| FindByGrantee | 付与先への権限一覧 |
+| Delete | 削除 |
+| DeleteByResourceAndGrantee | リソース・付与先の全権限削除 |
 
 ### RelationshipRepository
 
-```go
-type RelationshipRepository interface {
-    Create(ctx context.Context, rel *Relationship) error
-    Delete(ctx context.Context, id uuid.UUID) error
-    DeleteByTuple(ctx context.Context, tuple Tuple) error
-
-    Exists(ctx context.Context, tuple Tuple) (bool, error)
-
-    // 主体から対象を探す (user ──member──▶ group の groupを探す)
-    FindRelated(ctx context.Context, subjectType string, subjectID uuid.UUID, relation RelationType, objectType string) ([]uuid.UUID, error)
-
-    // 対象から主体を探す (folder ◀──parent── file の folderを探す)
-    FindRelatedReverse(ctx context.Context, objectType string, objectID uuid.UUID, relation RelationType) ([]Resource, error)
-
-    // 特定オブジェクトへの全関係性
-    FindByObject(ctx context.Context, objectType string, objectID uuid.UUID) ([]*Relationship, error)
-
-    // 特定主体からの全関係性
-    FindBySubject(ctx context.Context, subjectType string, subjectID uuid.UUID) ([]*Relationship, error)
-}
-```
+| 操作 | 説明 |
+|-----|------|
+| Create | 関係性作成 |
+| Delete | 削除 |
+| DeleteByTuple | タプルで削除 |
+| Exists | 存在チェック |
+| FindRelated | 主体から対象を検索 |
+| FindRelatedReverse | 対象から主体を検索 |
+| FindByObject | オブジェクトへの全関係性 |
+| FindBySubject | 主体からの全関係性 |
 
 ---
 
@@ -658,7 +350,6 @@ type RelationshipRepository interface {
 【所有関係】
 (user:alice, owner, file:report.pdf)
 (user:alice, owner, folder:my-documents)
-(group:engineering, owner, folder:team-docs)
 
 【メンバーシップ】
 (user:alice, member, group:engineering)
@@ -670,7 +361,8 @@ type RelationshipRepository interface {
 
 【権限付与】
 (group:engineering, viewer, folder:shared)
-(user:charlie, editor, folder:projects)
+(user:charlie, contributor, folder:projects)
+(user:dave, content_manager, folder:archive)
 ```
 
 ---
@@ -702,9 +394,9 @@ type RelationshipRepository interface {
 | ユースケース | アクター | 概要 |
 |------------|--------|------|
 | CheckPermission | System | ユーザーの権限チェック |
-| GrantRole | Manager/Owner | ロール付与 |
-| GrantPermission | Manager/Owner | Permission直接付与 |
-| RevokePermission | Manager/Owner | 権限取り消し |
+| GrantRole | Contributor/Content Manager/Owner | ロール付与 |
+| GrantPermission | Contributor/Content Manager/Owner | Permission直接付与 |
+| RevokePermission | Contributor/Content Manager/Owner | 権限取り消し |
 | ListPermissions | User | リソースの権限一覧 |
 | TransferOwnership | Owner | 所有権譲渡 |
 | GetMyPermissions | User | 自分の権限確認 |

@@ -17,12 +17,12 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│     Guest        │  │   Authenticated  │  │  Group Admin     │
-│   （ゲスト）       │  │      User        │  │（グループ管理者）  │
+│     Guest        │  │   Authenticated  │  │Group Contributor │
+│   （ゲスト）       │  │      User        │  │（グループ貢献者）  │
 │                  │  │  （認証済みユーザー）│  │                  │
-│ • 共有リンクアクセス │  │ • ファイル操作    │  │ • メンバー管理    │
-│ • サインアップ     │  │ • フォルダ管理    │  │ • 権限管理        │
-│ • ログイン        │  │ • 共有リンク作成  │  │ • グループ設定    │
+│ • 共有リンクアクセス │  │ • ファイル操作    │  │ • メンバー招待    │
+│ • サインアップ     │  │ • フォルダ管理    │  │ • 権限付与        │
+│ • ログイン        │  │ • 共有リンク作成  │  │ (Contributor以下) │
 └──────────────────┘  └──────────────────┘  └──────────────────┘
 
 ┌──────────────────┐  ┌──────────────────┐
@@ -31,7 +31,9 @@
 │                  │  │                  │
 │ • グループ削除    │  │ • バッチ処理      │
 │ • オーナー譲渡    │  │ • ゴミ箱自動削除  │
-│ • 管理者任命     │  │ • セッション管理  │
+│ • メンバー削除    │  │ • セッション管理  │
+│ • ロール変更      │  │                  │
+│ • 設定変更        │  │                  │
 └──────────────────┘  └──────────────────┘
 ```
 
@@ -39,8 +41,8 @@
 |---------|------|---------|
 | Guest | 未認証のユーザー | 共有リンク経由のアクセス、アカウント作成、ログイン |
 | Authenticated User | ログイン済みユーザー | ファイル・フォルダ操作、共有、グループ参加 |
-| Group Admin | グループの管理者ロールを持つユーザー | メンバー招待・削除、共有フォルダ管理 |
-| Group Owner | グループの所有者 | グループ削除、オーナー譲渡、管理者任命 |
+| Group Contributor | グループのContributorロールを持つユーザー | メンバー招待（Contributor以下）、権限付与 |
+| Group Owner | グループのOwnerロールを持つユーザー | グループ削除、オーナー譲渡、ロール変更、メンバー削除、設定変更 |
 | System | 自動処理を行うシステム | スケジュールタスク、セッション失効、ゴミ箱クリーンアップ |
 
 ---
@@ -338,10 +340,10 @@
 
 | コマンド | アクター | 発生イベント |
 |---------|---------|-------------|
-| GrantPermission | Manager/Owner | PermissionGranted |
-| RevokePermission | Manager/Owner | PermissionRevoked |
-| AssignRole | Manager/Owner | RoleAssigned |
-| RemoveRole | Manager/Owner | RoleRemoved |
+| GrantPermission | Contributor/Content Manager/Owner | PermissionGranted |
+| RevokePermission | Contributor/Content Manager/Owner | PermissionRevoked |
+| AssignRole | Contributor/Content Manager/Owner | RoleAssigned |
+| RemoveRole | Contributor/Content Manager/Owner | RoleRemoved |
 | TransferOwnership | Owner | OwnershipTransferred |
 
 ### 3.4 Sharing Context
@@ -360,13 +362,13 @@
 | コマンド | アクター | 発生イベント |
 |---------|---------|-------------|
 | CreateGroup | Authenticated User | GroupCreated |
-| UpdateGroup | Group Admin/Owner | GroupUpdated |
+| UpdateGroup | Group Owner | GroupUpdated |
 | DeleteGroup | Group Owner | GroupDeleted |
-| InviteMember | Group Admin/Owner | MemberInvited |
+| InviteMember | Group Contributor/Owner | MemberInvited |
 | AcceptInvitation | Authenticated User | InvitationAccepted, MemberJoined |
 | DeclineInvitation | Authenticated User | InvitationDeclined |
 | LeaveGroup | Authenticated User | MemberLeft |
-| RemoveMember | Group Admin/Owner | MemberRemoved |
+| RemoveMember | Group Owner | MemberRemoved |
 | ChangeMemberRole | Group Owner | MemberRoleChanged |
 | TransferGroupOwnership | Group Owner | GroupOwnershipTransferred |
 | ExpireInvitations | System | InvitationExpired |
@@ -428,6 +430,7 @@
                         │ • name: string   │
                         │ • folder_id      │
                         │ • owner_id       │
+                        │ • created_by     │
                         │ • size: int64    │
                         │ • mime_type      │
                         │ • storage_key    │
@@ -462,8 +465,7 @@
                         │ • name: string   │
                         │ • parent_id      │
                         │ • owner_id       │
-                        │ • owner_type     │ (user/group)
-                        │ • path           │
+                        │ • created_by     │
                         │ • depth          │
                         │ • status         │
                         │ • created_at     │
@@ -498,7 +500,7 @@
                      │ • resource_id        │
                      │ • grantee_type       │ (user/group)
                      │ • grantee_id         │
-                     │ • role               │ (viewer/editor/manager)
+                     │ • role               │ (viewer/contributor/content_manager)
                      │ • granted_by         │
                      │ • granted_at         │
                      └──────────────────────┘
@@ -513,7 +515,7 @@
                      │ • id: UUID           │
                      │ • subject_type       │
                      │ • subject_id         │
-                     │ • relation           │ (owner/member/parent/viewer/editor)
+                     │ • relation           │ (owner/member/parent/viewer/contributor/content_manager)
                      │ • object_type        │
                      │ • object_id          │
                      │ • created_at         │
@@ -841,7 +843,7 @@ type GroupMembershipService interface {
 | 用語 | 定義 |
 |------|------|
 | Permission | 特定のリソースに対する操作権限（file:read等） |
-| Role | 権限のセット（viewer, editor, manager） |
+| Role | 権限のセット（viewer, contributor, content_manager） |
 | PermissionGrant | 権限付与の記録 |
 | Relationship | エンティティ間の関係性（owner, member, parent） |
 | Inheritance | 親フォルダからの権限継承 |
@@ -861,7 +863,7 @@ type GroupMembershipService interface {
 |------|------|
 | Group | ユーザーの集まり |
 | Membership | ユーザーのグループへの所属 |
-| GroupRole | グループ内での役割（member, admin, owner） |
+| GroupRole | グループ内での役割（viewer, contributor, owner） |
 | Invitation | グループへの招待 |
 | GroupOwner | グループの所有者（1名のみ） |
 

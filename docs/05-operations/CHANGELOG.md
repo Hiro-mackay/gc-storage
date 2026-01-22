@@ -25,7 +25,7 @@
 - JWT ベースの認証システム
 - Google / GitHub OAuth 2.0 連携
 - PBAC + ReBAC ハイブリッド認可モデル
-- ロールベースの権限管理（viewer, editor, manager, owner）
+- ロールベースの権限管理（viewer, contributor, content_manager, owner）
 
 #### ファイル管理
 - ファイルアップロード（Presigned URL方式）
@@ -48,7 +48,7 @@
 #### グループ機能
 - グループの作成・管理
 - グループメンバーの招待・削除
-- グループロール管理（member, admin, owner）
+- グループロール管理（viewer, contributor, owner）
 - グループフォルダの共有
 
 #### 検索・フィルタリング

@@ -125,12 +125,15 @@
 **Request:**
 ```json
 {
-  "folder_id": "uuid | null",
+  "folder_id": "uuid",
   "name": "report.pdf",
   "mime_type": "application/pdf",
   "size": 10485760
 }
 ```
+
+**Note:**
+- `folder_id` は必須（ファイルは必ずフォルダに所属）
 
 **Response (201 Created):**
 ```json
@@ -267,15 +270,18 @@
 **Request:**
 ```json
 {
-  "folder_id": "uuid | null"
+  "folder_id": "uuid"
 }
 ```
+
+**Note:**
+- `folder_id` は必須（ファイルは必ずフォルダに所属）
 
 **Response (200 OK):**
 ```json
 {
   "id": "uuid",
-  "folder_id": "uuid | null",
+  "folder_id": "uuid",
   "updated_at": "2026-01-20T00:00:00Z"
 }
 ```
@@ -458,9 +464,9 @@ MinIOからのWebhook通知を受信する内部エンドポイント。
 ```sql
 CREATE TABLE files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL,
-    owner_type VARCHAR(10) NOT NULL CHECK (owner_type IN ('user', 'group')),
-    folder_id UUID REFERENCES folders(id) ON DELETE SET NULL,
+    folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,  -- 必須（ファイルは必ずフォルダに所属）
+    owner_id UUID NOT NULL REFERENCES users(id),      -- 現在の所有者（所有権譲渡で変更可能）
+    created_by UUID NOT NULL REFERENCES users(id),    -- 最初の作成者（不変、履歴追跡用）
     name VARCHAR(255) NOT NULL,
     mime_type VARCHAR(255) NOT NULL,
     size BIGINT NOT NULL CHECK (size >= 0),
@@ -470,12 +476,16 @@ CREATE TABLE files (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_files_name_folder UNIQUE (folder_id, name) WHERE folder_id IS NOT NULL,
-    CONSTRAINT uq_files_name_owner_root UNIQUE (owner_id, owner_type, name) WHERE folder_id IS NULL
+    CONSTRAINT uq_files_name_folder UNIQUE (folder_id, name)
 );
 
-CREATE INDEX idx_files_owner ON files(owner_id, owner_type);
+-- Note: owner_type は削除（ファイルは常にユーザーが作成者）
+-- Note: folder_id は必須（NOT NULL）- ファイルは必ずフォルダに所属
+-- Note: グループはPermissionGrantで関連付けてアクセス
+
 CREATE INDEX idx_files_folder ON files(folder_id);
+CREATE INDEX idx_files_owner ON files(owner_id);
+CREATE INDEX idx_files_created_by ON files(created_by);
 CREATE INDEX idx_files_status ON files(status);
 CREATE INDEX idx_files_storage_key ON files(storage_key);
 ```
@@ -505,20 +515,23 @@ CREATE INDEX idx_file_versions_file ON file_versions(file_id);
 CREATE TABLE archived_files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     original_file_id UUID NOT NULL,
-    original_folder_id UUID,
+    original_folder_id UUID NOT NULL,   -- 復元先フォルダID（ファイルは必ずフォルダに所属）
     original_path VARCHAR(4096) NOT NULL,
     name VARCHAR(255) NOT NULL,
     mime_type VARCHAR(255) NOT NULL,
     size BIGINT NOT NULL,
-    owner_id UUID NOT NULL,
-    owner_type VARCHAR(10) NOT NULL,
+    owner_id UUID NOT NULL REFERENCES users(id),      -- 現在の所有者
+    created_by UUID NOT NULL REFERENCES users(id),    -- 最初の作成者
     storage_key VARCHAR(1024) NOT NULL,
     archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    archived_by UUID NOT NULL,
+    archived_by UUID NOT NULL REFERENCES users(id),
     expires_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX idx_archived_files_owner ON archived_files(owner_id, owner_type);
+-- Note: owner_type は削除
+
+CREATE INDEX idx_archived_files_owner ON archived_files(owner_id);
+CREATE INDEX idx_archived_files_created_by ON archived_files(created_by);
 CREATE INDEX idx_archived_files_expires ON archived_files(expires_at);
 ```
 
@@ -546,9 +559,9 @@ CREATE INDEX idx_archived_file_versions_archived_file ON archived_file_versions(
 CREATE TABLE upload_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-    owner_id UUID NOT NULL,
-    owner_type VARCHAR(10) NOT NULL,
-    folder_id UUID REFERENCES folders(id) ON DELETE SET NULL,
+    owner_id UUID NOT NULL REFERENCES users(id),      -- 所有者ID
+    created_by UUID NOT NULL REFERENCES users(id),    -- 作成者ID（アップロード者）
+    folder_id UUID NOT NULL REFERENCES folders(id),   -- アップロード先フォルダID（必須）
     file_name VARCHAR(255) NOT NULL,
     mime_type VARCHAR(255) NOT NULL,
     total_size BIGINT NOT NULL,
@@ -563,7 +576,11 @@ CREATE TABLE upload_sessions (
     expires_at TIMESTAMPTZ NOT NULL
 );
 
+-- Note: owner_type は削除
+-- Note: folder_id は必須（NOT NULL）
+
 CREATE INDEX idx_upload_sessions_file ON upload_sessions(file_id);
+CREATE INDEX idx_upload_sessions_folder ON upload_sessions(folder_id);
 CREATE INDEX idx_upload_sessions_storage_key ON upload_sessions(storage_key);
 CREATE INDEX idx_upload_sessions_status ON upload_sessions(status);
 CREATE INDEX idx_upload_sessions_expires ON upload_sessions(expires_at);
@@ -617,8 +634,7 @@ backend/internal/
 │   ├── valueobject/
 │   │   ├── storage_key.go
 │   │   ├── mime_type.go
-│   │   ├── file_name.go
-│   │   └── owner_type.go
+│   │   └── file_name.go
 │   ├── service/                       # ドメインサービス
 │   │   └── file_archive_service.go    # アーカイブロジック
 │   └── repository/
@@ -653,9 +669,9 @@ backend/internal/
 
 type File struct {
     id             uuid.UUID
-    ownerID        uuid.UUID
-    ownerType      valueobject.OwnerType
-    folderID       *uuid.UUID
+    folderID       uuid.UUID                   // 必須（ファイルは必ずフォルダに所属）
+    ownerID        uuid.UUID                   // 現在の所有者（所有権譲渡で変更可能）
+    createdBy      uuid.UUID                   // 最初の作成者（不変、履歴追跡用）
     name           valueobject.FileName
     mimeType       valueobject.MimeType
     size           int64
@@ -666,11 +682,15 @@ type File struct {
     updatedAt      time.Time
 }
 
+// Note: owner_type は削除（ファイルは常にユーザーが作成者）
+// Note: folder_id は必須（NOT NULL）- ファイルは必ずフォルダに所属
+// Note: グループはPermissionGrantで関連付けてアクセス
+
 // ファクトリメソッド - 不変条件を保証
+// 新規作成時は owner_id = created_by = 作成者
 func NewFile(
-    ownerID uuid.UUID,
-    ownerType valueobject.OwnerType,
-    folderID *uuid.UUID,
+    folderID uuid.UUID,      // 必須
+    creatorID uuid.UUID,     // 作成者ID（owner_id と created_by の両方に設定）
     name valueobject.FileName,
     mimeType valueobject.MimeType,
     size int64,
@@ -683,9 +703,9 @@ func NewFile(
 
     return &File{
         id:             id,
-        ownerID:        ownerID,
-        ownerType:      ownerType,
-        folderID:       folderID,
+        folderID:       folderID,       // 必須
+        ownerID:        creatorID,      // 新規作成時は作成者がオーナー
+        createdBy:      creatorID,      // 作成者は不変
         name:           name,
         mimeType:       mimeType,
         size:           size,
@@ -731,23 +751,34 @@ func (f *File) Rename(newName valueobject.FileName) {
     f.updatedAt = time.Now()
 }
 
-func (f *File) MoveTo(folderID *uuid.UUID) {
+func (f *File) MoveTo(folderID uuid.UUID) {
     f.folderID = folderID
     f.updatedAt = time.Now()
 }
+
+// 所有権譲渡
+func (f *File) TransferOwnership(newOwnerID uuid.UUID) {
+    f.ownerID = newOwnerID
+    f.updatedAt = time.Now()
+}
+
+// Getters
+func (f *File) FolderID() uuid.UUID   { return f.folderID }
+func (f *File) OwnerID() uuid.UUID    { return f.ownerID }
+func (f *File) CreatedBy() uuid.UUID  { return f.createdBy }
 
 // ArchivedFile生成 - 変換ロジックをエンティティに
 func (f *File) ToArchived(archivedBy uuid.UUID, originalPath string) *ArchivedFile {
     return &ArchivedFile{
         id:               uuid.New(),
         originalFileID:   f.id,
-        originalFolderID: f.folderID,
+        originalFolderID: f.folderID,     // 必須
         originalPath:     originalPath,
         name:             f.name,
         mimeType:         f.mimeType,
         size:             f.size,
         ownerID:          f.ownerID,
-        ownerType:        f.ownerType,
+        createdBy:        f.createdBy,    // 作成者情報を保持
         storageKey:       f.storageKey,
         archivedAt:       time.Now(),
         archivedBy:       archivedBy,
@@ -892,7 +923,7 @@ type FileRepository interface {
 
     // クエリ
     FindByFolderID(ctx context.Context, folderID uuid.UUID) ([]*entity.File, error)
-    ExistsByNameInFolder(ctx context.Context, name valueobject.FileName, folderID *uuid.UUID, ownerID uuid.UUID) (bool, error)
+    ExistsByNameInFolder(ctx context.Context, name valueobject.FileName, folderID uuid.UUID) (bool, error)
 }
 ```
 
@@ -1085,11 +1116,24 @@ var (
 - [ ] ファイルをダウンロードできる
 - [ ] 特定バージョンをダウンロードできる
 - [ ] ファイル名を変更できる
-- [ ] ファイルを別フォルダへ移動できる
+- [ ] ファイルを別フォルダへ移動できる（移動元にmove_out、移動先にmove_in権限が必要）
 - [ ] ファイルをゴミ箱へ移動できる
 - [ ] ゴミ箱からファイルを復元できる
 - [ ] ファイルを完全に削除できる
 - [ ] ゴミ箱を空にできる
+
+### フォルダ制約
+
+- [ ] ファイルは必ずフォルダに所属する（folder_id NOT NULL）
+- [ ] ルートレベルのファイルは存在しない（必ず何らかのフォルダに所属）
+
+### 所有権
+
+- [ ] `owner_id` は現在の所有者を表す（所有権譲渡で変更可能）
+- [ ] `created_by` は最初の作成者を表す（不変）
+- [ ] 新規作成時は `owner_id = created_by = 作成者`
+- [ ] `created_by` は所有権譲渡後も変更されない
+- [ ] グループはPermissionGrantで関連付けてアクセス（owner_typeは廃止）
 
 ### 非機能要件
 

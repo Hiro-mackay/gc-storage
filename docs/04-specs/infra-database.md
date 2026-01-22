@@ -316,9 +316,9 @@ backend/internal/infrastructure/database/queries/
 
 -- name: CreateUser :one
 INSERT INTO users (
-    id, email, name, password_hash, status, email_verified, created_at, updated_at
+    id, email, name, password_hash, personal_folder_id, status, email_verified, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
 ) RETURNING *;
 
 -- name: GetUserByID :one
@@ -433,14 +433,15 @@ func NewUserRepository(base *database.BaseRepository, queries *sqlcgen.Queries) 
 
 func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
     _, err := r.queries.CreateUser(ctx, r.Querier(ctx), sqlcgen.CreateUserParams{
-        ID:            user.ID,
-        Email:         user.Email.String(),
-        Name:          user.Name,
-        PasswordHash:  user.PasswordHash,
-        Status:        string(user.Status),
-        EmailVerified: user.EmailVerified,
-        CreatedAt:     user.CreatedAt,
-        UpdatedAt:     user.UpdatedAt,
+        ID:               user.ID,
+        Email:            user.Email.String(),
+        Name:             user.Name,
+        PasswordHash:     user.PasswordHash,
+        PersonalFolderID: user.PersonalFolderID, // Personal Folder への参照（必須）
+        Status:           string(user.Status),
+        EmailVerified:    user.EmailVerified,
+        CreatedAt:        user.CreatedAt,
+        UpdatedAt:        user.UpdatedAt,
     })
     return r.HandleError(err)
 }
@@ -464,14 +465,15 @@ func (r *userRepository) FindByEmail(ctx context.Context, email entity.Email) (*
 func (r *userRepository) toEntity(row sqlcgen.User) *entity.User {
     email, _ := entity.NewEmail(row.Email)
     return &entity.User{
-        ID:            row.ID,
-        Email:         email,
-        Name:          row.Name,
-        PasswordHash:  row.PasswordHash,
-        Status:        entity.UserStatus(row.Status),
-        EmailVerified: row.EmailVerified,
-        CreatedAt:     row.CreatedAt,
-        UpdatedAt:     row.UpdatedAt,
+        ID:               row.ID,
+        Email:            email,
+        Name:             row.Name,
+        PasswordHash:     row.PasswordHash,
+        PersonalFolderID: row.PersonalFolderID, // Personal Folder への参照
+        Status:           entity.UserStatus(row.Status),
+        EmailVerified:    row.EmailVerified,
+        CreatedAt:        row.CreatedAt,
+        UpdatedAt:        row.UpdatedAt,
     }
 }
 ```
