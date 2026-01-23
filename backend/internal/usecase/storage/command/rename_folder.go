@@ -49,18 +49,18 @@ func (c *RenameFolderCommand) Execute(ctx context.Context, input RenameFolderInp
 		return nil, err
 	}
 
-	// 3. 所有者チェック（ユーザー所有の場合のみ）
-	if folder.OwnerType == valueobject.OwnerTypeUser && folder.OwnerID != input.UserID {
+	// 3. 所有者チェック
+	if !folder.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to rename this folder")
 	}
 
 	// 4. 同名フォルダの存在チェック（同じ名前への変更は許可）
-	if folder.Name.String() != newName.String() {
+	if !folder.EqualsName(newName) {
 		var exists bool
 		if folder.ParentID != nil {
-			exists, err = c.folderRepo.ExistsByNameAndParent(ctx, newName, folder.ParentID, folder.OwnerID, folder.OwnerType)
+			exists, err = c.folderRepo.ExistsByNameAndParent(ctx, newName, folder.ParentID, folder.OwnerID)
 		} else {
-			exists, err = c.folderRepo.ExistsByNameAndOwnerRoot(ctx, newName, folder.OwnerID, folder.OwnerType)
+			exists, err = c.folderRepo.ExistsByNameAndOwnerRoot(ctx, newName, folder.OwnerID)
 		}
 		if err != nil {
 			return nil, err

@@ -7,7 +7,6 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -62,8 +61,8 @@ func (c *TrashFileCommand) Execute(ctx context.Context, input TrashFileInput) (*
 		return nil, err
 	}
 
-	// 2. 権限チェック（ユーザー所有の場合のみ）
-	if file.OwnerType == valueobject.OwnerTypeUser && file.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !file.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to trash this file")
 	}
 
@@ -124,19 +123,16 @@ func (c *TrashFileCommand) Execute(ctx context.Context, input TrashFileInput) (*
 }
 
 // buildFilePath はファイルのフルパスを構築します
-func (c *TrashFileCommand) buildFilePath(ctx context.Context, folderID *uuid.UUID, fileName string) (string, error) {
-	if folderID == nil {
-		return "/" + fileName, nil
-	}
-
+// Note: ファイルは必ずフォルダに所属するため、folderIDは必須
+func (c *TrashFileCommand) buildFilePath(ctx context.Context, folderID uuid.UUID, fileName string) (string, error) {
 	// 祖先フォルダIDを取得（ルートから順）
-	ancestorIDs, err := c.folderClosureRepo.FindAncestorIDs(ctx, *folderID)
+	ancestorIDs, err := c.folderClosureRepo.FindAncestorIDs(ctx, folderID)
 	if err != nil {
 		return "", err
 	}
 
 	// 自身を含める
-	allIDs := append(ancestorIDs, *folderID)
+	allIDs := append(ancestorIDs, folderID)
 
 	// フォルダ名を取得してパスを構築
 	path := ""

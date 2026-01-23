@@ -36,8 +36,8 @@ func (r *UploadSessionRepository) Create(ctx context.Context, session *entity.Up
 		ID:            session.ID,
 		FileID:        session.FileID,
 		OwnerID:       session.OwnerID,
-		OwnerType:     sqlcgen.OwnerType(session.OwnerType),
-		FolderID:      uuidToPgtype(session.FolderID),
+		CreatedBy:     session.CreatedBy,
+		FolderID:      session.FolderID,
 		FileName:      session.FileName.String(),
 		MimeType:      session.MimeType.String(),
 		TotalSize:     session.TotalSize,
@@ -159,14 +159,13 @@ func (r *UploadSessionRepository) toEntity(row sqlcgen.UploadSession) *entity.Up
 	fileName, _ := valueobject.NewFileName(row.FileName)
 	mimeType, _ := valueobject.NewMimeType(row.MimeType)
 	storageKey, _ := valueobject.NewStorageKeyFromString(row.StorageKey)
-	ownerType := valueobject.OwnerType(row.OwnerType)
 
 	return entity.ReconstructUploadSession(
 		row.ID,
 		row.FileID,
 		row.OwnerID,
-		ownerType,
-		pgtypeToUUID(row.FolderID),
+		row.CreatedBy,
+		row.FolderID,
 		fileName,
 		mimeType,
 		row.TotalSize,

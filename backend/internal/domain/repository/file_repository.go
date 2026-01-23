@@ -10,6 +10,8 @@ import (
 )
 
 // FileRepository はファイルリポジトリのインターフェース
+// Note: owner_typeは削除されたため、ファイルは常にユーザー所有として扱う
+// Note: folder_idは必須（NOT NULL）- ファイルは必ずフォルダに所属
 type FileRepository interface {
 	// 基本CRUD
 	Create(ctx context.Context, file *entity.File) error
@@ -18,13 +20,14 @@ type FileRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 
 	// 検索
-	FindByFolderID(ctx context.Context, folderID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.File, error)
-	FindByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) (*entity.File, error)
-	FindByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.File, error)
+	FindByFolderID(ctx context.Context, folderID uuid.UUID) ([]*entity.File, error)
+	FindByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID uuid.UUID) (*entity.File, error)
+	FindByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.File, error)
+	FindByCreatedBy(ctx context.Context, createdBy uuid.UUID) ([]*entity.File, error)
 	FindByStorageKey(ctx context.Context, storageKey valueobject.StorageKey) (*entity.File, error)
 
 	// 存在チェック
-	ExistsByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) (bool, error)
+	ExistsByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID uuid.UUID) (bool, error)
 
 	// ステータス更新
 	UpdateStatus(ctx context.Context, id uuid.UUID, status entity.FileStatus) error
@@ -66,7 +69,8 @@ type ArchivedFileRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 
 	// 検索
-	FindByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.ArchivedFile, error)
+	FindByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.ArchivedFile, error)
+	FindByOwnerWithPagination(ctx context.Context, ownerID uuid.UUID, limit int, cursor *uuid.UUID) ([]*entity.ArchivedFile, error)
 	FindExpired(ctx context.Context) ([]*entity.ArchivedFile, error)
 	FindByOriginalFileID(ctx context.Context, originalFileID uuid.UUID) (*entity.ArchivedFile, error)
 }

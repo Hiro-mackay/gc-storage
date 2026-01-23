@@ -10,6 +10,7 @@ import (
 )
 
 // FolderRepository はフォルダリポジトリのインターフェース
+// Note: owner_typeは削除されたため、フォルダは常にユーザー所有として扱う
 type FolderRepository interface {
 	// 基本CRUD
 	Create(ctx context.Context, folder *entity.Folder) error
@@ -18,13 +19,14 @@ type FolderRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 
 	// 検索
-	FindByParentID(ctx context.Context, parentID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.Folder, error)
-	FindRootByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.Folder, error)
-	FindByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.Folder, error)
+	FindByParentID(ctx context.Context, parentID *uuid.UUID, ownerID uuid.UUID) ([]*entity.Folder, error)
+	FindRootByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.Folder, error)
+	FindByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.Folder, error)
+	FindByCreatedBy(ctx context.Context, createdBy uuid.UUID) ([]*entity.Folder, error)
 
 	// 存在チェック
-	ExistsByNameAndParent(ctx context.Context, name valueobject.FolderName, parentID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) (bool, error)
-	ExistsByNameAndOwnerRoot(ctx context.Context, name valueobject.FolderName, ownerID uuid.UUID, ownerType valueobject.OwnerType) (bool, error)
+	ExistsByNameAndParent(ctx context.Context, name valueobject.FolderName, parentID *uuid.UUID, ownerID uuid.UUID) (bool, error)
+	ExistsByNameAndOwnerRoot(ctx context.Context, name valueobject.FolderName, ownerID uuid.UUID) (bool, error)
 	ExistsByID(ctx context.Context, id uuid.UUID) (bool, error)
 
 	// 深さ更新

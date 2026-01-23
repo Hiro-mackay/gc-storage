@@ -15,12 +15,11 @@ import (
 
 // InitiateUploadInput はアップロード開始の入力を定義します
 type InitiateUploadInput struct {
-	FolderID  *uuid.UUID
-	FileName  string
-	MimeType  string
-	Size      int64
-	OwnerID   uuid.UUID
-	OwnerType valueobject.OwnerType
+	FolderID uuid.UUID // 必須 - アップロード先フォルダID
+	FileName string
+	MimeType string
+	Size     int64
+	OwnerID  uuid.UUID // 作成者のユーザーID
 }
 
 // UploadURL はアップロードURL情報を表します
@@ -79,21 +78,19 @@ func (c *InitiateUploadCommand) Execute(ctx context.Context, input InitiateUploa
 		return nil, apperror.NewValidationError(err.Error(), nil)
 	}
 
-	// 3. フォルダが指定されている場合は存在と権限チェック
-	if input.FolderID != nil {
-		folder, err := c.folderRepo.FindByID(ctx, *input.FolderID)
-		if err != nil {
-			return nil, err
-		}
+	// 3. フォルダの存在と権限チェック（FolderIDは必須）
+	folder, err := c.folderRepo.FindByID(ctx, input.FolderID)
+	if err != nil {
+		return nil, err
+	}
 
-		// 所有者チェック
-		if folder.OwnerID != input.OwnerID || folder.OwnerType != input.OwnerType {
-			return nil, apperror.NewForbiddenError("not authorized to upload to this folder")
-		}
+	// 所有者チェック
+	if !folder.IsOwnedBy(input.OwnerID) {
+		return nil, apperror.NewForbiddenError("not authorized to upload to this folder")
 	}
 
 	// 4. 同名ファイルの存在チェック
-	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, fileName, input.FolderID, input.OwnerID, input.OwnerType)
+	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, fileName, input.FolderID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,11 +116,11 @@ func (c *InitiateUploadCommand) Execute(ctx context.Context, input InitiateUploa
 	}
 
 	// 8. File と UploadSession を作成
+	// 新規作成時は owner_id = created_by = 作成者（input.OwnerID）となる
 	file := entity.NewFileWithID(
 		fileID,
-		input.OwnerID,
-		input.OwnerType,
 		input.FolderID,
+		input.OwnerID, // createdBy - owner_id = created_by = 作成者
 		fileName,
 		mimeType,
 		input.Size,
@@ -131,8 +128,7 @@ func (c *InitiateUploadCommand) Execute(ctx context.Context, input InitiateUploa
 
 	session := entity.NewUploadSession(
 		fileID,
-		input.OwnerID,
-		input.OwnerType,
+		input.OwnerID, // createdBy - owner_id = created_by = 作成者
 		input.FolderID,
 		fileName,
 		mimeType,

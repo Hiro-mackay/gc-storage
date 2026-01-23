@@ -7,16 +7,14 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // ListFolderContentsInput はフォルダ内容一覧の入力を定義します
 type ListFolderContentsInput struct {
-	FolderID  *uuid.UUID // nil の場合はルートレベル
-	OwnerID   uuid.UUID
-	OwnerType valueobject.OwnerType
-	UserID    uuid.UUID
+	FolderID *uuid.UUID // nil の場合はルートレベル
+	OwnerID  uuid.UUID
+	UserID   uuid.UUID
 }
 
 // ListFolderContentsOutput はフォルダ内容一覧の出力を定義します
@@ -55,45 +53,52 @@ func (q *ListFolderContentsQuery) Execute(ctx context.Context, input ListFolderC
 			return nil, err
 		}
 
-		// 所有者チェック（ユーザー所有の場合のみ）
-		if folder.OwnerType == valueobject.OwnerTypeUser && folder.OwnerID != input.UserID {
+		// 所有者チェック
+		if !folder.IsOwnedBy(input.UserID) {
 			return nil, apperror.NewForbiddenError("not authorized to access this folder")
 		}
 
 		// 入力の所有者情報をフォルダから取得
 		input.OwnerID = folder.OwnerID
-		input.OwnerType = folder.OwnerType
 	}
 
 	// 2. サブフォルダ取得
 	var folders []*entity.Folder
 	var err error
 	if input.FolderID != nil {
-		folders, err = q.folderRepo.FindByParentID(ctx, input.FolderID, input.OwnerID, input.OwnerType)
+		folders, err = q.folderRepo.FindByParentID(ctx, input.FolderID, input.OwnerID)
 	} else {
-		folders, err = q.folderRepo.FindRootByOwner(ctx, input.OwnerID, input.OwnerType)
+		folders, err = q.folderRepo.FindRootByOwner(ctx, input.OwnerID)
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	// 3. ファイル取得
-	files, err := q.fileRepo.FindByFolderID(ctx, input.FolderID, input.OwnerID, input.OwnerType)
-	if err != nil {
-		return nil, err
-	}
-
-	// アクティブなファイルのみをフィルタ
-	activeFiles := make([]*entity.File, 0, len(files))
-	for _, f := range files {
-		if f.Status == entity.FileStatusActive {
-			activeFiles = append(activeFiles, f)
+	// Note: FolderIDがnilの場合はルートレベルなのでファイルは取得しない
+	// （ファイルは必ずフォルダに所属するため）
+	var files []*entity.File
+	if input.FolderID != nil {
+		files, err = q.fileRepo.FindByFolderID(ctx, *input.FolderID)
+		if err != nil {
+			return nil, err
 		}
+
+		// アクティブなファイルのみをフィルタ
+		activeFiles := make([]*entity.File, 0, len(files))
+		for _, f := range files {
+			if f.IsActive() {
+				activeFiles = append(activeFiles, f)
+			}
+		}
+		files = activeFiles
+	} else {
+		files = []*entity.File{}
 	}
 
 	return &ListFolderContentsOutput{
 		Folder:  folder,
 		Folders: folders,
-		Files:   activeFiles,
+		Files:   files,
 	}, nil
 }

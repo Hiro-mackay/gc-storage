@@ -23,12 +23,15 @@ type StorageUseCases struct {
 	GetAncestors       *storageqry.GetAncestorsQuery
 
 	// File Commands
-	InitiateUpload *storagecmd.InitiateUploadCommand
-	CompleteUpload *storagecmd.CompleteUploadCommand
-	RenameFile     *storagecmd.RenameFileCommand
-	MoveFile       *storagecmd.MoveFileCommand
-	TrashFile      *storagecmd.TrashFileCommand
-	RestoreFile    *storagecmd.RestoreFileCommand
+	InitiateUpload        *storagecmd.InitiateUploadCommand
+	CompleteUpload        *storagecmd.CompleteUploadCommand
+	AbortUpload           *storagecmd.AbortUploadCommand
+	RenameFile            *storagecmd.RenameFileCommand
+	MoveFile              *storagecmd.MoveFileCommand
+	TrashFile             *storagecmd.TrashFileCommand
+	RestoreFile           *storagecmd.RestoreFileCommand
+	PermanentlyDeleteFile *storagecmd.PermanentlyDeleteFileCommand
+	EmptyTrash            *storagecmd.EmptyTrashCommand
 
 	// File Queries
 	GetDownloadURL   *storageqry.GetDownloadURLQuery
@@ -86,12 +89,15 @@ func NewStorageUseCases(repos *StorageRepositories, txManager repository.Transac
 		GetAncestors:       storageqry.NewGetAncestorsQuery(repos.FolderRepo, repos.FolderClosureRepo),
 
 		// File Commands
-		InitiateUpload: storagecmd.NewInitiateUploadCommand(repos.FileRepo, repos.FolderRepo, repos.UploadSessionRepo, storageService, txManager),
-		CompleteUpload: storagecmd.NewCompleteUploadCommand(repos.FileRepo, repos.FileVersionRepo, repos.UploadSessionRepo, repos.UploadPartRepo, txManager),
-		RenameFile:     storagecmd.NewRenameFileCommand(repos.FileRepo),
-		MoveFile:       storagecmd.NewMoveFileCommand(repos.FileRepo, repos.FolderRepo),
-		TrashFile:      storagecmd.NewTrashFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.FolderClosureRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
-		RestoreFile:    storagecmd.NewRestoreFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
+		InitiateUpload:        storagecmd.NewInitiateUploadCommand(repos.FileRepo, repos.FolderRepo, repos.UploadSessionRepo, storageService, txManager),
+		CompleteUpload:        storagecmd.NewCompleteUploadCommand(repos.FileRepo, repos.FileVersionRepo, repos.UploadSessionRepo, repos.UploadPartRepo, txManager),
+		AbortUpload:           storagecmd.NewAbortUploadCommand(repos.UploadSessionRepo, repos.FileRepo, storageService, txManager),
+		RenameFile:            storagecmd.NewRenameFileCommand(repos.FileRepo),
+		MoveFile:              storagecmd.NewMoveFileCommand(repos.FileRepo, repos.FolderRepo),
+		TrashFile:             storagecmd.NewTrashFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.FolderClosureRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
+		RestoreFile:           storagecmd.NewRestoreFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
+		PermanentlyDeleteFile: storagecmd.NewPermanentlyDeleteFileCommand(repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, storageService, txManager),
+		EmptyTrash:            storagecmd.NewEmptyTrashCommand(repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, storageService, txManager),
 
 		// File Queries
 		GetDownloadURL:   storageqry.NewGetDownloadURLQuery(repos.FileRepo, repos.FileVersionRepo, storageService),

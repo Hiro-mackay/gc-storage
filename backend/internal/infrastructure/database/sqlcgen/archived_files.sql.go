@@ -16,26 +16,26 @@ import (
 const createArchivedFile = `-- name: CreateArchivedFile :one
 INSERT INTO archived_files (
     id, original_file_id, original_folder_id, original_path, name, mime_type, size,
-    owner_id, owner_type, storage_key, archived_at, archived_by, expires_at
+    owner_id, created_by, storage_key, archived_at, archived_by, expires_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-) RETURNING id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, owner_type, storage_key, archived_at, archived_by, expires_at
+) RETURNING id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, storage_key, archived_at, archived_by, expires_at, created_by
 `
 
 type CreateArchivedFileParams struct {
-	ID               uuid.UUID   `json:"id"`
-	OriginalFileID   uuid.UUID   `json:"original_file_id"`
-	OriginalFolderID pgtype.UUID `json:"original_folder_id"`
-	OriginalPath     string      `json:"original_path"`
-	Name             string      `json:"name"`
-	MimeType         string      `json:"mime_type"`
-	Size             int64       `json:"size"`
-	OwnerID          uuid.UUID   `json:"owner_id"`
-	OwnerType        OwnerType   `json:"owner_type"`
-	StorageKey       string      `json:"storage_key"`
-	ArchivedAt       time.Time   `json:"archived_at"`
-	ArchivedBy       uuid.UUID   `json:"archived_by"`
-	ExpiresAt        time.Time   `json:"expires_at"`
+	ID               uuid.UUID `json:"id"`
+	OriginalFileID   uuid.UUID `json:"original_file_id"`
+	OriginalFolderID uuid.UUID `json:"original_folder_id"`
+	OriginalPath     string    `json:"original_path"`
+	Name             string    `json:"name"`
+	MimeType         string    `json:"mime_type"`
+	Size             int64     `json:"size"`
+	OwnerID          uuid.UUID `json:"owner_id"`
+	CreatedBy        uuid.UUID `json:"created_by"`
+	StorageKey       string    `json:"storage_key"`
+	ArchivedAt       time.Time `json:"archived_at"`
+	ArchivedBy       uuid.UUID `json:"archived_by"`
+	ExpiresAt        time.Time `json:"expires_at"`
 }
 
 func (q *Queries) CreateArchivedFile(ctx context.Context, arg CreateArchivedFileParams) (ArchivedFile, error) {
@@ -48,7 +48,7 @@ func (q *Queries) CreateArchivedFile(ctx context.Context, arg CreateArchivedFile
 		arg.MimeType,
 		arg.Size,
 		arg.OwnerID,
-		arg.OwnerType,
+		arg.CreatedBy,
 		arg.StorageKey,
 		arg.ArchivedAt,
 		arg.ArchivedBy,
@@ -64,11 +64,11 @@ func (q *Queries) CreateArchivedFile(ctx context.Context, arg CreateArchivedFile
 		&i.MimeType,
 		&i.Size,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.StorageKey,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -83,7 +83,7 @@ func (q *Queries) DeleteArchivedFile(ctx context.Context, id uuid.UUID) error {
 }
 
 const getArchivedFileByID = `-- name: GetArchivedFileByID :one
-SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, owner_type, storage_key, archived_at, archived_by, expires_at FROM archived_files WHERE id = $1
+SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, storage_key, archived_at, archived_by, expires_at, created_by FROM archived_files WHERE id = $1
 `
 
 func (q *Queries) GetArchivedFileByID(ctx context.Context, id uuid.UUID) (ArchivedFile, error) {
@@ -98,17 +98,17 @@ func (q *Queries) GetArchivedFileByID(ctx context.Context, id uuid.UUID) (Archiv
 		&i.MimeType,
 		&i.Size,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.StorageKey,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getArchivedFileByOriginalFileID = `-- name: GetArchivedFileByOriginalFileID :one
-SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, owner_type, storage_key, archived_at, archived_by, expires_at FROM archived_files WHERE original_file_id = $1
+SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, storage_key, archived_at, archived_by, expires_at, created_by FROM archived_files WHERE original_file_id = $1
 `
 
 func (q *Queries) GetArchivedFileByOriginalFileID(ctx context.Context, originalFileID uuid.UUID) (ArchivedFile, error) {
@@ -123,28 +123,23 @@ func (q *Queries) GetArchivedFileByOriginalFileID(ctx context.Context, originalF
 		&i.MimeType,
 		&i.Size,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.StorageKey,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const listArchivedFilesByOwner = `-- name: ListArchivedFilesByOwner :many
-SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, owner_type, storage_key, archived_at, archived_by, expires_at FROM archived_files
-WHERE owner_id = $1 AND owner_type = $2
+SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, storage_key, archived_at, archived_by, expires_at, created_by FROM archived_files
+WHERE owner_id = $1
 ORDER BY archived_at DESC
 `
 
-type ListArchivedFilesByOwnerParams struct {
-	OwnerID   uuid.UUID `json:"owner_id"`
-	OwnerType OwnerType `json:"owner_type"`
-}
-
-func (q *Queries) ListArchivedFilesByOwner(ctx context.Context, arg ListArchivedFilesByOwnerParams) ([]ArchivedFile, error) {
-	rows, err := q.db.Query(ctx, listArchivedFilesByOwner, arg.OwnerID, arg.OwnerType)
+func (q *Queries) ListArchivedFilesByOwner(ctx context.Context, ownerID uuid.UUID) ([]ArchivedFile, error) {
+	rows, err := q.db.Query(ctx, listArchivedFilesByOwner, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,11 +156,62 @@ func (q *Queries) ListArchivedFilesByOwner(ctx context.Context, arg ListArchived
 			&i.MimeType,
 			&i.Size,
 			&i.OwnerID,
-			&i.OwnerType,
 			&i.StorageKey,
 			&i.ArchivedAt,
 			&i.ArchivedBy,
 			&i.ExpiresAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArchivedFilesByOwnerWithPagination = `-- name: ListArchivedFilesByOwnerWithPagination :many
+SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, storage_key, archived_at, archived_by, expires_at, created_by FROM archived_files
+WHERE owner_id = $1
+  AND (
+    $3::uuid IS NULL
+    OR id < $3::uuid
+  )
+ORDER BY archived_at DESC, id DESC
+LIMIT $2
+`
+
+type ListArchivedFilesByOwnerWithPaginationParams struct {
+	OwnerID  uuid.UUID   `json:"owner_id"`
+	Limit    int32       `json:"limit"`
+	CursorID pgtype.UUID `json:"cursor_id"`
+}
+
+func (q *Queries) ListArchivedFilesByOwnerWithPagination(ctx context.Context, arg ListArchivedFilesByOwnerWithPaginationParams) ([]ArchivedFile, error) {
+	rows, err := q.db.Query(ctx, listArchivedFilesByOwnerWithPagination, arg.OwnerID, arg.Limit, arg.CursorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ArchivedFile{}
+	for rows.Next() {
+		var i ArchivedFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.OriginalFileID,
+			&i.OriginalFolderID,
+			&i.OriginalPath,
+			&i.Name,
+			&i.MimeType,
+			&i.Size,
+			&i.OwnerID,
+			&i.StorageKey,
+			&i.ArchivedAt,
+			&i.ArchivedBy,
+			&i.ExpiresAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -178,7 +224,7 @@ func (q *Queries) ListArchivedFilesByOwner(ctx context.Context, arg ListArchived
 }
 
 const listExpiredArchivedFiles = `-- name: ListExpiredArchivedFiles :many
-SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, owner_type, storage_key, archived_at, archived_by, expires_at FROM archived_files
+SELECT id, original_file_id, original_folder_id, original_path, name, mime_type, size, owner_id, storage_key, archived_at, archived_by, expires_at, created_by FROM archived_files
 WHERE expires_at < NOW()
 `
 
@@ -200,11 +246,11 @@ func (q *Queries) ListExpiredArchivedFiles(ctx context.Context) ([]ArchivedFile,
 			&i.MimeType,
 			&i.Size,
 			&i.OwnerID,
-			&i.OwnerType,
 			&i.StorageKey,
 			&i.ArchivedAt,
 			&i.ArchivedBy,
 			&i.ExpiresAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}

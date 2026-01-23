@@ -1,6 +1,6 @@
 -- name: CreateUploadSession :one
 INSERT INTO upload_sessions (
-    id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size,
+    id, file_id, owner_id, created_by, folder_id, file_name, mime_type, total_size,
     storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status,
     created_at, updated_at, expires_at
 ) VALUES (

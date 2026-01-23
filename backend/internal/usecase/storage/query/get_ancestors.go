@@ -7,7 +7,6 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -47,8 +46,8 @@ func (q *GetAncestorsQuery) Execute(ctx context.Context, input GetAncestorsInput
 		return nil, err
 	}
 
-	// 所有者チェック（ユーザー所有の場合のみ）
-	if folder.OwnerType == valueobject.OwnerTypeUser && folder.OwnerID != input.UserID {
+	// 所有者チェック
+	if !folder.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to access this folder")
 	}
 

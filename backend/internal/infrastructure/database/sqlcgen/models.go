@@ -56,48 +56,6 @@ func (ns NullFileStatus) Value() (driver.Value, error) {
 	return string(ns.FileStatus), nil
 }
 
-type OwnerType string
-
-const (
-	OwnerTypeUser  OwnerType = "user"
-	OwnerTypeGroup OwnerType = "group"
-)
-
-func (e *OwnerType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = OwnerType(s)
-	case string:
-		*e = OwnerType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for OwnerType: %T", src)
-	}
-	return nil
-}
-
-type NullOwnerType struct {
-	OwnerType OwnerType `json:"owner_type"`
-	Valid     bool      `json:"valid"` // Valid is true if OwnerType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullOwnerType) Scan(value interface{}) error {
-	if value == nil {
-		ns.OwnerType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.OwnerType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullOwnerType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.OwnerType), nil
-}
-
 type UploadSessionStatus string
 
 const (
@@ -144,19 +102,19 @@ func (ns NullUploadSessionStatus) Value() (driver.Value, error) {
 }
 
 type ArchivedFile struct {
-	ID               uuid.UUID   `json:"id"`
-	OriginalFileID   uuid.UUID   `json:"original_file_id"`
-	OriginalFolderID pgtype.UUID `json:"original_folder_id"`
-	OriginalPath     string      `json:"original_path"`
-	Name             string      `json:"name"`
-	MimeType         string      `json:"mime_type"`
-	Size             int64       `json:"size"`
-	OwnerID          uuid.UUID   `json:"owner_id"`
-	OwnerType        OwnerType   `json:"owner_type"`
-	StorageKey       string      `json:"storage_key"`
-	ArchivedAt       time.Time   `json:"archived_at"`
-	ArchivedBy       uuid.UUID   `json:"archived_by"`
-	ExpiresAt        time.Time   `json:"expires_at"`
+	ID               uuid.UUID `json:"id"`
+	OriginalFileID   uuid.UUID `json:"original_file_id"`
+	OriginalFolderID uuid.UUID `json:"original_folder_id"`
+	OriginalPath     string    `json:"original_path"`
+	Name             string    `json:"name"`
+	MimeType         string    `json:"mime_type"`
+	Size             int64     `json:"size"`
+	OwnerID          uuid.UUID `json:"owner_id"`
+	StorageKey       string    `json:"storage_key"`
+	ArchivedAt       time.Time `json:"archived_at"`
+	ArchivedBy       uuid.UUID `json:"archived_by"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	CreatedBy        uuid.UUID `json:"created_by"`
 }
 
 type ArchivedFileVersion struct {
@@ -181,18 +139,18 @@ type EmailVerificationToken struct {
 }
 
 type File struct {
-	ID             uuid.UUID   `json:"id"`
-	OwnerID        uuid.UUID   `json:"owner_id"`
-	OwnerType      OwnerType   `json:"owner_type"`
-	FolderID       pgtype.UUID `json:"folder_id"`
-	Name           string      `json:"name"`
-	MimeType       string      `json:"mime_type"`
-	Size           int64       `json:"size"`
-	StorageKey     string      `json:"storage_key"`
-	CurrentVersion int32       `json:"current_version"`
-	Status         FileStatus  `json:"status"`
-	CreatedAt      time.Time   `json:"created_at"`
-	UpdatedAt      time.Time   `json:"updated_at"`
+	ID             uuid.UUID  `json:"id"`
+	OwnerID        uuid.UUID  `json:"owner_id"`
+	FolderID       uuid.UUID  `json:"folder_id"`
+	Name           string     `json:"name"`
+	MimeType       string     `json:"mime_type"`
+	Size           int64      `json:"size"`
+	StorageKey     string     `json:"storage_key"`
+	CurrentVersion int32      `json:"current_version"`
+	Status         FileStatus `json:"status"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	CreatedBy      uuid.UUID  `json:"created_by"`
 }
 
 type FileVersion struct {
@@ -211,10 +169,11 @@ type Folder struct {
 	Name      string      `json:"name"`
 	ParentID  pgtype.UUID `json:"parent_id"`
 	OwnerID   uuid.UUID   `json:"owner_id"`
-	OwnerType OwnerType   `json:"owner_type"`
 	Depth     int32       `json:"depth"`
 	CreatedAt time.Time   `json:"created_at"`
 	UpdatedAt time.Time   `json:"updated_at"`
+	CreatedBy uuid.UUID   `json:"created_by"`
+	Status    string      `json:"status"`
 }
 
 type FolderPath struct {
@@ -258,8 +217,7 @@ type UploadSession struct {
 	ID            uuid.UUID           `json:"id"`
 	FileID        uuid.UUID           `json:"file_id"`
 	OwnerID       uuid.UUID           `json:"owner_id"`
-	OwnerType     OwnerType           `json:"owner_type"`
-	FolderID      pgtype.UUID         `json:"folder_id"`
+	FolderID      uuid.UUID           `json:"folder_id"`
 	FileName      string              `json:"file_name"`
 	MimeType      string              `json:"mime_type"`
 	TotalSize     int64               `json:"total_size"`
@@ -272,18 +230,20 @@ type UploadSession struct {
 	CreatedAt     time.Time           `json:"created_at"`
 	UpdatedAt     time.Time           `json:"updated_at"`
 	ExpiresAt     time.Time           `json:"expires_at"`
+	CreatedBy     uuid.UUID           `json:"created_by"`
 }
 
 type User struct {
-	ID              uuid.UUID          `json:"id"`
-	Email           string             `json:"email"`
-	PasswordHash    *string            `json:"password_hash"`
-	DisplayName     string             `json:"display_name"`
-	Status          string             `json:"status"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	LastLoginAt     pgtype.Timestamptz `json:"last_login_at"`
-	CreatedAt       time.Time          `json:"created_at"`
-	UpdatedAt       time.Time          `json:"updated_at"`
+	ID               uuid.UUID          `json:"id"`
+	Email            string             `json:"email"`
+	PasswordHash     *string            `json:"password_hash"`
+	DisplayName      string             `json:"display_name"`
+	Status           string             `json:"status"`
+	EmailVerifiedAt  pgtype.Timestamptz `json:"email_verified_at"`
+	LastLoginAt      pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	PersonalFolderID pgtype.UUID        `json:"personal_folder_id"`
 }
 
 type UserProfile struct {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
@@ -34,9 +35,9 @@ func (r *FileRepository) Create(ctx context.Context, file *entity.File) error {
 
 	_, err := queries.CreateFile(ctx, sqlcgen.CreateFileParams{
 		ID:             file.ID,
+		FolderID:       file.FolderID,
 		OwnerID:        file.OwnerID,
-		OwnerType:      sqlcgen.OwnerType(file.OwnerType),
-		FolderID:       uuidToPgtype(file.FolderID),
+		CreatedBy:      file.CreatedBy,
 		Name:           file.Name.String(),
 		MimeType:       file.MimeType.String(),
 		Size:           file.Size,
@@ -76,7 +77,8 @@ func (r *FileRepository) Update(ctx context.Context, file *entity.File) error {
 	currentVersion := int32(file.CurrentVersion)
 	_, err := queries.UpdateFile(ctx, sqlcgen.UpdateFileParams{
 		ID:             file.ID,
-		FolderID:       uuidToPgtype(file.FolderID),
+		FolderID:       pgtype.UUID{Bytes: file.FolderID, Valid: true},
+		OwnerID:        pgtype.UUID{Bytes: file.OwnerID, Valid: true},
 		Name:           &name,
 		Size:           &size,
 		CurrentVersion: &currentVersion,
@@ -95,27 +97,11 @@ func (r *FileRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // FindByFolderID はフォルダIDでファイルを検索します
-func (r *FileRepository) FindByFolderID(ctx context.Context, folderID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.File, error) {
+func (r *FileRepository) FindByFolderID(ctx context.Context, folderID uuid.UUID) ([]*entity.File, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	// folderID が nil の場合はルートレベルのファイルを検索
-	if folderID == nil {
-		rows, err := queries.ListRootFilesByOwner(ctx, sqlcgen.ListRootFilesByOwnerParams{
-			OwnerID:   ownerID,
-			OwnerType: sqlcgen.OwnerType(ownerType),
-		})
-		if err != nil {
-			return nil, r.HandleError(err)
-		}
-		return r.toEntities(rows), nil
-	}
-
-	rows, err := queries.ListFilesByFolderID(ctx, sqlcgen.ListFilesByFolderIDParams{
-		FolderID:  uuidToPgtype(folderID),
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-	})
+	rows, err := queries.ListFilesByFolderID(ctx, folderID)
 	if err != nil {
 		return nil, r.HandleError(err)
 	}
@@ -124,31 +110,13 @@ func (r *FileRepository) FindByFolderID(ctx context.Context, folderID *uuid.UUID
 }
 
 // FindByNameAndFolder はフォルダ内で名前でファイルを検索します
-func (r *FileRepository) FindByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) (*entity.File, error) {
+func (r *FileRepository) FindByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID uuid.UUID) (*entity.File, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	// folderID が nil の場合はルートレベルで検索
-	if folderID == nil {
-		row, err := queries.GetFileByNameAtRoot(ctx, sqlcgen.GetFileByNameAtRootParams{
-			OwnerID:   ownerID,
-			OwnerType: sqlcgen.OwnerType(ownerType),
-			Name:      name.String(),
-		})
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, apperror.NewNotFoundError("file")
-			}
-			return nil, r.HandleError(err)
-		}
-		return r.toEntity(row), nil
-	}
-
 	row, err := queries.GetFileByNameAndFolder(ctx, sqlcgen.GetFileByNameAndFolderParams{
-		FolderID:  uuidToPgtype(folderID),
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-		Name:      name.String(),
+		FolderID: folderID,
+		Name:     name.String(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -161,14 +129,24 @@ func (r *FileRepository) FindByNameAndFolder(ctx context.Context, name valueobje
 }
 
 // FindByOwner はオーナーの全ファイルを検索します
-func (r *FileRepository) FindByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.File, error) {
+func (r *FileRepository) FindByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.File, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	rows, err := queries.ListFilesByOwner(ctx, sqlcgen.ListFilesByOwnerParams{
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-	})
+	rows, err := queries.ListFilesByOwner(ctx, ownerID)
+	if err != nil {
+		return nil, r.HandleError(err)
+	}
+
+	return r.toEntities(rows), nil
+}
+
+// FindByCreatedBy は作成者の全ファイルを検索します
+func (r *FileRepository) FindByCreatedBy(ctx context.Context, createdBy uuid.UUID) ([]*entity.File, error) {
+	querier := r.Querier(ctx)
+	queries := sqlcgen.New(querier)
+
+	rows, err := queries.ListFilesByCreatedBy(ctx, createdBy)
 	if err != nil {
 		return nil, r.HandleError(err)
 	}
@@ -193,25 +171,13 @@ func (r *FileRepository) FindByStorageKey(ctx context.Context, storageKey valueo
 }
 
 // ExistsByNameAndFolder はフォルダ内で同名ファイルの存在チェックをします
-func (r *FileRepository) ExistsByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) (bool, error) {
+func (r *FileRepository) ExistsByNameAndFolder(ctx context.Context, name valueobject.FileName, folderID uuid.UUID) (bool, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	// folderID が nil の場合はルートレベルでチェック
-	if folderID == nil {
-		exists, err := queries.FileExistsByNameAtRoot(ctx, sqlcgen.FileExistsByNameAtRootParams{
-			OwnerID:   ownerID,
-			OwnerType: sqlcgen.OwnerType(ownerType),
-			Name:      name.String(),
-		})
-		return exists, r.HandleError(err)
-	}
-
 	exists, err := queries.FileExistsByNameAndFolder(ctx, sqlcgen.FileExistsByNameAndFolderParams{
-		FolderID:  uuidToPgtype(folderID),
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-		Name:      name.String(),
+		FolderID: folderID,
+		Name:     name.String(),
 	})
 
 	return exists, r.HandleError(err)
@@ -278,13 +244,12 @@ func (r *FileRepository) toEntity(row sqlcgen.File) *entity.File {
 	name, _ := valueobject.NewFileName(row.Name)
 	mimeType, _ := valueobject.NewMimeType(row.MimeType)
 	storageKey, _ := valueobject.NewStorageKeyFromString(row.StorageKey)
-	ownerType := valueobject.OwnerType(row.OwnerType)
 
 	return entity.ReconstructFile(
 		row.ID,
+		row.FolderID,
 		row.OwnerID,
-		ownerType,
-		pgtypeToUUID(row.FolderID),
+		row.CreatedBy,
 		name,
 		mimeType,
 		row.Size,

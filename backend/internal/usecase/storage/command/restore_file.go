@@ -7,21 +7,21 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // RestoreFileInput はファイル復元の入力を定義します
+// Note: ファイルは必ずフォルダに所属するため、復元先は必ず存在するフォルダになる
 type RestoreFileInput struct {
-	ArchivedFileID   uuid.UUID
-	RestoreFolderID  *uuid.UUID // nilの場合は元のフォルダ、存在しない場合はルートへ
-	UserID           uuid.UUID
+	ArchivedFileID  uuid.UUID
+	RestoreFolderID *uuid.UUID // nilの場合は元のフォルダに復元を試みる
+	UserID          uuid.UUID
 }
 
 // RestoreFileOutput はファイル復元の出力を定義します
 type RestoreFileOutput struct {
 	FileID   uuid.UUID
-	FolderID *uuid.UUID
+	FolderID uuid.UUID // 必須 - 復元先フォルダID
 }
 
 // RestoreFileCommand はファイルをゴミ箱から復元するコマンドです
@@ -61,8 +61,8 @@ func (c *RestoreFileCommand) Execute(ctx context.Context, input RestoreFileInput
 		return nil, err
 	}
 
-	// 2. 権限チェック（ユーザー所有の場合のみ）
-	if archivedFile.OwnerType == valueobject.OwnerTypeUser && archivedFile.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !archivedFile.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to restore this file")
 	}
 
@@ -78,7 +78,7 @@ func (c *RestoreFileCommand) Execute(ctx context.Context, input RestoreFileInput
 	}
 
 	// 5. 同名ファイルの存在チェック
-	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, archivedFile.Name, restoreFolderID, archivedFile.OwnerID, archivedFile.OwnerType)
+	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, archivedFile.Name, restoreFolderID)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (c *RestoreFileCommand) Execute(ctx context.Context, input RestoreFileInput
 	}
 
 	// 7. ファイルデータを復元形式に変換
-	file := archivedFile.ToFile(restoreFolderID)
+	file := archivedFile.ToFile(restoreFolderID) // restoreFolderID is now uuid.UUID
 
 	// バージョン数を計算して設定
 	if len(archivedVersions) > 0 {
@@ -144,38 +144,38 @@ func (c *RestoreFileCommand) Execute(ctx context.Context, input RestoreFileInput
 }
 
 // determineRestoreFolder は復元先フォルダを決定します
+// Note: ファイルは必ずフォルダに所属するため、戻り値はuuid.UUID
 func (c *RestoreFileCommand) determineRestoreFolder(
 	ctx context.Context,
 	archivedFile *entity.ArchivedFile,
 	requestedFolderID *uuid.UUID,
-) (*uuid.UUID, error) {
+) (uuid.UUID, error) {
 	// 明示的に指定された場合
 	if requestedFolderID != nil {
 		// フォルダが存在するか確認
 		folder, err := c.folderRepo.FindByID(ctx, *requestedFolderID)
 		if err != nil {
-			return nil, apperror.NewNotFoundError("restore folder not found")
+			return uuid.Nil, apperror.NewNotFoundError("restore folder not found")
 		}
 
 		// 所有者チェック
-		if folder.OwnerID != archivedFile.OwnerID || folder.OwnerType != archivedFile.OwnerType {
-			return nil, apperror.NewForbiddenError("not authorized to restore to this folder")
+		if !folder.IsOwnedBy(archivedFile.OwnerID) {
+			return uuid.Nil, apperror.NewForbiddenError("not authorized to restore to this folder")
 		}
 
-		return requestedFolderID, nil
+		return *requestedFolderID, nil
 	}
 
 	// 元のフォルダが存在する場合はそこへ復元
-	if archivedFile.OriginalFolderID != nil {
-		exists, err := c.folderRepo.ExistsByID(ctx, *archivedFile.OriginalFolderID)
-		if err != nil {
-			return nil, err
-		}
-		if exists {
-			return archivedFile.OriginalFolderID, nil
-		}
+	exists, err := c.folderRepo.ExistsByID(ctx, archivedFile.OriginalFolderID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if exists {
+		return archivedFile.OriginalFolderID, nil
 	}
 
-	// 元のフォルダが存在しない場合はルートへ
-	return nil, nil
+	// 元のフォルダが存在しない場合はエラー
+	// Note: ファイルは必ずフォルダに所属するため、復元先フォルダを指定する必要がある
+	return uuid.Nil, apperror.NewValidationError("original folder no longer exists, please specify a restore folder", nil)
 }

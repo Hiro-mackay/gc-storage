@@ -7,7 +7,6 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -25,13 +24,13 @@ type DeleteFolderOutput struct {
 
 // DeleteFolderCommand はフォルダ削除コマンドです
 type DeleteFolderCommand struct {
-	folderRepo            repository.FolderRepository
-	folderClosureRepo     repository.FolderClosureRepository
-	fileRepo              repository.FileRepository
-	fileVersionRepo       repository.FileVersionRepository
-	archivedFileRepo      repository.ArchivedFileRepository
+	folderRepo              repository.FolderRepository
+	folderClosureRepo       repository.FolderClosureRepository
+	fileRepo                repository.FileRepository
+	fileVersionRepo         repository.FileVersionRepository
+	archivedFileRepo        repository.ArchivedFileRepository
 	archivedFileVersionRepo repository.ArchivedFileVersionRepository
-	txManager             repository.TransactionManager
+	txManager               repository.TransactionManager
 }
 
 // NewDeleteFolderCommand は新しいDeleteFolderCommandを作成します
@@ -45,13 +44,13 @@ func NewDeleteFolderCommand(
 	txManager repository.TransactionManager,
 ) *DeleteFolderCommand {
 	return &DeleteFolderCommand{
-		folderRepo:            folderRepo,
-		folderClosureRepo:     folderClosureRepo,
-		fileRepo:              fileRepo,
-		fileVersionRepo:       fileVersionRepo,
-		archivedFileRepo:      archivedFileRepo,
+		folderRepo:              folderRepo,
+		folderClosureRepo:       folderClosureRepo,
+		fileRepo:                fileRepo,
+		fileVersionRepo:         fileVersionRepo,
+		archivedFileRepo:        archivedFileRepo,
 		archivedFileVersionRepo: archivedFileVersionRepo,
-		txManager:             txManager,
+		txManager:               txManager,
 	}
 }
 
@@ -63,8 +62,8 @@ func (c *DeleteFolderCommand) Execute(ctx context.Context, input DeleteFolderInp
 		return nil, err
 	}
 
-	// 2. 所有者チェック（ユーザー所有の場合のみ）
-	if folder.OwnerType == valueobject.OwnerTypeUser && folder.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !folder.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to delete this folder")
 	}
 
@@ -86,7 +85,7 @@ func (c *DeleteFolderCommand) Execute(ctx context.Context, input DeleteFolderInp
 	err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
 		// 5a. ファイルをアーカイブ（ゴミ箱へ移動）
 		for _, file := range files {
-			if file.Status != entity.FileStatusActive {
+			if !file.IsActive() {
 				continue
 			}
 
@@ -96,8 +95,11 @@ func (c *DeleteFolderCommand) Execute(ctx context.Context, input DeleteFolderInp
 				return err
 			}
 
-			// パスを構築（フォルダ名のリストから）
-			originalPath := c.buildFilePath(folder.Name.String(), file.Name.String())
+			// パスを構築（閉包テーブルを使用して正確なパスを取得）
+			originalPath, err := c.buildFilePath(ctx, file.FolderID, file.Name.String())
+			if err != nil {
+				return err
+			}
 
 			// ArchivedFile作成
 			archivedFile := entity.NewArchivedFile(
@@ -108,7 +110,7 @@ func (c *DeleteFolderCommand) Execute(ctx context.Context, input DeleteFolderInp
 				file.MimeType,
 				file.Size,
 				file.OwnerID,
-				file.OwnerType,
+				file.CreatedBy,
 				file.StorageKey,
 				input.UserID,
 			)
@@ -175,7 +177,27 @@ func (c *DeleteFolderCommand) Execute(ctx context.Context, input DeleteFolderInp
 	}, nil
 }
 
-// buildFilePath はファイルのパスを構築します
-func (c *DeleteFolderCommand) buildFilePath(folderName, fileName string) string {
-	return "/" + folderName + "/" + fileName
+// buildFilePath はファイルのフルパスを構築します
+// Note: ファイルは必ずフォルダに所属するため、folderIDは必須
+func (c *DeleteFolderCommand) buildFilePath(ctx context.Context, folderID uuid.UUID, fileName string) (string, error) {
+	// 祖先フォルダIDを取得（ルートから順）
+	ancestorIDs, err := c.folderClosureRepo.FindAncestorIDs(ctx, folderID)
+	if err != nil {
+		return "", err
+	}
+
+	// 自身を含める
+	allIDs := append(ancestorIDs, folderID)
+
+	// フォルダ名を取得してパスを構築
+	path := ""
+	for _, id := range allIDs {
+		folder, err := c.folderRepo.FindByID(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		path += "/" + folder.Name.String()
+	}
+
+	return path + "/" + fileName, nil
 }

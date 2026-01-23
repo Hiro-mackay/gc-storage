@@ -1,6 +1,7 @@
 package di
 
 import (
+	infraRepo "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/repository"
 	authcmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/command"
 	authqry "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/query"
 )
@@ -26,10 +27,16 @@ type AuthUseCases struct {
 
 // NewAuthUseCases は新しいAuthUseCasesを作成します
 func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
+	// RegisterCommandに必要なフォルダリポジトリを作成
+	folderRepo := infraRepo.NewFolderRepository(c.TxManager)
+	folderClosureRepo := infraRepo.NewFolderClosureRepository(c.TxManager)
+
 	return &AuthUseCases{
 		// Commands
 		Register: authcmd.NewRegisterCommand(
 			c.UserRepo,
+			folderRepo,
+			folderClosureRepo,
 			c.EmailVerificationTokenRepo,
 			c.TxManager,
 			c.EmailService,

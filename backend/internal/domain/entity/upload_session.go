@@ -38,12 +38,13 @@ var (
 )
 
 // UploadSession はアップロードセッションエンティティ
+// Note: owner_typeは削除。セッションは常にユーザーが所有者。グループはPermissionGrantでアクセス。
 type UploadSession struct {
 	ID            uuid.UUID
-	FileID        uuid.UUID // 作成予定のファイルID（事前生成）
-	OwnerID       uuid.UUID
-	OwnerType     valueobject.OwnerType
-	FolderID      *uuid.UUID
+	FileID        uuid.UUID              // 作成予定のファイルID（事前生成）
+	OwnerID       uuid.UUID              // 現在の所有者ID
+	CreatedBy     uuid.UUID              // 作成者ID（アップロード者）
+	FolderID      uuid.UUID              // 必須 - アップロード先フォルダID
 	FileName      valueobject.FileName
 	MimeType      valueobject.MimeType
 	TotalSize     int64
@@ -59,11 +60,11 @@ type UploadSession struct {
 }
 
 // NewUploadSession は新しいアップロードセッションを作成します
+// 新規作成時は owner_id = created_by = 作成者（createdBy引数）となります
 func NewUploadSession(
 	fileID uuid.UUID,
-	ownerID uuid.UUID,
-	ownerType valueobject.OwnerType,
-	folderID *uuid.UUID,
+	createdBy uuid.UUID,
+	folderID uuid.UUID,
 	fileName valueobject.FileName,
 	mimeType valueobject.MimeType,
 	totalSize int64,
@@ -79,8 +80,8 @@ func NewUploadSession(
 	return &UploadSession{
 		ID:            uuid.New(),
 		FileID:        fileID,
-		OwnerID:       ownerID,
-		OwnerType:     ownerType,
+		OwnerID:       createdBy, // 新規作成時は owner_id = created_by
+		CreatedBy:     createdBy,
 		FolderID:      folderID,
 		FileName:      fileName,
 		MimeType:      mimeType,
@@ -102,8 +103,8 @@ func ReconstructUploadSession(
 	id uuid.UUID,
 	fileID uuid.UUID,
 	ownerID uuid.UUID,
-	ownerType valueobject.OwnerType,
-	folderID *uuid.UUID,
+	createdBy uuid.UUID,
+	folderID uuid.UUID,
 	fileName valueobject.FileName,
 	mimeType valueobject.MimeType,
 	totalSize int64,
@@ -121,7 +122,7 @@ func ReconstructUploadSession(
 		ID:            id,
 		FileID:        fileID,
 		OwnerID:       ownerID,
-		OwnerType:     ownerType,
+		CreatedBy:     createdBy,
 		FolderID:      folderID,
 		FileName:      fileName,
 		MimeType:      mimeType,
@@ -231,9 +232,15 @@ func (us *UploadSession) Progress() int {
 	return (us.UploadedParts * 100) / us.TotalParts
 }
 
-// IsOwnedBy は指定ユーザー/グループが所有者かどうかを判定します
-func (us *UploadSession) IsOwnedBy(ownerID uuid.UUID, ownerType valueobject.OwnerType) bool {
-	return us.OwnerID == ownerID && us.OwnerType == ownerType
+// IsOwnedBy は指定ユーザーが所有者かどうかを判定します
+// Note: セッションは常にユーザーが所有者（グループはPermissionGrantでアクセス）
+func (us *UploadSession) IsOwnedBy(ownerID uuid.UUID) bool {
+	return us.OwnerID == ownerID
+}
+
+// IsCreatedBy は指定ユーザーが作成者かどうかを判定します
+func (us *UploadSession) IsCreatedBy(userID uuid.UUID) bool {
+	return us.CreatedBy == userID
 }
 
 // CalculatePartCount はファイルサイズからパート数を計算します

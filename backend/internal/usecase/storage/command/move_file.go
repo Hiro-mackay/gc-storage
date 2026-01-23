@@ -6,21 +6,21 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
 // MoveFileInput はファイル移動の入力を定義します
+// Note: ファイルは必ずフォルダに所属するため、NewFolderIDは必須
 type MoveFileInput struct {
 	FileID      uuid.UUID
-	NewFolderID *uuid.UUID // nilの場合はルートへ移動
+	NewFolderID uuid.UUID // 必須 - 移動先フォルダID
 	UserID      uuid.UUID
 }
 
 // MoveFileOutput はファイル移動の出力を定義します
 type MoveFileOutput struct {
 	FileID   uuid.UUID
-	FolderID *uuid.UUID
+	FolderID uuid.UUID // 必須 - 移動先フォルダID
 }
 
 // MoveFileCommand はファイルを別フォルダに移動するコマンドです
@@ -48,35 +48,32 @@ func (c *MoveFileCommand) Execute(ctx context.Context, input MoveFileInput) (*Mo
 		return nil, err
 	}
 
-	// 2. 権限チェック（ユーザー所有の場合のみ）
-	if file.OwnerType == valueobject.OwnerTypeUser && file.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !file.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to move this file")
 	}
 
 	// 3. 同じフォルダへの移動はスキップ
-	if (file.FolderID == nil && input.NewFolderID == nil) ||
-		(file.FolderID != nil && input.NewFolderID != nil && *file.FolderID == *input.NewFolderID) {
+	if file.FolderID == input.NewFolderID {
 		return &MoveFileOutput{
 			FileID:   file.ID,
 			FolderID: file.FolderID,
 		}, nil
 	}
 
-	// 4. 移動先フォルダが指定されている場合、存在と権限チェック
-	if input.NewFolderID != nil {
-		folder, err := c.folderRepo.FindByID(ctx, *input.NewFolderID)
-		if err != nil {
-			return nil, err
-		}
+	// 4. 移動先フォルダの存在と権限チェック
+	folder, err := c.folderRepo.FindByID(ctx, input.NewFolderID)
+	if err != nil {
+		return nil, err
+	}
 
-		// 所有者チェック
-		if folder.OwnerID != file.OwnerID || folder.OwnerType != file.OwnerType {
-			return nil, apperror.NewForbiddenError("not authorized to move to this folder")
-		}
+	// 所有者チェック
+	if !folder.IsOwnedBy(file.OwnerID) {
+		return nil, apperror.NewForbiddenError("not authorized to move to this folder")
 	}
 
 	// 5. 移動先での同名ファイル存在チェック
-	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, file.Name, input.NewFolderID, file.OwnerID, file.OwnerType)
+	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, file.Name, input.NewFolderID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +83,7 @@ func (c *MoveFileCommand) Execute(ctx context.Context, input MoveFileInput) (*Mo
 
 	// 6. ファイルを移動（エンティティメソッド使用）
 	if err := file.MoveTo(input.NewFolderID); err != nil {
-		return nil, apperror.NewValidationError(err.Error(), nil)
+		return nil, err
 	}
 
 	// 7. 保存

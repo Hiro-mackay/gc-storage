@@ -10,25 +10,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUploadSession = `-- name: CreateUploadSession :one
 INSERT INTO upload_sessions (
-    id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size,
+    id, file_id, owner_id, created_by, folder_id, file_name, mime_type, total_size,
     storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status,
     created_at, updated_at, expires_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
-) RETURNING id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at
+) RETURNING id, file_id, owner_id, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at, created_by
 `
 
 type CreateUploadSessionParams struct {
 	ID            uuid.UUID           `json:"id"`
 	FileID        uuid.UUID           `json:"file_id"`
 	OwnerID       uuid.UUID           `json:"owner_id"`
-	OwnerType     OwnerType           `json:"owner_type"`
-	FolderID      pgtype.UUID         `json:"folder_id"`
+	CreatedBy     uuid.UUID           `json:"created_by"`
+	FolderID      uuid.UUID           `json:"folder_id"`
 	FileName      string              `json:"file_name"`
 	MimeType      string              `json:"mime_type"`
 	TotalSize     int64               `json:"total_size"`
@@ -48,7 +47,7 @@ func (q *Queries) CreateUploadSession(ctx context.Context, arg CreateUploadSessi
 		arg.ID,
 		arg.FileID,
 		arg.OwnerID,
-		arg.OwnerType,
+		arg.CreatedBy,
 		arg.FolderID,
 		arg.FileName,
 		arg.MimeType,
@@ -68,7 +67,6 @@ func (q *Queries) CreateUploadSession(ctx context.Context, arg CreateUploadSessi
 		&i.ID,
 		&i.FileID,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.FolderID,
 		&i.FileName,
 		&i.MimeType,
@@ -82,6 +80,7 @@ func (q *Queries) CreateUploadSession(ctx context.Context, arg CreateUploadSessi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -96,7 +95,7 @@ func (q *Queries) DeleteUploadSession(ctx context.Context, id uuid.UUID) error {
 }
 
 const getUploadSessionByFileID = `-- name: GetUploadSessionByFileID :one
-SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions
+SELECT id, file_id, owner_id, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at, created_by FROM upload_sessions
 WHERE file_id = $1
 ORDER BY created_at DESC
 LIMIT 1
@@ -109,7 +108,6 @@ func (q *Queries) GetUploadSessionByFileID(ctx context.Context, fileID uuid.UUID
 		&i.ID,
 		&i.FileID,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.FolderID,
 		&i.FileName,
 		&i.MimeType,
@@ -123,12 +121,13 @@ func (q *Queries) GetUploadSessionByFileID(ctx context.Context, fileID uuid.UUID
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getUploadSessionByID = `-- name: GetUploadSessionByID :one
-SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions WHERE id = $1
+SELECT id, file_id, owner_id, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at, created_by FROM upload_sessions WHERE id = $1
 `
 
 func (q *Queries) GetUploadSessionByID(ctx context.Context, id uuid.UUID) (UploadSession, error) {
@@ -138,7 +137,6 @@ func (q *Queries) GetUploadSessionByID(ctx context.Context, id uuid.UUID) (Uploa
 		&i.ID,
 		&i.FileID,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.FolderID,
 		&i.FileName,
 		&i.MimeType,
@@ -152,12 +150,13 @@ func (q *Queries) GetUploadSessionByID(ctx context.Context, id uuid.UUID) (Uploa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getUploadSessionByStorageKey = `-- name: GetUploadSessionByStorageKey :one
-SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions
+SELECT id, file_id, owner_id, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at, created_by FROM upload_sessions
 WHERE storage_key = $1
 ORDER BY created_at DESC
 LIMIT 1
@@ -170,7 +169,6 @@ func (q *Queries) GetUploadSessionByStorageKey(ctx context.Context, storageKey s
 		&i.ID,
 		&i.FileID,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.FolderID,
 		&i.FileName,
 		&i.MimeType,
@@ -184,6 +182,7 @@ func (q *Queries) GetUploadSessionByStorageKey(ctx context.Context, storageKey s
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -200,7 +199,7 @@ func (q *Queries) IncrementUploadedParts(ctx context.Context, id uuid.UUID) erro
 }
 
 const listExpiredUploadSessions = `-- name: ListExpiredUploadSessions :many
-SELECT id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at FROM upload_sessions
+SELECT id, file_id, owner_id, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at, created_by FROM upload_sessions
 WHERE status IN ('pending', 'in_progress') AND expires_at < NOW()
 `
 
@@ -217,7 +216,6 @@ func (q *Queries) ListExpiredUploadSessions(ctx context.Context) ([]UploadSessio
 			&i.ID,
 			&i.FileID,
 			&i.OwnerID,
-			&i.OwnerType,
 			&i.FolderID,
 			&i.FileName,
 			&i.MimeType,
@@ -231,6 +229,7 @@ func (q *Queries) ListExpiredUploadSessions(ctx context.Context) ([]UploadSessio
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ExpiresAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -249,7 +248,7 @@ UPDATE upload_sessions SET
     status = COALESCE($4, status),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, file_id, owner_id, owner_type, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at
+RETURNING id, file_id, owner_id, folder_id, file_name, mime_type, total_size, storage_key, minio_upload_id, is_multipart, total_parts, uploaded_parts, status, created_at, updated_at, expires_at, created_by
 `
 
 type UpdateUploadSessionParams struct {
@@ -271,7 +270,6 @@ func (q *Queries) UpdateUploadSession(ctx context.Context, arg UpdateUploadSessi
 		&i.ID,
 		&i.FileID,
 		&i.OwnerID,
-		&i.OwnerType,
 		&i.FolderID,
 		&i.FileName,
 		&i.MimeType,
@@ -285,6 +283,7 @@ func (q *Queries) UpdateUploadSession(ctx context.Context, arg UpdateUploadSessi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }

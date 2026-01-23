@@ -13,10 +13,9 @@ import (
 
 // CreateFolderInput はフォルダ作成の入力を定義します
 type CreateFolderInput struct {
-	Name      string
-	ParentID  *uuid.UUID
-	OwnerID   uuid.UUID
-	OwnerType valueobject.OwnerType
+	Name     string
+	ParentID *uuid.UUID
+	OwnerID  uuid.UUID // 作成者のユーザーID
 }
 
 // CreateFolderOutput はフォルダ作成の出力を定義します
@@ -61,7 +60,7 @@ func (c *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInp
 		}
 
 		// 親フォルダの所有者チェック
-		if parent.OwnerID != input.OwnerID || parent.OwnerType != input.OwnerType {
+		if !parent.IsOwnedBy(input.OwnerID) {
 			return nil, apperror.NewForbiddenError("not authorized to create folder in this location")
 		}
 
@@ -71,9 +70,9 @@ func (c *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInp
 	// 3. 同名フォルダの存在チェック
 	var exists bool
 	if input.ParentID != nil {
-		exists, err = c.folderRepo.ExistsByNameAndParent(ctx, folderName, input.ParentID, input.OwnerID, input.OwnerType)
+		exists, err = c.folderRepo.ExistsByNameAndParent(ctx, folderName, input.ParentID, input.OwnerID)
 	} else {
-		exists, err = c.folderRepo.ExistsByNameAndOwnerRoot(ctx, folderName, input.OwnerID, input.OwnerType)
+		exists, err = c.folderRepo.ExistsByNameAndOwnerRoot(ctx, folderName, input.OwnerID)
 	}
 	if err != nil {
 		return nil, err
@@ -83,7 +82,8 @@ func (c *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInp
 	}
 
 	// 4. フォルダエンティティの作成
-	folder, err := entity.NewFolder(folderName, input.ParentID, input.OwnerID, input.OwnerType, depth)
+	// 新規作成時は owner_id = created_by = 作成者（input.OwnerID）となる
+	folder, err := entity.NewFolder(folderName, input.ParentID, input.OwnerID, depth)
 	if err != nil {
 		return nil, apperror.NewValidationError(err.Error(), nil)
 	}

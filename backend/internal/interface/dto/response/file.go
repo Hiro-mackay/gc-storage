@@ -14,9 +14,8 @@ type FileResponse struct {
 	Name           string    `json:"name"`
 	MimeType       string    `json:"mimeType"`
 	Size           int64     `json:"size"`
-	FolderID       *string   `json:"folderId"`
+	FolderID       string    `json:"folderId"`
 	OwnerID        string    `json:"ownerId"`
-	OwnerType      string    `json:"ownerType"`
 	CurrentVersion int       `json:"currentVersion"`
 	Status         string    `json:"status"`
 	CreatedAt      time.Time `json:"createdAt"`
@@ -81,10 +80,11 @@ type FileVersionsResponse struct {
 }
 
 // TrashItemResponse はゴミ箱アイテムレスポンスです
+// Note: OriginalFolderIDは必須。ファイルは必ずフォルダに所属。
 type TrashItemResponse struct {
 	ID               string    `json:"id"`
 	OriginalFileID   string    `json:"originalFileId"`
-	OriginalFolderID *string   `json:"originalFolderId"`
+	OriginalFolderID string    `json:"originalFolderId"`
 	OriginalPath     string    `json:"originalPath"`
 	Name             string    `json:"name"`
 	MimeType         string    `json:"mimeType"`
@@ -101,20 +101,13 @@ type TrashListResponse struct {
 
 // ToFileResponse はエンティティからレスポンスに変換します
 func ToFileResponse(file *entity.File) FileResponse {
-	var folderID *string
-	if file.FolderID != nil {
-		id := file.FolderID.String()
-		folderID = &id
-	}
-
 	return FileResponse{
 		ID:             file.ID.String(),
 		Name:           file.Name.String(),
 		MimeType:       file.MimeType.String(),
 		Size:           file.Size,
-		FolderID:       folderID,
+		FolderID:       file.FolderID.String(),
 		OwnerID:        file.OwnerID.String(),
-		OwnerType:      string(file.OwnerType),
 		CurrentVersion: file.CurrentVersion,
 		Status:         string(file.Status),
 		CreatedAt:      file.CreatedAt,
@@ -204,16 +197,10 @@ func ToFileVersionsResponse(output *storageqry.ListFileVersionsOutput) FileVersi
 func ToTrashListResponse(output *storageqry.ListTrashOutput) TrashListResponse {
 	items := make([]TrashItemResponse, len(output.Items))
 	for i, item := range output.Items {
-		var folderID *string
-		if item.OriginalFolderID != nil {
-			id := item.OriginalFolderID.String()
-			folderID = &id
-		}
-
 		items[i] = TrashItemResponse{
 			ID:               item.ID.String(),
 			OriginalFileID:   item.OriginalFileID.String(),
-			OriginalFolderID: folderID,
+			OriginalFolderID: item.OriginalFolderID.String(),
 			OriginalPath:     item.OriginalPath,
 			Name:             item.Name,
 			MimeType:         item.MimeType,

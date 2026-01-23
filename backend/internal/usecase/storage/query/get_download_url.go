@@ -9,7 +9,6 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -62,8 +61,8 @@ func (q *GetDownloadURLQuery) Execute(ctx context.Context, input GetDownloadURLI
 		return nil, err
 	}
 
-	// 2. 権限チェック（ユーザー所有の場合のみ）
-	if file.OwnerType == valueobject.OwnerTypeUser && file.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !file.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to download this file")
 	}
 

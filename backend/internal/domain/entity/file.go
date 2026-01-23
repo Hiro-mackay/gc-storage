@@ -31,11 +31,13 @@ var (
 // File はファイルエンティティ（集約ルート）
 // Note: ファイルのゴミ箱移動は ArchivedFile テーブルへの移動として実現される。
 // 論理削除（trashed_at）ではなく、別テーブルへ移動する設計。
+// Note: owner_typeは削除。ファイルは常にユーザーが所有者。グループはPermissionGrantでアクセス。
+// Note: folder_idは必須。ファイルは必ずフォルダに所属する。
 type File struct {
 	ID             uuid.UUID
-	OwnerID        uuid.UUID
-	OwnerType      valueobject.OwnerType
-	FolderID       *uuid.UUID
+	FolderID       uuid.UUID // 必須 - ファイルは必ずフォルダに所属
+	OwnerID        uuid.UUID // 現在の所有者ID（所有権譲渡で変更可能）
+	CreatedBy      uuid.UUID // 最初の作成者ID（不変、履歴追跡用）
 	Name           valueobject.FileName
 	MimeType       valueobject.MimeType
 	Size           int64
@@ -47,10 +49,10 @@ type File struct {
 }
 
 // NewFile は新しいファイルを作成します（uploading状態で作成）
+// 新規作成時は owner_id = created_by = 作成者（createdBy引数）となります
 func NewFile(
-	ownerID uuid.UUID,
-	ownerType valueobject.OwnerType,
-	folderID *uuid.UUID,
+	folderID uuid.UUID,
+	createdBy uuid.UUID,
 	name valueobject.FileName,
 	mimeType valueobject.MimeType,
 	size int64,
@@ -59,9 +61,9 @@ func NewFile(
 	now := time.Now()
 	return &File{
 		ID:             fileID,
-		OwnerID:        ownerID,
-		OwnerType:      ownerType,
 		FolderID:       folderID,
+		OwnerID:        createdBy, // 新規作成時は owner_id = created_by
+		CreatedBy:      createdBy,
 		Name:           name,
 		MimeType:       mimeType,
 		Size:           size,
@@ -74,11 +76,11 @@ func NewFile(
 }
 
 // NewFileWithID は指定IDで新しいファイルを作成します（UploadSession連携用）
+// 新規作成時は owner_id = created_by = 作成者（createdBy引数）となります
 func NewFileWithID(
 	fileID uuid.UUID,
-	ownerID uuid.UUID,
-	ownerType valueobject.OwnerType,
-	folderID *uuid.UUID,
+	folderID uuid.UUID,
+	createdBy uuid.UUID,
 	name valueobject.FileName,
 	mimeType valueobject.MimeType,
 	size int64,
@@ -86,9 +88,9 @@ func NewFileWithID(
 	now := time.Now()
 	return &File{
 		ID:             fileID,
-		OwnerID:        ownerID,
-		OwnerType:      ownerType,
 		FolderID:       folderID,
+		OwnerID:        createdBy, // 新規作成時は owner_id = created_by
+		CreatedBy:      createdBy,
 		Name:           name,
 		MimeType:       mimeType,
 		Size:           size,
@@ -103,9 +105,9 @@ func NewFileWithID(
 // ReconstructFile はDBからファイルを復元します
 func ReconstructFile(
 	id uuid.UUID,
+	folderID uuid.UUID,
 	ownerID uuid.UUID,
-	ownerType valueobject.OwnerType,
-	folderID *uuid.UUID,
+	createdBy uuid.UUID,
 	name valueobject.FileName,
 	mimeType valueobject.MimeType,
 	size int64,
@@ -117,9 +119,9 @@ func ReconstructFile(
 ) *File {
 	return &File{
 		ID:             id,
-		OwnerID:        ownerID,
-		OwnerType:      ownerType,
 		FolderID:       folderID,
+		OwnerID:        ownerID,
+		CreatedBy:      createdBy,
 		Name:           name,
 		MimeType:       mimeType,
 		Size:           size,
@@ -162,7 +164,7 @@ func (f *File) Rename(newName valueobject.FileName) error {
 }
 
 // MoveTo はファイルを別のフォルダに移動します
-func (f *File) MoveTo(newFolderID *uuid.UUID) error {
+func (f *File) MoveTo(newFolderID uuid.UUID) error {
 	if f.Status != FileStatusActive {
 		return ErrFileNotActive
 	}
@@ -181,6 +183,16 @@ func (f *File) IncrementVersion() {
 func (f *File) UpdateSize(size int64) {
 	f.Size = size
 	f.UpdatedAt = time.Now()
+}
+
+// IDが一致するかどうか判定します
+func (f *File) EqualsID(id uuid.UUID) bool {
+	return f.ID == id
+}
+
+// 名前が一致するかどうか判定します
+func (f *File) EqualsName(name valueobject.FileName) bool {
+	return f.Name.Equals(name)
 }
 
 // CanDownload はダウンロード可能かどうかを判定します
@@ -203,19 +215,27 @@ func (f *File) IsUploadFailed() bool {
 	return f.Status == FileStatusUploadFailed
 }
 
-// IsOwnedBy は指定ユーザー/グループが所有者かどうかを判定します
-func (f *File) IsOwnedBy(ownerID uuid.UUID, ownerType valueobject.OwnerType) bool {
-	return f.OwnerID == ownerID && f.OwnerType == ownerType
+// IsOwnedBy は指定ユーザーが所有者かどうかを判定します
+// Note: ファイルは常にユーザーが所有者（グループはPermissionGrantでアクセス）
+func (f *File) IsOwnedBy(ownerID uuid.UUID) bool {
+	return f.OwnerID == ownerID
+}
+
+// IsCreatedBy は指定ユーザーが作成者かどうかを判定します
+func (f *File) IsCreatedBy(userID uuid.UUID) bool {
+	return f.CreatedBy == userID
 }
 
 // IsInFolder は指定フォルダ内にあるかどうかを判定します
 func (f *File) IsInFolder(folderID uuid.UUID) bool {
-	return f.FolderID != nil && *f.FolderID == folderID
+	return f.FolderID == folderID
 }
 
-// IsAtRoot はルートレベルにあるかどうかを判定します
-func (f *File) IsAtRoot() bool {
-	return f.FolderID == nil
+// TransferOwnership は所有権を譲渡します
+// Note: created_by は変更されません（不変）
+func (f *File) TransferOwnership(newOwnerID uuid.UUID) {
+	f.OwnerID = newOwnerID
+	f.UpdatedAt = time.Now()
 }
 
 // ToArchived はアーカイブ用のデータを生成します
@@ -228,7 +248,7 @@ func (f *File) ToArchived(originalPath string, archivedBy uuid.UUID) *ArchivedFi
 		f.MimeType,
 		f.Size,
 		f.OwnerID,
-		f.OwnerType,
+		f.CreatedBy,
 		f.StorageKey,
 		archivedBy,
 	)

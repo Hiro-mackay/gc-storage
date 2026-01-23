@@ -38,8 +38,9 @@ func (r *FolderRepository) Create(ctx context.Context, folder *entity.Folder) er
 		Name:      folder.Name.String(),
 		ParentID:  uuidToPgtype(folder.ParentID),
 		OwnerID:   folder.OwnerID,
-		OwnerType: sqlcgen.OwnerType(folder.OwnerType),
+		CreatedBy: folder.CreatedBy,
 		Depth:     int32(folder.Depth),
+		Status:    string(folder.Status),
 		CreatedAt: folder.CreatedAt,
 		UpdatedAt: folder.UpdatedAt,
 	})
@@ -75,6 +76,7 @@ func (r *FolderRepository) Update(ctx context.Context, folder *entity.Folder) er
 		Name:     &name,
 		ParentID: uuidToPgtype(folder.ParentID),
 		Depth:    &depth,
+		OwnerID:  pgtype.UUID{Bytes: folder.OwnerID, Valid: true},
 	})
 
 	return r.HandleError(err)
@@ -90,14 +92,13 @@ func (r *FolderRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // FindByParentID は親IDでフォルダを検索します
-func (r *FolderRepository) FindByParentID(ctx context.Context, parentID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.Folder, error) {
+func (r *FolderRepository) FindByParentID(ctx context.Context, parentID *uuid.UUID, ownerID uuid.UUID) ([]*entity.Folder, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
 	rows, err := queries.ListFoldersByParentID(ctx, sqlcgen.ListFoldersByParentIDParams{
-		ParentID:  uuidToPgtype(parentID),
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
+		ParentID: uuidToPgtype(parentID),
+		OwnerID:  ownerID,
 	})
 	if err != nil {
 		return nil, r.HandleError(err)
@@ -107,14 +108,11 @@ func (r *FolderRepository) FindByParentID(ctx context.Context, parentID *uuid.UU
 }
 
 // FindRootByOwner はオーナーのルートフォルダを検索します
-func (r *FolderRepository) FindRootByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.Folder, error) {
+func (r *FolderRepository) FindRootByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.Folder, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	rows, err := queries.ListRootFoldersByOwner(ctx, sqlcgen.ListRootFoldersByOwnerParams{
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-	})
+	rows, err := queries.ListRootFoldersByOwner(ctx, ownerID)
 	if err != nil {
 		return nil, r.HandleError(err)
 	}
@@ -123,14 +121,24 @@ func (r *FolderRepository) FindRootByOwner(ctx context.Context, ownerID uuid.UUI
 }
 
 // FindByOwner はオーナーの全フォルダを検索します
-func (r *FolderRepository) FindByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.Folder, error) {
+func (r *FolderRepository) FindByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.Folder, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	rows, err := queries.ListFoldersByOwner(ctx, sqlcgen.ListFoldersByOwnerParams{
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-	})
+	rows, err := queries.ListFoldersByOwner(ctx, ownerID)
+	if err != nil {
+		return nil, r.HandleError(err)
+	}
+
+	return r.toEntities(rows), nil
+}
+
+// FindByCreatedBy は作成者の全フォルダを検索します
+func (r *FolderRepository) FindByCreatedBy(ctx context.Context, createdBy uuid.UUID) ([]*entity.Folder, error) {
+	querier := r.Querier(ctx)
+	queries := sqlcgen.New(querier)
+
+	rows, err := queries.ListFoldersByCreatedBy(ctx, createdBy)
 	if err != nil {
 		return nil, r.HandleError(err)
 	}
@@ -139,29 +147,27 @@ func (r *FolderRepository) FindByOwner(ctx context.Context, ownerID uuid.UUID, o
 }
 
 // ExistsByNameAndParent は同名フォルダの存在チェックをします
-func (r *FolderRepository) ExistsByNameAndParent(ctx context.Context, name valueobject.FolderName, parentID *uuid.UUID, ownerID uuid.UUID, ownerType valueobject.OwnerType) (bool, error) {
+func (r *FolderRepository) ExistsByNameAndParent(ctx context.Context, name valueobject.FolderName, parentID *uuid.UUID, ownerID uuid.UUID) (bool, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
 	exists, err := queries.FolderExistsByNameAndParent(ctx, sqlcgen.FolderExistsByNameAndParentParams{
-		ParentID:  uuidToPgtype(parentID),
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-		Name:      name.String(),
+		ParentID: uuidToPgtype(parentID),
+		OwnerID:  ownerID,
+		Name:     name.String(),
 	})
 
 	return exists, r.HandleError(err)
 }
 
 // ExistsByNameAndOwnerRoot はルートレベルでの同名フォルダの存在チェックをします
-func (r *FolderRepository) ExistsByNameAndOwnerRoot(ctx context.Context, name valueobject.FolderName, ownerID uuid.UUID, ownerType valueobject.OwnerType) (bool, error) {
+func (r *FolderRepository) ExistsByNameAndOwnerRoot(ctx context.Context, name valueobject.FolderName, ownerID uuid.UUID) (bool, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
 	exists, err := queries.FolderExistsByNameAtRoot(ctx, sqlcgen.FolderExistsByNameAtRootParams{
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-		Name:      name.String(),
+		OwnerID: ownerID,
+		Name:    name.String(),
 	})
 
 	return exists, r.HandleError(err)
@@ -229,15 +235,15 @@ func (r *FolderRepository) BulkUpdateDepth(ctx context.Context, folderDepths map
 // toEntity はsqlcgen.Folderをentity.Folderに変換します
 func (r *FolderRepository) toEntity(row sqlcgen.Folder) *entity.Folder {
 	name, _ := valueobject.NewFolderName(row.Name)
-	ownerType := valueobject.OwnerType(row.OwnerType)
 
 	return entity.ReconstructFolder(
 		row.ID,
 		name,
 		pgtypeToUUID(row.ParentID),
 		row.OwnerID,
-		ownerType,
+		row.CreatedBy,
 		int(row.Depth),
+		entity.FolderStatus(row.Status),
 		row.CreatedAt,
 		row.UpdatedAt,
 	)

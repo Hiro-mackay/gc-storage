@@ -4,7 +4,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/request"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/response"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
@@ -75,10 +74,9 @@ func (h *FolderHandler) CreateFolder(c echo.Context) error {
 	}
 
 	output, err := h.createFolderCommand.Execute(c.Request().Context(), storagecmd.CreateFolderInput{
-		Name:      req.Name,
-		ParentID:  parentID,
-		OwnerID:   claims.UserID,
-		OwnerType: valueobject.OwnerTypeUser,
+		Name:     req.Name,
+		ParentID: parentID,
+		OwnerID:  claims.UserID,
 	})
 	if err != nil {
 		return err
@@ -130,10 +128,9 @@ func (h *FolderHandler) ListFolderContents(c echo.Context) error {
 	}
 
 	output, err := h.listFolderContentsQuery.Execute(c.Request().Context(), storageqry.ListFolderContentsInput{
-		FolderID:  folderID,
-		OwnerID:   claims.UserID,
-		OwnerType: valueobject.OwnerTypeUser,
-		UserID:    claims.UserID,
+		FolderID: folderID,
+		OwnerID:  claims.UserID,
+		UserID:   claims.UserID,
 	})
 	if err != nil {
 		return err

@@ -29,7 +29,7 @@ INSERT INTO users (
     id, email, password_hash, display_name, status, email_verified_at, created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at
+) RETURNING id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at, personal_folder_id
 `
 
 type CreateUserParams struct {
@@ -65,6 +65,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonalFolderID,
 	)
 	return i, err
 }
@@ -79,7 +80,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at, personal_folder_id FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -95,12 +96,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonalFolderID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at, personal_folder_id FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -116,12 +118,24 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonalFolderID,
 	)
 	return i, err
 }
 
+const getUserPersonalFolderID = `-- name: GetUserPersonalFolderID :one
+SELECT personal_folder_id FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserPersonalFolderID(ctx context.Context, id uuid.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getUserPersonalFolderID, id)
+	var personal_folder_id pgtype.UUID
+	err := row.Scan(&personal_folder_id)
+	return personal_folder_id, err
+}
+
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at FROM users
+SELECT id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at, personal_folder_id FROM users
 WHERE status != 'deleted'
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -151,6 +165,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PersonalFolderID,
 		); err != nil {
 			return nil, err
 		}
@@ -162,6 +177,20 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 	return items, nil
 }
 
+const setUserPersonalFolder = `-- name: SetUserPersonalFolder :exec
+UPDATE users SET personal_folder_id = $2, updated_at = NOW() WHERE id = $1
+`
+
+type SetUserPersonalFolderParams struct {
+	ID               uuid.UUID   `json:"id"`
+	PersonalFolderID pgtype.UUID `json:"personal_folder_id"`
+}
+
+func (q *Queries) SetUserPersonalFolder(ctx context.Context, arg SetUserPersonalFolderParams) error {
+	_, err := q.db.Exec(ctx, setUserPersonalFolder, arg.ID, arg.PersonalFolderID)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users SET
     display_name = COALESCE($2, display_name),
@@ -171,7 +200,7 @@ UPDATE users SET
     last_login_at = COALESCE($6, last_login_at),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at
+RETURNING id, email, password_hash, display_name, status, email_verified_at, last_login_at, created_at, updated_at, personal_folder_id
 `
 
 type UpdateUserParams struct {
@@ -203,6 +232,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonalFolderID,
 	)
 	return i, err
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -51,8 +50,8 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 		return nil, err
 	}
 
-	// 2. 所有者チェック（ユーザー所有の場合のみ）
-	if folder.OwnerType == valueobject.OwnerTypeUser && folder.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !folder.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to move this folder")
 	}
 
@@ -72,7 +71,7 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 		}
 
 		// 移動先フォルダの所有者チェック
-		if newParent.OwnerID != folder.OwnerID || newParent.OwnerType != folder.OwnerType {
+		if !newParent.IsOwnedBy(folder.OwnerID) {
 			return nil, apperror.NewForbiddenError("not authorized to move to this folder")
 		}
 
@@ -108,9 +107,9 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 	// 7. 同名フォルダの存在チェック
 	var exists bool
 	if input.NewParentID != nil {
-		exists, err = c.folderRepo.ExistsByNameAndParent(ctx, folder.Name, input.NewParentID, folder.OwnerID, folder.OwnerType)
+		exists, err = c.folderRepo.ExistsByNameAndParent(ctx, folder.Name, input.NewParentID, folder.OwnerID)
 	} else {
-		exists, err = c.folderRepo.ExistsByNameAndOwnerRoot(ctx, folder.Name, folder.OwnerID, folder.OwnerType)
+		exists, err = c.folderRepo.ExistsByNameAndOwnerRoot(ctx, folder.Name, folder.OwnerID)
 	}
 	if err != nil {
 		return nil, err

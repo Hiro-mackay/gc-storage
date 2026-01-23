@@ -8,7 +8,6 @@ import (
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -50,8 +49,8 @@ func (q *GetUploadStatusQuery) Execute(ctx context.Context, input GetUploadStatu
 		return nil, err
 	}
 
-	// 2. 権限チェック（ユーザー所有の場合のみ）
-	if session.OwnerType == valueobject.OwnerTypeUser && session.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !session.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to view this upload session")
 	}
 

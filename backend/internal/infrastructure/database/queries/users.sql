@@ -45,3 +45,9 @@ LIMIT $1 OFFSET $2;
 
 -- name: CountUsers :one
 SELECT COUNT(*) FROM users WHERE status != 'deleted';
+
+-- name: SetUserPersonalFolder :exec
+UPDATE users SET personal_folder_id = $2, updated_at = NOW() WHERE id = $1;
+
+-- name: GetUserPersonalFolderID :one
+SELECT personal_folder_id FROM users WHERE id = $1;

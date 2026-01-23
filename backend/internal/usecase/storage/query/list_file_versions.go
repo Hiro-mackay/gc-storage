@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -60,8 +59,8 @@ func (q *ListFileVersionsQuery) Execute(ctx context.Context, input ListFileVersi
 		return nil, err
 	}
 
-	// 2. 権限チェック（ユーザー所有の場合のみ）
-	if file.OwnerType == valueobject.OwnerTypeUser && file.OwnerID != input.UserID {
+	// 2. 所有者チェック
+	if !file.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to view file versions")
 	}
 

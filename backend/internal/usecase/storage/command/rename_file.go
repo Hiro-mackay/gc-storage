@@ -49,13 +49,13 @@ func (c *RenameFileCommand) Execute(ctx context.Context, input RenameFileInput) 
 		return nil, err
 	}
 
-	// 3. 権限チェック（ユーザー所有の場合のみ）
-	if file.OwnerType == valueobject.OwnerTypeUser && file.OwnerID != input.UserID {
+	// 3. 所有者チェック
+	if !file.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to rename this file")
 	}
 
 	// 4. 同名ファイルの存在チェック
-	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, newName, file.FolderID, file.OwnerID, file.OwnerType)
+	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, newName, file.FolderID)
 	if err != nil {
 		return nil, err
 	}

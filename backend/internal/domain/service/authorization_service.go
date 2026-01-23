@@ -4,7 +4,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -27,9 +26,10 @@ func NewAuthorizationService() AuthorizationService {
 
 // AuthorizeFolderAccess はフォルダへのアクセス権限を確認します
 // TODO: 将来的にはPBAC/ReBACの権限チェックを実装
+// Note: owner_typeは削除されたため、フォルダは常にユーザー所有として扱う
 func (s *authorizationServiceImpl) AuthorizeFolderAccess(folder *entity.Folder, userID uuid.UUID, action string) error {
 	// 現時点では所有者のみアクセス可能
-	if !folder.IsOwnedBy(userID, valueobject.OwnerTypeUser) {
+	if !folder.IsOwnedBy(userID) {
 		return apperror.NewForbiddenError("not authorized to " + action + " this folder")
 	}
 	return nil
@@ -37,9 +37,10 @@ func (s *authorizationServiceImpl) AuthorizeFolderAccess(folder *entity.Folder, 
 
 // AuthorizeFileAccess はファイルへのアクセス権限を確認します
 // TODO: 将来的にはPBAC/ReBACの権限チェックを実装
+// Note: owner_typeは削除されたため、ファイルは常にユーザー所有として扱う
 func (s *authorizationServiceImpl) AuthorizeFileAccess(file *entity.File, userID uuid.UUID, action string) error {
 	// 現時点では所有者のみアクセス可能
-	if !file.IsOwnedBy(userID, valueobject.OwnerTypeUser) {
+	if !file.IsOwnedBy(userID) {
 		return apperror.NewForbiddenError("not authorized to " + action + " this file")
 	}
 	return nil

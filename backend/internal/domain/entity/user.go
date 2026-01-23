@@ -30,14 +30,42 @@ func (s UserStatus) IsValid() bool {
 
 // User はユーザーエンティティを定義します
 type User struct {
-	ID            uuid.UUID
-	Email         valueobject.Email
-	Name          string
-	PasswordHash  string
-	Status        UserStatus
-	EmailVerified bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID               uuid.UUID
+	Email            valueobject.Email
+	Name             string
+	PasswordHash     string
+	Status           UserStatus
+	EmailVerified    bool
+	PersonalFolderID *uuid.UUID // 1:1関係 - ユーザーのPersonal Folder
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+// NewUser は新しいユーザーを作成します
+func NewUser(email valueobject.Email, name string, passwordHash string) *User {
+	now := time.Now()
+	return &User{
+		ID:            uuid.New(),
+		Email:         email,
+		Name:          name,
+		PasswordHash:  passwordHash,
+		Status:        UserStatusPending,
+		EmailVerified: false,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+}
+
+// SetPersonalFolder はPersonalFolderIDを設定します
+// Note: ユーザー登録時に一度だけ呼ばれる
+func (u *User) SetPersonalFolder(folderID uuid.UUID) {
+	u.PersonalFolderID = &folderID
+	u.UpdatedAt = time.Now()
+}
+
+// HasPersonalFolder はPersonalFolderが設定されているかを判定します
+func (u *User) HasPersonalFolder() bool {
+	return u.PersonalFolderID != nil
 }
 
 // IsActive はユーザーがアクティブかを判定します

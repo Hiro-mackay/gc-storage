@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
@@ -35,13 +36,13 @@ func (r *ArchivedFileRepository) Create(ctx context.Context, archivedFile *entit
 	_, err := queries.CreateArchivedFile(ctx, sqlcgen.CreateArchivedFileParams{
 		ID:               archivedFile.ID,
 		OriginalFileID:   archivedFile.OriginalFileID,
-		OriginalFolderID: uuidToPgtype(archivedFile.OriginalFolderID),
+		OriginalFolderID: archivedFile.OriginalFolderID,
 		OriginalPath:     archivedFile.OriginalPath,
 		Name:             archivedFile.Name.String(),
 		MimeType:         archivedFile.MimeType.String(),
 		Size:             archivedFile.Size,
 		OwnerID:          archivedFile.OwnerID,
-		OwnerType:        sqlcgen.OwnerType(archivedFile.OwnerType),
+		CreatedBy:        archivedFile.CreatedBy,
 		StorageKey:       archivedFile.StorageKey.String(),
 		ArchivedAt:       archivedFile.ArchivedAt,
 		ArchivedBy:       archivedFile.ArchivedBy,
@@ -77,14 +78,11 @@ func (r *ArchivedFileRepository) Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // FindByOwner はオーナーのアーカイブファイルを検索します
-func (r *ArchivedFileRepository) FindByOwner(ctx context.Context, ownerID uuid.UUID, ownerType valueobject.OwnerType) ([]*entity.ArchivedFile, error) {
+func (r *ArchivedFileRepository) FindByOwner(ctx context.Context, ownerID uuid.UUID) ([]*entity.ArchivedFile, error) {
 	querier := r.Querier(ctx)
 	queries := sqlcgen.New(querier)
 
-	rows, err := queries.ListArchivedFilesByOwner(ctx, sqlcgen.ListArchivedFilesByOwnerParams{
-		OwnerID:   ownerID,
-		OwnerType: sqlcgen.OwnerType(ownerType),
-	})
+	rows, err := queries.ListArchivedFilesByOwner(ctx, ownerID)
 	if err != nil {
 		return nil, r.HandleError(err)
 	}
@@ -121,23 +119,44 @@ func (r *ArchivedFileRepository) FindByOriginalFileID(ctx context.Context, origi
 	return r.toEntity(row), nil
 }
 
+// FindByOwnerWithPagination はオーナーのアーカイブファイルをページネーションで検索します
+func (r *ArchivedFileRepository) FindByOwnerWithPagination(ctx context.Context, ownerID uuid.UUID, limit int, cursor *uuid.UUID) ([]*entity.ArchivedFile, error) {
+	querier := r.Querier(ctx)
+	queries := sqlcgen.New(querier)
+
+	var cursorID pgtype.UUID
+	if cursor != nil {
+		cursorID = pgtype.UUID{Bytes: *cursor, Valid: true}
+	}
+
+	rows, err := queries.ListArchivedFilesByOwnerWithPagination(ctx, sqlcgen.ListArchivedFilesByOwnerWithPaginationParams{
+		OwnerID:  ownerID,
+		Limit:    int32(limit),
+		CursorID: cursorID,
+	})
+	if err != nil {
+		return nil, r.HandleError(err)
+	}
+
+	return r.toEntities(rows), nil
+}
+
 // toEntity はsqlcgen.ArchivedFileをentity.ArchivedFileに変換します
 func (r *ArchivedFileRepository) toEntity(row sqlcgen.ArchivedFile) *entity.ArchivedFile {
 	name, _ := valueobject.NewFileName(row.Name)
 	mimeType, _ := valueobject.NewMimeType(row.MimeType)
 	storageKey, _ := valueobject.NewStorageKeyFromString(row.StorageKey)
-	ownerType := valueobject.OwnerType(row.OwnerType)
 
 	return entity.ReconstructArchivedFile(
 		row.ID,
 		row.OriginalFileID,
-		pgtypeToUUID(row.OriginalFolderID),
+		row.OriginalFolderID,
 		row.OriginalPath,
 		name,
 		mimeType,
 		row.Size,
 		row.OwnerID,
-		ownerType,
+		row.CreatedBy,
 		storageKey,
 		row.ArchivedAt,
 		row.ArchivedBy,

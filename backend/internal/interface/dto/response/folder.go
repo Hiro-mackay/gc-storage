@@ -12,8 +12,8 @@ type FolderResponse struct {
 	Name      string    `json:"name"`
 	ParentID  *string   `json:"parentId"`
 	OwnerID   string    `json:"ownerId"`
-	OwnerType string    `json:"ownerType"`
 	Depth     int       `json:"depth"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -49,8 +49,8 @@ func ToFolderResponse(folder *entity.Folder) FolderResponse {
 		Name:      folder.Name.String(),
 		ParentID:  parentID,
 		OwnerID:   folder.OwnerID.String(),
-		OwnerType: string(folder.OwnerType),
 		Depth:     folder.Depth,
+		Status:    string(folder.Status),
 		CreatedAt: folder.CreatedAt,
 		UpdatedAt: folder.UpdatedAt,
 	}

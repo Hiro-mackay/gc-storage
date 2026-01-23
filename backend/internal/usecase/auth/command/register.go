@@ -32,6 +32,8 @@ type RegisterOutput struct {
 // RegisterCommand はユーザー登録コマンドです
 type RegisterCommand struct {
 	userRepo                   repository.UserRepository
+	folderRepo                 repository.FolderRepository
+	folderClosureRepo          repository.FolderClosureRepository
 	emailVerificationTokenRepo repository.EmailVerificationTokenRepository
 	txManager                  repository.TransactionManager
 	emailSender                service.EmailSender
@@ -41,6 +43,8 @@ type RegisterCommand struct {
 // NewRegisterCommand は新しいRegisterCommandを作成します
 func NewRegisterCommand(
 	userRepo repository.UserRepository,
+	folderRepo repository.FolderRepository,
+	folderClosureRepo repository.FolderClosureRepository,
 	emailVerificationTokenRepo repository.EmailVerificationTokenRepository,
 	txManager repository.TransactionManager,
 	emailSender service.EmailSender,
@@ -48,6 +52,8 @@ func NewRegisterCommand(
 ) *RegisterCommand {
 	return &RegisterCommand{
 		userRepo:                   userRepo,
+		folderRepo:                 folderRepo,
+		folderClosureRepo:          folderClosureRepo,
 		emailVerificationTokenRepo: emailVerificationTokenRepo,
 		txManager:                  txManager,
 		emailSender:                emailSender,
@@ -81,28 +87,45 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 	var user *entity.User
 	var verificationToken *entity.EmailVerificationToken
 
-	// 4. トランザクションでユーザー作成
+	// 4. トランザクションでユーザー作成とPersonal Folder作成
 	err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
-		now := time.Now()
-
 		// ユーザー作成
-		user = &entity.User{
-			ID:            uuid.New(),
-			Email:         email,
-			Name:          input.Name,
-			PasswordHash:  password.Hash(),
-			Status:        entity.UserStatusPending,
-			EmailVerified: false,
-			CreatedAt:     now,
-			UpdatedAt:     now,
-		}
+		user = entity.NewUser(email, input.Name, password.Hash())
 
 		if err := c.userRepo.Create(ctx, user); err != nil {
 			return err
 		}
 
+		// Personal Folder 作成
+		folderNameStr := input.Name + "'s folder"
+		folderName, err := valueobject.NewFolderName(folderNameStr)
+		if err != nil {
+			return fmt.Errorf("failed to create folder name: %w", err)
+		}
+
+		personalFolder, err := entity.NewFolder(folderName, nil, user.ID, 0)
+		if err != nil {
+			return fmt.Errorf("failed to create personal folder: %w", err)
+		}
+
+		if err := c.folderRepo.Create(ctx, personalFolder); err != nil {
+			return fmt.Errorf("failed to save personal folder: %w", err)
+		}
+
+		// Closure Table 自己参照
+		if err := c.folderClosureRepo.InsertSelfReference(ctx, personalFolder.ID); err != nil {
+			return fmt.Errorf("failed to insert folder closure: %w", err)
+		}
+
+		// User に personal_folder_id を設定
+		user.SetPersonalFolder(personalFolder.ID)
+		if err := c.userRepo.Update(ctx, user); err != nil {
+			return fmt.Errorf("failed to update user with personal folder: %w", err)
+		}
+
 		// 確認トークン作成（emailVerificationTokenRepoが設定されている場合のみ）
 		if c.emailVerificationTokenRepo != nil {
+			now := time.Now()
 			verificationToken = &entity.EmailVerificationToken{
 				ID:        uuid.New(),
 				UserID:    user.ID,

@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
-	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/request"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/response"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
@@ -76,22 +75,21 @@ func (h *FileHandler) InitiateUpload(c echo.Context) error {
 		return err
 	}
 
-	var folderID *uuid.UUID
-	if req.FolderID != nil {
-		id, err := uuid.Parse(*req.FolderID)
-		if err != nil {
-			return apperror.NewValidationError("invalid folder ID", nil)
-		}
-		folderID = &id
+	// FolderID is required - files must belong to a folder
+	if req.FolderID == nil {
+		return apperror.NewValidationError("folder ID is required", nil)
+	}
+	folderID, err := uuid.Parse(*req.FolderID)
+	if err != nil {
+		return apperror.NewValidationError("invalid folder ID", nil)
 	}
 
 	output, err := h.initiateUploadCommand.Execute(c.Request().Context(), storagecmd.InitiateUploadInput{
-		FolderID:  folderID,
-		FileName:  req.FileName,
-		MimeType:  req.MimeType,
-		Size:      req.Size,
-		OwnerID:   claims.UserID,
-		OwnerType: valueobject.OwnerTypeUser,
+		FolderID: folderID,
+		FileName: req.FileName,
+		MimeType: req.MimeType,
+		Size:     req.Size,
+		OwnerID:  claims.UserID,
 	})
 	if err != nil {
 		return err
@@ -263,13 +261,13 @@ func (h *FileHandler) MoveFile(c echo.Context) error {
 		return apperror.NewValidationError("invalid request body", nil)
 	}
 
-	var newFolderID *uuid.UUID
-	if req.NewFolderID != nil {
-		id, err := uuid.Parse(*req.NewFolderID)
-		if err != nil {
-			return apperror.NewValidationError("invalid new folder ID", nil)
-		}
-		newFolderID = &id
+	// NewFolderID is required - files must belong to a folder
+	if req.NewFolderID == nil {
+		return apperror.NewValidationError("new folder ID is required", nil)
+	}
+	newFolderID, err := uuid.Parse(*req.NewFolderID)
+	if err != nil {
+		return apperror.NewValidationError("invalid new folder ID", nil)
 	}
 
 	output, err := h.moveFileCommand.Execute(c.Request().Context(), storagecmd.MoveFileInput{
@@ -281,15 +279,9 @@ func (h *FileHandler) MoveFile(c echo.Context) error {
 		return err
 	}
 
-	var folderID *string
-	if output.FolderID != nil {
-		id := output.FolderID.String()
-		folderID = &id
-	}
-
 	return presenter.OK(c, map[string]interface{}{
 		"fileId":   output.FileID.String(),
-		"folderId": folderID,
+		"folderId": output.FolderID.String(),
 	})
 }
 
@@ -328,9 +320,8 @@ func (h *FileHandler) ListTrash(c echo.Context) error {
 	}
 
 	output, err := h.listTrashQuery.Execute(c.Request().Context(), storageqry.ListTrashInput{
-		OwnerID:   claims.UserID,
-		OwnerType: valueobject.OwnerTypeUser,
-		UserID:    claims.UserID,
+		OwnerID: claims.UserID,
+		UserID:  claims.UserID,
 	})
 	if err != nil {
 		return err
@@ -376,14 +367,8 @@ func (h *FileHandler) RestoreFile(c echo.Context) error {
 		return err
 	}
 
-	var folderID *string
-	if output.FolderID != nil {
-		id := output.FolderID.String()
-		folderID = &id
-	}
-
 	return presenter.OK(c, map[string]interface{}{
 		"fileId":   output.FileID.String(),
-		"folderId": folderID,
+		"folderId": output.FolderID.String(),
 	})
 }
