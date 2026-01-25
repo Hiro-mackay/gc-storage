@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
@@ -25,21 +26,27 @@ type CreateFolderOutput struct {
 
 // CreateFolderCommand はフォルダ作成コマンドです
 type CreateFolderCommand struct {
-	folderRepo        repository.FolderRepository
-	folderClosureRepo repository.FolderClosureRepository
-	txManager         repository.TransactionManager
+	folderRepo         repository.FolderRepository
+	folderClosureRepo  repository.FolderClosureRepository
+	relationshipRepo   authz.RelationshipRepository
+	permissionResolver authz.PermissionResolver
+	txManager          repository.TransactionManager
 }
 
 // NewCreateFolderCommand は新しいCreateFolderCommandを作成します
 func NewCreateFolderCommand(
 	folderRepo repository.FolderRepository,
 	folderClosureRepo repository.FolderClosureRepository,
+	relationshipRepo authz.RelationshipRepository,
+	permissionResolver authz.PermissionResolver,
 	txManager repository.TransactionManager,
 ) *CreateFolderCommand {
 	return &CreateFolderCommand{
-		folderRepo:        folderRepo,
-		folderClosureRepo: folderClosureRepo,
-		txManager:         txManager,
+		folderRepo:         folderRepo,
+		folderClosureRepo:  folderClosureRepo,
+		relationshipRepo:   relationshipRepo,
+		permissionResolver: permissionResolver,
+		txManager:          txManager,
 	}
 }
 
@@ -59,8 +66,12 @@ func (c *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInp
 			return nil, err
 		}
 
-		// 親フォルダの所有者チェック
-		if !parent.IsOwnedBy(input.OwnerID) {
+		// 親フォルダへのfolder:create権限チェック
+		hasPermission, err := c.permissionResolver.HasPermission(ctx, input.OwnerID, authz.ResourceTypeFolder, *input.ParentID, authz.PermFolderCreate)
+		if err != nil {
+			return nil, err
+		}
+		if !hasPermission {
 			return nil, apperror.NewForbiddenError("not authorized to create folder in this location")
 		}
 
@@ -120,6 +131,18 @@ func (c *CreateFolderCommand) Execute(ctx context.Context, input CreateFolderInp
 			if err := c.folderClosureRepo.InsertAncestorPaths(ctx, newPaths); err != nil {
 				return err
 			}
+
+			// 親リレーションシップを作成 (parent_folder --parent--> folder)
+			parentRelation := authz.NewParentRelationship(authz.ObjectTypeFolder, *input.ParentID, authz.ObjectTypeFolder, folder.ID)
+			if err := c.relationshipRepo.Create(ctx, parentRelation); err != nil {
+				return err
+			}
+		}
+
+		// オーナーリレーションシップを作成 (user --owner--> folder)
+		ownerRelation := authz.NewOwnerRelationship(input.OwnerID, authz.ObjectTypeFolder, folder.ID)
+		if err := c.relationshipRepo.Create(ctx, ownerRelation); err != nil {
+			return err
 		}
 
 		return nil

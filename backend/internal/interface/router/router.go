@@ -53,6 +53,9 @@ func (r *Router) setupAPIRoutes() {
 	r.setupAuthRoutes(api)
 	r.setupUserRoutes(api)
 	r.setupStorageRoutes(api)
+	r.setupGroupRoutes(api)
+	r.setupPermissionRoutes(api)
+	r.setupShareLinkRoutes(api)
 }
 
 // setupAuthRoutes は認証関連ルートを設定します
@@ -137,4 +140,85 @@ func (r *Router) setupStorageRoutes(api *echo.Group) {
 		trashGroup.GET("", r.handlers.File.ListTrash)
 		trashGroup.POST("/:id/restore", r.handlers.File.RestoreFile)
 	}
+}
+
+// setupGroupRoutes はグループ関連ルートを設定します
+func (r *Router) setupGroupRoutes(api *echo.Group) {
+	if r.handlers.Group == nil {
+		return
+	}
+
+	// Group routes (authenticated)
+	groupsGroup := api.Group("/groups", r.middlewares.JWTAuth.Authenticate())
+	groupsGroup.POST("", r.handlers.Group.CreateGroup)
+	groupsGroup.GET("", r.handlers.Group.ListMyGroups)
+	groupsGroup.GET("/:id", r.handlers.Group.GetGroup)
+	groupsGroup.PATCH("/:id", r.handlers.Group.UpdateGroup)
+	groupsGroup.DELETE("/:id", r.handlers.Group.DeleteGroup)
+
+	// Group member routes
+	groupsGroup.GET("/:id/members", r.handlers.Group.ListMembers)
+	groupsGroup.DELETE("/:id/members/:userId", r.handlers.Group.RemoveMember)
+	groupsGroup.PATCH("/:id/members/:userId/role", r.handlers.Group.ChangeRole)
+
+	// Group invitation routes
+	groupsGroup.POST("/:id/invitations", r.handlers.Group.InviteMember)
+	groupsGroup.GET("/:id/invitations", r.handlers.Group.ListInvitations)
+	groupsGroup.DELETE("/:id/invitations/:invitationId", r.handlers.Group.CancelInvitation)
+
+	// Group actions
+	groupsGroup.POST("/:id/leave", r.handlers.Group.LeaveGroup)
+	groupsGroup.POST("/:id/transfer", r.handlers.Group.TransferOwnership)
+
+	// Invitation routes (authenticated)
+	invitationsGroup := api.Group("/invitations", r.middlewares.JWTAuth.Authenticate())
+	invitationsGroup.GET("/pending", r.handlers.Group.ListPendingInvitations)
+	invitationsGroup.POST("/:token/accept", r.handlers.Group.AcceptInvitation)
+	invitationsGroup.POST("/:token/decline", r.handlers.Group.DeclineInvitation)
+}
+
+// setupPermissionRoutes は権限関連ルートを設定します
+func (r *Router) setupPermissionRoutes(api *echo.Group) {
+	if r.handlers.Permission == nil {
+		return
+	}
+
+	// File permission routes (authenticated)
+	filesGroup := api.Group("/files", r.middlewares.JWTAuth.Authenticate())
+	filesGroup.GET("/:id/permissions", r.handlers.Permission.ListFileGrants)
+	filesGroup.POST("/:id/permissions", r.handlers.Permission.GrantFileRole)
+
+	// Folder permission routes (authenticated)
+	foldersGroup := api.Group("/folders", r.middlewares.JWTAuth.Authenticate())
+	foldersGroup.GET("/:id/permissions", r.handlers.Permission.ListFolderGrants)
+	foldersGroup.POST("/:id/permissions", r.handlers.Permission.GrantFolderRole)
+
+	// Permission grant routes (authenticated)
+	permissionsGroup := api.Group("/permissions", r.middlewares.JWTAuth.Authenticate())
+	permissionsGroup.DELETE("/:id", r.handlers.Permission.RevokeGrant)
+}
+
+// setupShareLinkRoutes は共有リンク関連ルートを設定します
+func (r *Router) setupShareLinkRoutes(api *echo.Group) {
+	if r.handlers.ShareLink == nil {
+		return
+	}
+
+	// Share link creation routes (authenticated)
+	filesGroup := api.Group("/files", r.middlewares.JWTAuth.Authenticate())
+	filesGroup.POST("/:id/share", r.handlers.ShareLink.CreateFileShareLink)
+	filesGroup.GET("/:id/share", r.handlers.ShareLink.ListFileShareLinks)
+
+	foldersGroup := api.Group("/folders", r.middlewares.JWTAuth.Authenticate())
+	foldersGroup.POST("/:id/share", r.handlers.ShareLink.CreateFolderShareLink)
+	foldersGroup.GET("/:id/share", r.handlers.ShareLink.ListFolderShareLinks)
+
+	// Share link management routes (authenticated)
+	shareLinksGroup := api.Group("/share-links", r.middlewares.JWTAuth.Authenticate())
+	shareLinksGroup.DELETE("/:id", r.handlers.ShareLink.RevokeShareLink)
+
+	// Public share link access routes (no authentication required)
+	shareGroup := api.Group("/share")
+	shareGroup.GET("/:token", r.handlers.ShareLink.GetShareLinkInfo)
+	shareGroup.POST("/:token/access", r.handlers.ShareLink.AccessShareLink)
 }

@@ -17,6 +17,9 @@ type UserRepository interface {
 	// Update はユーザーを更新します
 	Update(ctx context.Context, user *entity.User) error
 
+	// SetPersonalFolderID はユーザーのPersonalFolderIDを設定します
+	SetPersonalFolderID(ctx context.Context, userID uuid.UUID, folderID uuid.UUID) error
+
 	// FindByID はIDでユーザーを検索します
 	FindByID(ctx context.Context, id uuid.UUID) (*entity.User, error)
 

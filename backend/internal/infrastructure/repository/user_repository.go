@@ -134,6 +134,18 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.HandleError(err)
 }
 
+// SetPersonalFolderID はユーザーのPersonalFolderIDを設定します
+func (r *UserRepository) SetPersonalFolderID(ctx context.Context, userID uuid.UUID, folderID uuid.UUID) error {
+	querier := r.Querier(ctx)
+	queries := sqlcgen.New(querier)
+
+	err := queries.SetUserPersonalFolder(ctx, sqlcgen.SetUserPersonalFolderParams{
+		ID:               userID,
+		PersonalFolderID: pgtype.UUID{Bytes: folderID, Valid: true},
+	})
+	return r.HandleError(err)
+}
+
 // toEntity はsqlcgen.Userをentity.Userに変換します
 func (r *UserRepository) toEntity(row sqlcgen.User) (*entity.User, error) {
 	email, err := valueobject.NewEmail(row.Email)
@@ -146,15 +158,22 @@ func (r *UserRepository) toEntity(row sqlcgen.User) (*entity.User, error) {
 		passwordHash = *row.PasswordHash
 	}
 
+	var personalFolderID *uuid.UUID
+	if row.PersonalFolderID.Valid {
+		id := uuid.UUID(row.PersonalFolderID.Bytes)
+		personalFolderID = &id
+	}
+
 	return &entity.User{
-		ID:            row.ID,
-		Email:         email,
-		Name:          row.DisplayName,
-		PasswordHash:  passwordHash,
-		Status:        entity.UserStatus(row.Status),
-		EmailVerified: row.EmailVerifiedAt.Valid,
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+		ID:               row.ID,
+		Email:            email,
+		Name:             row.DisplayName,
+		PasswordHash:     passwordHash,
+		Status:           entity.UserStatus(row.Status),
+		EmailVerified:    row.EmailVerifiedAt.Valid,
+		PersonalFolderID: personalFolderID,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
 	}, nil
 }
 

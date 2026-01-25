@@ -6,11 +6,14 @@ import (
 
 // Handlers はアプリケーションのハンドラーを保持します
 type Handlers struct {
-	Health  *handler.HealthHandler
-	Auth    *handler.AuthHandler
-	Profile *handler.ProfileHandler
-	Folder  *handler.FolderHandler
-	File    *handler.FileHandler
+	Health     *handler.HealthHandler
+	Auth       *handler.AuthHandler
+	Profile    *handler.ProfileHandler
+	Folder     *handler.FolderHandler
+	File       *handler.FileHandler
+	Group      *handler.GroupHandler
+	Permission *handler.PermissionHandler
+	ShareLink  *handler.ShareLinkHandler
 }
 
 // NewHandlers はContainerから全てのハンドラーを初期化します
@@ -73,12 +76,61 @@ func NewHandlers(c *Container) *Handlers {
 		)
 	}
 
+	// Group Handler (if Collaboration is initialized)
+	var groupHandler *handler.GroupHandler
+	if c.Collaboration != nil {
+		groupHandler = handler.NewGroupHandler(
+			c.Collaboration.CreateGroup,
+			c.Collaboration.UpdateGroup,
+			c.Collaboration.DeleteGroup,
+			c.Collaboration.InviteMember,
+			c.Collaboration.AcceptInvitation,
+			c.Collaboration.DeclineInvitation,
+			c.Collaboration.CancelInvitation,
+			c.Collaboration.RemoveMember,
+			c.Collaboration.LeaveGroup,
+			c.Collaboration.ChangeRole,
+			c.Collaboration.TransferOwnership,
+			c.Collaboration.GetGroup,
+			c.Collaboration.ListMyGroups,
+			c.Collaboration.ListMembers,
+			c.Collaboration.ListInvitations,
+			c.Collaboration.ListPendingInvitations,
+		)
+	}
+
+	// Permission Handler (if Authz is initialized)
+	var permissionHandler *handler.PermissionHandler
+	if c.Authz != nil {
+		permissionHandler = handler.NewPermissionHandler(
+			c.Authz.GrantRole,
+			c.Authz.RevokeGrant,
+			c.Authz.ListGrants,
+			c.Authz.CheckPermission,
+		)
+	}
+
+	// ShareLink Handler (if Sharing is initialized)
+	var shareLinkHandler *handler.ShareLinkHandler
+	if c.Sharing != nil {
+		shareLinkHandler = handler.NewShareLinkHandler(
+			c.Sharing.CreateShareLink,
+			c.Sharing.RevokeShareLink,
+			c.Sharing.AccessShareLink,
+			c.Sharing.ListShareLinks,
+			c.config.App.URL,
+		)
+	}
+
 	return &Handlers{
-		Health:  healthHandler,
-		Auth:    authHandler,
-		Profile: profileHandler,
-		Folder:  folderHandler,
-		File:    fileHandler,
+		Health:     healthHandler,
+		Auth:       authHandler,
+		Profile:    profileHandler,
+		Folder:     folderHandler,
+		File:       fileHandler,
+		Group:      groupHandler,
+		Permission: permissionHandler,
+		ShareLink:  shareLinkHandler,
 	}
 }
 
@@ -131,11 +183,60 @@ func NewHandlersForTest(c *Container) *Handlers {
 		)
 	}
 
+	// Group Handler (if Collaboration is initialized)
+	var groupHandler *handler.GroupHandler
+	if c.Collaboration != nil {
+		groupHandler = handler.NewGroupHandler(
+			c.Collaboration.CreateGroup,
+			c.Collaboration.UpdateGroup,
+			c.Collaboration.DeleteGroup,
+			c.Collaboration.InviteMember,
+			c.Collaboration.AcceptInvitation,
+			c.Collaboration.DeclineInvitation,
+			c.Collaboration.CancelInvitation,
+			c.Collaboration.RemoveMember,
+			c.Collaboration.LeaveGroup,
+			c.Collaboration.ChangeRole,
+			c.Collaboration.TransferOwnership,
+			c.Collaboration.GetGroup,
+			c.Collaboration.ListMyGroups,
+			c.Collaboration.ListMembers,
+			c.Collaboration.ListInvitations,
+			c.Collaboration.ListPendingInvitations,
+		)
+	}
+
+	// Permission Handler (if Authz is initialized)
+	var permissionHandler *handler.PermissionHandler
+	if c.Authz != nil {
+		permissionHandler = handler.NewPermissionHandler(
+			c.Authz.GrantRole,
+			c.Authz.RevokeGrant,
+			c.Authz.ListGrants,
+			c.Authz.CheckPermission,
+		)
+	}
+
+	// ShareLink Handler (if Sharing is initialized)
+	var shareLinkHandler *handler.ShareLinkHandler
+	if c.Sharing != nil {
+		shareLinkHandler = handler.NewShareLinkHandler(
+			c.Sharing.CreateShareLink,
+			c.Sharing.RevokeShareLink,
+			c.Sharing.AccessShareLink,
+			c.Sharing.ListShareLinks,
+			c.config.App.URL,
+		)
+	}
+
 	return &Handlers{
-		Health:  nil, // テストではHealthHandlerは不要
-		Auth:    authHandler,
-		Profile: profileHandler,
-		Folder:  folderHandler,
-		File:    fileHandler,
+		Health:     nil, // テストではHealthHandlerは不要
+		Auth:       authHandler,
+		Profile:    profileHandler,
+		Folder:     folderHandler,
+		File:       fileHandler,
+		Group:      groupHandler,
+		Permission: permissionHandler,
+		ShareLink:  shareLinkHandler,
 	}
 }

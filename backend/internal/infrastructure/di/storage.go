@@ -1,6 +1,7 @@
 package di
 
 import (
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
@@ -67,10 +68,10 @@ func NewStorageRepositories(txManager *database.TxManager) *StorageRepositories 
 }
 
 // NewStorageUseCases は新しいStorageUseCasesを作成します
-func NewStorageUseCases(repos *StorageRepositories, txManager repository.TransactionManager, storageService service.StorageService) *StorageUseCases {
+func NewStorageUseCases(repos *StorageRepositories, relationshipRepo authz.RelationshipRepository, permissionResolver authz.PermissionResolver, txManager repository.TransactionManager, storageService service.StorageService) *StorageUseCases {
 	return &StorageUseCases{
 		// Folder Commands
-		CreateFolder: storagecmd.NewCreateFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, txManager),
+		CreateFolder: storagecmd.NewCreateFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, relationshipRepo, permissionResolver, txManager),
 		RenameFolder: storagecmd.NewRenameFolderCommand(repos.FolderRepo),
 		MoveFolder:   storagecmd.NewMoveFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, txManager),
 		DeleteFolder: storagecmd.NewDeleteFolderCommand(
@@ -84,7 +85,7 @@ func NewStorageUseCases(repos *StorageRepositories, txManager repository.Transac
 		),
 
 		// Folder Queries
-		GetFolder:          storageqry.NewGetFolderQuery(repos.FolderRepo),
+		GetFolder:          storageqry.NewGetFolderQuery(repos.FolderRepo, permissionResolver),
 		ListFolderContents: storageqry.NewListFolderContentsQuery(repos.FolderRepo, repos.FileRepo),
 		GetAncestors:       storageqry.NewGetAncestorsQuery(repos.FolderRepo, repos.FolderClosureRepo),
 

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
@@ -53,6 +54,27 @@ type Container struct {
 
 	// Storage Repositories (for tests and direct access)
 	StorageRepos *StorageRepositories
+
+	// Collaboration UseCases
+	Collaboration *CollaborationUseCases
+
+	// Collaboration Repositories
+	CollabRepos *CollaborationRepositories
+
+	// Authorization UseCases
+	Authz *AuthzUseCases
+
+	// Authorization Repositories
+	AuthzRepos *AuthzRepositories
+
+	// Permission Resolver
+	PermissionResolver authz.PermissionResolver
+
+	// Sharing UseCases
+	Sharing *SharingUseCases
+
+	// Sharing Repositories
+	SharingRepos *SharingRepositories
 
 	// config
 	config *config.Config
@@ -160,7 +182,38 @@ func (c *Container) InitProfileUseCases() {
 // InitStorageUseCases はStorage UseCasesを初期化します
 func (c *Container) InitStorageUseCases(storageService service.StorageService) {
 	c.StorageRepos = NewStorageRepositories(c.TxManager)
-	c.Storage = NewStorageUseCases(c.StorageRepos, c.TxManager, storageService)
+	// AuthzRepos must be initialized before StorageUseCases for relationship management
+	if c.AuthzRepos == nil {
+		c.AuthzRepos = NewAuthzRepositories(c.TxManager)
+	}
+	// CollabRepos must be initialized for PermissionResolver
+	if c.CollabRepos == nil {
+		c.CollabRepos = NewCollaborationRepositories(c.TxManager)
+	}
+	// PermissionResolver must be initialized for StorageUseCases
+	if c.PermissionResolver == nil {
+		c.PermissionResolver = NewPermissionResolver(c.AuthzRepos, c.CollabRepos)
+	}
+	c.Storage = NewStorageUseCases(c.StorageRepos, c.AuthzRepos.RelationshipRepo, c.PermissionResolver, c.TxManager, storageService)
+}
+
+// InitCollaborationUseCases はCollaboration UseCasesを初期化します
+func (c *Container) InitCollaborationUseCases() {
+	c.CollabRepos = NewCollaborationRepositories(c.TxManager)
+	c.Collaboration = NewCollaborationUseCases(c.CollabRepos, c.UserRepo, c.TxManager)
+}
+
+// InitAuthzUseCases はAuthorization UseCasesを初期化します
+func (c *Container) InitAuthzUseCases() {
+	c.AuthzRepos = NewAuthzRepositories(c.TxManager)
+	c.PermissionResolver = NewPermissionResolver(c.AuthzRepos, c.CollabRepos)
+	c.Authz = NewAuthzUseCases(c.AuthzRepos, c.PermissionResolver)
+}
+
+// InitSharingUseCases はSharing UseCasesを初期化します
+func (c *Container) InitSharingUseCases() {
+	c.SharingRepos = NewSharingRepositories(c.TxManager)
+	c.Sharing = NewSharingUseCases(c.SharingRepos, c.PermissionResolver)
 }
 
 // Close はリソースをクリーンアップします

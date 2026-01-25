@@ -34,13 +34,15 @@ type OAuthLoginOutput struct {
 
 // OAuthLoginCommand はOAuthログインコマンドです
 type OAuthLoginCommand struct {
-	userRepo         repository.UserRepository
-	profileRepo      repository.UserProfileRepository
-	oauthAccountRepo repository.OAuthAccountRepository
-	oauthFactory     service.OAuthClientFactory
-	txManager        *database.TxManager
-	sessionRepo      repository.SessionRepository
-	jwtService       *jwt.JWTService
+	userRepo          repository.UserRepository
+	profileRepo       repository.UserProfileRepository
+	oauthAccountRepo  repository.OAuthAccountRepository
+	folderRepo        repository.FolderRepository
+	folderClosureRepo repository.FolderClosureRepository
+	oauthFactory      service.OAuthClientFactory
+	txManager         *database.TxManager
+	sessionRepo       repository.SessionRepository
+	jwtService        *jwt.JWTService
 }
 
 // NewOAuthLoginCommand は新しいOAuthLoginCommandを作成します
@@ -48,19 +50,23 @@ func NewOAuthLoginCommand(
 	userRepo repository.UserRepository,
 	profileRepo repository.UserProfileRepository,
 	oauthAccountRepo repository.OAuthAccountRepository,
+	folderRepo repository.FolderRepository,
+	folderClosureRepo repository.FolderClosureRepository,
 	oauthFactory service.OAuthClientFactory,
 	txManager *database.TxManager,
 	sessionRepo repository.SessionRepository,
 	jwtService *jwt.JWTService,
 ) *OAuthLoginCommand {
 	return &OAuthLoginCommand{
-		userRepo:         userRepo,
-		profileRepo:      profileRepo,
-		oauthAccountRepo: oauthAccountRepo,
-		oauthFactory:     oauthFactory,
-		txManager:        txManager,
-		sessionRepo:      sessionRepo,
-		jwtService:       jwtService,
+		userRepo:          userRepo,
+		profileRepo:       profileRepo,
+		oauthAccountRepo:  oauthAccountRepo,
+		folderRepo:        folderRepo,
+		folderClosureRepo: folderClosureRepo,
+		oauthFactory:      oauthFactory,
+		txManager:         txManager,
+		sessionRepo:       sessionRepo,
+		jwtService:        jwtService,
 	}
 }
 
@@ -180,6 +186,33 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 		if txErr = c.userRepo.Create(ctx, user); txErr != nil {
 			return txErr
 		}
+
+		// Personal Folder を作成
+		folderNameStr := userInfo.Name + "'s folder"
+		folderName, txErr := valueobject.NewFolderName(folderNameStr)
+		if txErr != nil {
+			return txErr
+		}
+
+		personalFolder, txErr := entity.NewFolder(folderName, nil, user.ID, 0)
+		if txErr != nil {
+			return txErr
+		}
+
+		if txErr = c.folderRepo.Create(ctx, personalFolder); txErr != nil {
+			return txErr
+		}
+
+		// Closure Table 自己参照
+		if txErr = c.folderClosureRepo.InsertSelfReference(ctx, personalFolder.ID); txErr != nil {
+			return txErr
+		}
+
+		// User に personal_folder_id を設定
+		if txErr = c.userRepo.SetPersonalFolderID(ctx, user.ID, personalFolder.ID); txErr != nil {
+			return txErr
+		}
+		user.SetPersonalFolder(personalFolder.ID)
 
 		// UserProfileを作成（AvatarURLを含む）
 		profile := entity.NewUserProfile(user.ID)

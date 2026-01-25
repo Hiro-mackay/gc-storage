@@ -89,6 +89,8 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 			c.UserRepo,
 			c.UserProfileRepo,
 			c.OAuthAccountRepo,
+			folderRepo,
+			folderClosureRepo,
 			c.OAuthFactory,
 			c.TxManager,
 			c.SessionRepo,

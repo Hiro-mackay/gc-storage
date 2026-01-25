@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
@@ -23,13 +24,15 @@ type GetFolderOutput struct {
 
 // GetFolderQuery はフォルダ取得クエリです
 type GetFolderQuery struct {
-	folderRepo repository.FolderRepository
+	folderRepo         repository.FolderRepository
+	permissionResolver authz.PermissionResolver
 }
 
 // NewGetFolderQuery は新しいGetFolderQueryを作成します
-func NewGetFolderQuery(folderRepo repository.FolderRepository) *GetFolderQuery {
+func NewGetFolderQuery(folderRepo repository.FolderRepository, permissionResolver authz.PermissionResolver) *GetFolderQuery {
 	return &GetFolderQuery{
-		folderRepo: folderRepo,
+		folderRepo:         folderRepo,
+		permissionResolver: permissionResolver,
 	}
 }
 
@@ -41,8 +44,12 @@ func (q *GetFolderQuery) Execute(ctx context.Context, input GetFolderInput) (*Ge
 		return nil, err
 	}
 
-	// 2. 所有者チェック
-	if !folder.IsOwnedBy(input.UserID) {
+	// 2. 権限チェック (folder:read)
+	hasPermission, err := q.permissionResolver.HasPermission(ctx, input.UserID, authz.ResourceTypeFolder, input.FolderID, authz.PermFolderRead)
+	if err != nil {
+		return nil, err
+	}
+	if !hasPermission {
 		return nil, apperror.NewForbiddenError("not authorized to access this folder")
 	}
 

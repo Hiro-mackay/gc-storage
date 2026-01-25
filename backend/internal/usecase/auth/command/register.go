@@ -118,10 +118,10 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 		}
 
 		// User に personal_folder_id を設定
-		user.SetPersonalFolder(personalFolder.ID)
-		if err := c.userRepo.Update(ctx, user); err != nil {
+		if err := c.userRepo.SetPersonalFolderID(ctx, user.ID, personalFolder.ID); err != nil {
 			return fmt.Errorf("failed to update user with personal folder: %w", err)
 		}
+		user.SetPersonalFolder(personalFolder.ID)
 
 		// 確認トークン作成（emailVerificationTokenRepoが設定されている場合のみ）
 		if c.emailVerificationTokenRepo != nil {
