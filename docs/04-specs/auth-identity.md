@@ -370,16 +370,17 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 
         // ユーザー作成
         user = &entity.User{
-            ID:               userID,
-            Email:            email,
-            Name:             input.Name,
-            PasswordHash:     password.Hash(),
-            PersonalFolderID: personalFolderID, // Personal Folder への参照
-            Status:           entity.UserStatusPending,
-            EmailVerified:    false,
-            CreatedAt:        now,
-            UpdatedAt:        now,
+            ID:            userID,
+            Email:         email,
+            Name:          input.Name,
+            PasswordHash:  password.Hash(),
+            Status:        entity.UserStatusPending,
+            EmailVerified: false,
+            CreatedAt:     now,
+            UpdatedAt:     now,
         }
+        // Personal Folder への参照を設定（ポインタ型）
+        user.SetPersonalFolder(personalFolderID)
 
         if err := c.userRepo.Create(ctx, user); err != nil {
             return err
@@ -989,24 +990,25 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
         }
 
         user = &entity.User{
-            ID:               userID,
-            Email:            email,
-            Name:             userInfo.Name,
-            PasswordHash:     "", // OAuthユーザーはパスワードなし
-            PersonalFolderID: personalFolderID, // Personal Folder への参照
-            Status:           entity.UserStatusActive,
-            EmailVerified:    true, // OAuthはメール確認済みとみなす
-            CreatedAt:        now,
-            UpdatedAt:        now,
+            ID:            userID,
+            Email:         email,
+            Name:          userInfo.Name,
+            PasswordHash:  "", // OAuthユーザーはパスワードなし
+            Status:        entity.UserStatusActive,
+            EmailVerified: true, // OAuthはメール確認済みとみなす
+            CreatedAt:     now,
+            UpdatedAt:     now,
         }
+        // Personal Folder への参照を設定（ポインタ型）
+        user.SetPersonalFolder(personalFolderID)
 
         if txErr = c.userRepo.Create(ctx, user); txErr != nil {
             return txErr
         }
 
         // UserProfileを作成（AvatarURLを含む）
+        // Note: 表示名（userInfo.Name）はUser.Nameに設定済み
         profile := entity.NewUserProfile(user.ID)
-        profile.DisplayName = userInfo.Name
         profile.AvatarURL = userInfo.AvatarURL
         if txErr = c.profileRepo.Upsert(ctx, profile); txErr != nil {
             return txErr

@@ -23,9 +23,10 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | name | GroupName | Yes | グループ名（値オブジェクト） |
 | description | string | No | グループの説明（最大500文字） |
 | owner_id | UUID | Yes | オーナーのユーザーID |
-| status | GroupStatus | Yes | グループ状態 |
 | created_at | timestamp | Yes | 作成日時 |
 | updated_at | timestamp | Yes | 更新日時 |
+
+**注記:** グループは論理削除をサポートしません。削除は物理削除のみです。
 
 **ビジネスルール:**
 
@@ -35,20 +36,7 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | R-G002 | nameは空文字不可、1-100文字 |
 | R-G003 | descriptionは最大500文字 |
 | R-G004 | ownerはグループから脱退できない（所有権譲渡が必要） |
-| R-G005 | statusがdeletedのグループは操作不可 |
-| R-G006 | グループ作成時にフォルダは作成しない |
-
-**ステータス遷移:**
-```
-┌─────────┐       ┌─────────┐
-│  active │──────▶│ deleted │
-└─────────┘       └─────────┘
-```
-
-| ステータス | 説明 |
-|-----------|------|
-| active | アクティブ |
-| deleted | 削除済み（論理削除） |
+| R-G005 | グループ作成時にフォルダは作成しない |
 
 ---
 
@@ -96,7 +84,7 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | R-I004 | 同一グループ・同一メールへの有効な招待は1つのみ |
 | R-I005 | roleにownerは指定不可（所有権譲渡は別フロー） |
 | R-I006 | デフォルトのroleはviewer |
-| R-I007 | 招待者は自分のロール以下のロールのみ指定可能 |
+| R-I007 | 招待者は自分より低いロールのみ指定可能（`CanAssign()`） |
 
 **ステータス遷移:**
 ```
@@ -108,6 +96,10 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
      │          │ declined │
      │          └──────────┘
      │
+     ├─────────▶┌───────────┐
+     │          │ cancelled │
+     │          └───────────┘
+     │
      └─────────▶┌──────────┐
                 │ expired  │
                 └──────────┘
@@ -118,6 +110,7 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | pending | 招待中 |
 | accepted | 承諾済み |
 | declined | 辞退済み |
+| cancelled | 取り消し済み（招待者による取り消し） |
 | expired | 期限切れ |
 
 ---
@@ -142,10 +135,15 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 
 グループ内でのロール階層: `owner > contributor > viewer`
 
+**ロールレベル:**
+- owner: 3
+- contributor: 2
+- viewer: 1
+
 | 値 | 説明 | 権限 |
 |-----|------|------|
 | viewer | 閲覧者 | グループ情報閲覧、共有リソースアクセス |
-| contributor | 投稿者 | メンバー招待（Contributor以下のロール） |
+| contributor | 投稿者 | メンバー招待（自分より下位のロールのみ付与可能） |
 | owner | オーナー | 全権限、グループ削除、設定変更、オーナー譲渡 |
 
 **権限マトリクス:**
@@ -154,27 +152,21 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 |------|:------:|:-----------:|:-----:|
 | グループ情報閲覧 | Yes | Yes | Yes |
 | 共有リソースアクセス | Yes | Yes | Yes |
-| メンバー招待（viewer） | No | Yes | Yes |
-| メンバー招待（contributor） | No | Yes | Yes |
-| メンバー削除 | No | No | Yes |
+| メンバー招待 (`CanInvite()`) | No | Yes | Yes |
+| メンバー管理 (`CanManageMembers()`) | No | No | Yes |
 | グループ設定変更 | No | No | Yes |
 | グループ削除 | No | No | Yes |
 | 所有権譲渡 | No | No | Yes |
 
-**招待時のロール付与制限:**
+**招待時のロール付与制限 (`CanAssign()`):**
+
+招待者は自分のレベルより**低い**ロールのみ付与可能（ownerロールは所有権譲渡でのみ変更可能）
 
 | 招待者のロール | 付与可能なロール |
 |----------------|------------------|
-| owner | viewer, contributor |
-| contributor | viewer, contributor |
-| viewer | なし（招待不可） |
-
-### GroupStatus
-
-| 値 | 説明 |
-|-----|------|
-| active | アクティブ |
-| deleted | 削除済み |
+| owner (Lv3) | viewer, contributor |
+| contributor (Lv2) | viewer のみ |
+| viewer (Lv1) | なし（招待不可） |
 
 ### InvitationStatus
 
@@ -225,6 +217,8 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 
 ### グループ削除
 
+**注記:** グループは物理削除されます。
+
 ```
 1. クライアント → API: DeleteGroup（groupId）
 2. API:
@@ -233,8 +227,8 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 3. トランザクション内:
    - 全招待を削除
    - 全メンバーシップを削除
-   - グループをdeleted状態に変更
    - グループへのPermissionGrantを削除
+   - グループを物理削除
 4. API → クライアント: 成功レスポンス
 ```
 
@@ -418,7 +412,7 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | ID | 不変条件 |
 |----|---------|
 | I-GM001 | 同一ユーザーは同一グループに1つのMembershipのみ |
-| I-GM002 | メンバーシップ作成時、グループがactiveであること |
+| I-GM002 | メンバーシップ作成時、グループが存在すること |
 
 ### 招待制約
 
@@ -428,14 +422,14 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
 | I-GI002 | 同一グループ・同一メールへの有効な招待は1つのみ |
 | I-GI003 | ownerロールでの招待は不可 |
 | I-GI004 | 既存メンバーへの招待は不可 |
-| I-GI005 | 招待者は自分のロール以下のロールのみ指定可能 |
+| I-GI005 | 招待者は自分より低いロールのみ指定可能（`CanAssign()`） |
 
-### グループ削除制約
+### グループ削除制約（物理削除）
 
 | ID | 不変条件 |
 |----|---------|
 | I-GD001 | 削除はownerのみ可能 |
-| I-GD002 | 削除時、全メンバーシップと招待も削除 |
+| I-GD002 | 削除時、全メンバーシップと招待も物理削除 |
 | I-GD003 | 削除時、グループへのPermissionGrantも削除 |
 
 ---
@@ -507,7 +501,6 @@ Collaboration Contextの中核となるドメインで、グループ単位で�
       │ name             │
       │ description      │
       │ owner_id (FK)    │──────────────┐
-      │ status           │              │
       │ created_at       │              │
       │ updated_at       │              │
       └────────┬─────────┘              │

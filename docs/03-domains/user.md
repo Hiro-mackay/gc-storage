@@ -17,7 +17,7 @@ Identity Contextの中核となるドメインで、他のすべてのコンテ�
 | email | Email | Yes | メールアドレス（一意） |
 | name | string | Yes | 表示名 (1-100文字) |
 | password_hash | string | No | bcryptハッシュ化されたパスワード |
-| personal_folder_id | UUID | Yes | Personal FolderのID（1:1関係） |
+| personal_folder_id | UUID | No | Personal FolderのID（1:1関係、登録後に設定） |
 | status | UserStatus | Yes | アカウント状態 |
 | email_verified | boolean | Yes | メール確認完了フラグ |
 | created_at | timestamp | Yes | 作成日時 |
@@ -29,8 +29,8 @@ Identity Contextの中核となるドメインで、他のすべてのコンテ�
 - R-U003: nameは空文字不可、1-100文字
 - R-U004: statusがsuspendedまたはdeactivatedの場合、ログイン不可
 - R-U005: email_verifiedがfalseの場合、一部機能制限
-- R-U006: personal_folder_idは必須（ユーザー登録時にPersonal Folderを自動作成）
-- R-U007: UserとPersonal Folderは必ず1対1の関係
+- R-U006: personal_folder_idはユーザー登録処理完了後に設定（登録時に自動作成）
+- R-U007: UserとPersonal Folderは1対1の関係
 
 **ステータス遷移:**
 ```
@@ -100,19 +100,31 @@ Identity Contextの中核となるドメインで、他のすべてのコンテ�
 
 | 属性 | 型 | 必須 | 説明 |
 |-----|-----|------|------|
-| user_id | UUID | Yes | ユーザーID（主キー） |
-| display_name | string | No | 表示用ニックネーム |
+| id | UUID | Yes | 一意識別子 |
+| user_id | UUID | Yes | ユーザーID（FK） |
 | avatar_url | string | No | アバター画像URL |
 | bio | string | No | 自己紹介 (最大500文字) |
 | locale | string | Yes | 言語設定 (default: ja) |
 | timezone | string | Yes | タイムゾーン (default: Asia/Tokyo) |
-| settings | jsonb | Yes | ユーザー設定（通知設定等） |
+| theme | string | Yes | テーマ設定 (system/light/dark, default: system) |
+| notification_preferences | jsonb | Yes | 通知設定 |
+| created_at | timestamp | Yes | 作成日時 |
 | updated_at | timestamp | Yes | 更新日時 |
+
+**NotificationPreferences構造:**
+```json
+{
+  "email_enabled": true,
+  "push_enabled": true
+}
+```
 
 **ビジネスルール:**
 - R-UP001: bioは最大500文字
 - R-UP002: avatar_urlは有効なURL形式
-- R-UP003: settingsはスキーマバリデーション対象
+- R-UP003: themeは"system", "light", "dark"のいずれか
+
+**注記:** ユーザーの表示名(display_name)はusersテーブルのname列で管理されます。
 
 ---
 
@@ -343,17 +355,17 @@ type OAuthAccountRepository interface {
     ┌──────────────────┐ ┌────────────────┐ ┌──────────────────┐
     │  oauth_accounts  │ │    sessions    │ │  user_profiles   │
     ├──────────────────┤ │   (Redis)      │ ├──────────────────┤
-    │ id               │ ├────────────────┤ │ user_id (PK)     │
-    │ user_id (FK)     │ │ id             │ │ display_name     │
+    │ id               │ ├────────────────┤ │ id (PK)          │
+    │ user_id (FK)     │ │ id             │ │ user_id (FK)     │
     │ provider         │ │ user_id (FK)   │ │ avatar_url       │
     │ provider_user_id │ │ refresh_token  │ │ bio              │
     │ email            │ │ user_agent     │ │ locale           │
     │ access_token     │ │ ip_address     │ │ timezone         │
-    │ refresh_token    │ │ expires_at     │ │ settings         │
-    │ token_expires_at │ │ created_at     │ │ updated_at       │
-    │ created_at       │ │ last_used_at   │ └──────────────────┘
-    │ updated_at       │ └────────────────┘
-    └──────────────────┘
+    │ refresh_token    │ │ expires_at     │ │ theme            │
+    │ token_expires_at │ │ created_at     │ │ notification_... │
+    │ created_at       │ │ last_used_at   │ │ created_at       │
+    │ updated_at       │ └────────────────┘ │ updated_at       │
+    └──────────────────┘                    └──────────────────┘
 
                            ┌──────────────────┐
                            │     folders      │ (Storage Context)
@@ -396,10 +408,10 @@ type OAuthAccountRepository interface {
    - statusがdeactivatedになったらすべてのセッションを失効
 
 5. **Personal Folder制約**
-   - UserとPersonal Folderは必ず1対1の関係
-   - ユーザー登録時にPersonal Folderを自動作成
-   - personal_folder_idは必須
-   - Personal Folderの判定はこのフィールドで行う
+   - UserとPersonal Folderは1対1の関係
+   - ユーザー登録処理でPersonal Folderを自動作成
+   - personal_folder_idは登録処理完了後に設定（nullable）
+   - Personal Folderの存在判定は`HasPersonalFolder()`メソッドで行う
 
 ---
 

@@ -130,6 +130,7 @@ func NewCreateGroupCommand(
 // Execute はグループ作成を実行します
 // Note: グループとフォルダは分離されているため、グループ作成時にフォルダは作成しない
 // グループはリソース共有の「受け皿」として機能し、フォルダ/ファイルへのロールをPermissionGrantで付与して共有を実現する
+// Note: グループは物理削除のみサポート（論理削除なし）
 func (c *CreateGroupCommand) Execute(ctx context.Context, input CreateGroupInput) (*CreateGroupOutput, error) {
     // 1. グループ名のバリデーション
     groupName, err := valueobject.NewGroupName(input.Name)
@@ -138,10 +139,7 @@ func (c *CreateGroupCommand) Execute(ctx context.Context, input CreateGroupInput
     }
 
     // 2. グループを作成
-    group, err := entity.NewGroup(groupName, input.Description, input.OwnerID)
-    if err != nil {
-        return nil, apperror.NewValidationError(err.Error(), nil)
-    }
+    group := entity.NewGroup(groupName, input.Description, input.OwnerID)
 
     // 3. オーナーメンバーシップを作成
     membership := entity.NewOwnerMembership(group.ID, input.OwnerID)
@@ -247,22 +245,19 @@ func (c *InviteMemberCommand) Execute(ctx context.Context, input InviteMemberInp
     if err != nil {
         return nil, apperror.NewNotFoundError("group not found")
     }
-    if !group.IsActive() {
-        return nil, apperror.NewValidationError("group is not active", nil)
-    }
 
     // 4. 招待者の権限確認
     inviter, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.InviterID)
     if err != nil {
         return nil, apperror.NewForbiddenError("not a member of this group")
     }
-    if !inviter.Role.CanInviteMembers() {
+    if !inviter.CanInvite() {
         return nil, apperror.NewForbiddenError("insufficient permission to invite members")
     }
 
-    // 5. 招待者は自分のロール以下のみ付与可能
-    if !inviter.Role.CanInviteWithRole(role) {
-        return nil, apperror.NewForbiddenError("cannot invite with a role higher than your own")
+    // 5. 招待者は自分より低いロールのみ付与可能（CanAssign）
+    if !inviter.CanChangeRoleTo(role) {
+        return nil, apperror.NewForbiddenError("cannot invite with a role not lower than your own")
     }
 
     // 6. 既存メンバーチェック
@@ -393,9 +388,6 @@ func (c *AcceptInvitationCommand) Execute(ctx context.Context, input AcceptInvit
         if err != nil {
             return apperror.NewNotFoundError("group not found")
         }
-        if !group.IsActive() {
-            return apperror.NewValidationError("group is no longer active", nil)
-        }
 
         // 6. 既存メンバーチェック
         exists, _ := c.membershipRepo.Exists(ctx, invitation.GroupID, input.UserID)
@@ -480,12 +472,9 @@ func NewRemoveMemberCommand(
 func (c *RemoveMemberCommand) Execute(ctx context.Context, input RemoveMemberInput) error {
     return c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
         // 1. グループの取得
-        group, err := c.groupRepo.FindByID(ctx, input.GroupID)
+        _, err := c.groupRepo.FindByID(ctx, input.GroupID)
         if err != nil {
             return apperror.NewNotFoundError("group not found")
-        }
-        if !group.IsActive() {
-            return apperror.NewValidationError("group is not active", nil)
         }
 
         // 2. 操作実行者のメンバーシップを取得
@@ -557,13 +546,10 @@ func NewLeaveGroupCommand(
 
 // Execute はグループ脱退を実行します
 func (c *LeaveGroupCommand) Execute(ctx context.Context, input LeaveGroupInput) error {
-    // 1. グループの取得
-    group, err := c.groupRepo.FindByID(ctx, input.GroupID)
+    // 1. グループの存在確認
+    _, err := c.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
         return apperror.NewNotFoundError("group not found")
-    }
-    if !group.IsActive() {
-        return apperror.NewValidationError("group is not active", nil)
     }
 
     // 2. メンバーシップの取得
@@ -572,8 +558,8 @@ func (c *LeaveGroupCommand) Execute(ctx context.Context, input LeaveGroupInput) 
         return apperror.NewNotFoundError("not a member of this group")
     }
 
-    // 3. 脱退可能かチェック
-    if !membership.CanLeave() {
+    // 3. 脱退可能かチェック（オーナーは脱退不可）
+    if !membership.CanLeave(input.GroupID, input.UserID) {
         return apperror.NewValidationError("owner cannot leave the group, transfer ownership first", nil)
     }
 
@@ -640,9 +626,6 @@ func (c *TransferOwnershipCommand) Execute(ctx context.Context, input TransferOw
         group, err := c.groupRepo.FindByID(ctx, input.GroupID)
         if err != nil {
             return apperror.NewNotFoundError("group not found")
-        }
-        if !group.IsActive() {
-            return apperror.NewValidationError("group is not active", nil)
         }
 
         // 2. 現在のオーナー確認
@@ -759,13 +742,10 @@ func (c *ChangeRoleCommand) Execute(ctx context.Context, input ChangeRoleInput) 
         return nil, apperror.NewValidationError("use ownership transfer to assign owner role", nil)
     }
 
-    // 3. グループの取得
-    group, err := c.groupRepo.FindByID(ctx, input.GroupID)
+    // 3. グループの存在確認
+    _, err = c.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
         return nil, apperror.NewNotFoundError("group not found")
-    }
-    if !group.IsActive() {
-        return nil, apperror.NewValidationError("group is not active", nil)
     }
 
     // 4. 操作実行者のメンバーシップを取得
@@ -824,6 +804,7 @@ type DeleteGroupInput struct {
 }
 
 // DeleteGroupCommand はグループ削除コマンドです
+// Note: グループは物理削除されます（論理削除なし）
 // Note: グループとフォルダは分離されているため、グループ削除時にフォルダは削除しない
 // グループに付与されていたPermissionGrantは別途削除される
 type DeleteGroupCommand struct {
@@ -851,16 +832,13 @@ func NewDeleteGroupCommand(
     }
 }
 
-// Execute はグループ削除を実行します
+// Execute はグループ削除（物理削除）を実行します
 func (c *DeleteGroupCommand) Execute(ctx context.Context, input DeleteGroupInput) error {
     return c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
         // 1. グループの取得
         group, err := c.groupRepo.FindByID(ctx, input.GroupID)
         if err != nil {
             return apperror.NewNotFoundError("group not found")
-        }
-        if !group.IsActive() {
-            return apperror.NewValidationError("group is already deleted", nil)
         }
 
         // 2. オーナーのみ削除可能
@@ -884,9 +862,8 @@ func (c *DeleteGroupCommand) Execute(ctx context.Context, input DeleteGroupInput
             return err
         }
 
-        // 6. グループを論理削除
-        group.Delete()
-        return c.groupRepo.Update(ctx, group)
+        // 6. グループを物理削除
+        return c.groupRepo.Delete(ctx, input.GroupID)
     })
 }
 ```
@@ -1034,9 +1011,6 @@ func (q *ListMyGroupsQuery) Execute(ctx context.Context, input ListMyGroupsInput
         if err != nil {
             continue // グループが見つからない場合はスキップ
         }
-        if !group.IsActive() {
-            continue // 削除済みグループはスキップ
-        }
         groups = append(groups, &GroupWithMembership{
             Group:      group,
             Membership: m,
@@ -1094,12 +1068,9 @@ func NewListMembersQuery(
 // Execute はメンバー一覧を実行します
 func (q *ListMembersQuery) Execute(ctx context.Context, input ListMembersInput) (*ListMembersOutput, error) {
     // 1. グループの存在確認
-    group, err := q.groupRepo.FindByID(ctx, input.GroupID)
+    _, err := q.groupRepo.FindByID(ctx, input.GroupID)
     if err != nil {
         return nil, apperror.NewNotFoundError("group not found")
-    }
-    if !group.IsActive() {
-        return nil, apperror.NewValidationError("group is not active", nil)
     }
 
     // 2. 操作実行者のメンバーシップ確認
@@ -1755,18 +1726,18 @@ func (j *InvitationExpiryJob) Run(ctx context.Context) error {
 ### グループ管理
 - [ ] グループを作成できる（作成者がオーナーになる）
 - [ ] グループ作成時にフォルダは作成されない（グループとフォルダは分離）
-- [ ] グループ名・説明を更新できる（contributor/owner）
-- [ ] グループを削除できる（ownerのみ）
+- [ ] グループ名・説明を更新できる（ownerのみ）
+- [ ] グループを物理削除できる（ownerのみ）
 - [ ] 削除時にメンバーシップ・招待・PermissionGrantが削除される
 - [ ] 所属グループ一覧を取得できる
 
 ### メンバー招待
-- [ ] contributor/ownerがメンバーを招待できる
+- [ ] contributor/ownerがメンバーを招待できる（`CanInvite()`）
 - [ ] 招待メールが送信される
 - [ ] デフォルト招待ロールはviewerになる
-- [ ] 招待者は自分のロール以下のみ付与可能
-  - Owner → Viewer, Contributor
-  - Contributor → Viewer, Contributor
+- [ ] 招待者は自分より低いロールのみ付与可能（`CanAssign()`）
+  - Owner (Lv3) → Viewer, Contributor
+  - Contributor (Lv2) → Viewer のみ
 - [ ] 招待リンクから承諾できる
 - [ ] 招待を辞退できる
 - [ ] 招待を取消できる（contributor/owner）
@@ -1788,10 +1759,10 @@ func (j *InvitationExpiryJob) Run(ctx context.Context) error {
 - [ ] 譲渡後、旧ownerはcontributorになる
 - [ ] 非メンバーへの譲渡は拒否される
 
-### 権限検証（GroupRole: viewer < contributor < owner）
+### 権限検証（GroupRole: viewer (Lv1) < contributor (Lv2) < owner (Lv3)）
 - [ ] viewer: グループ情報閲覧、共有リソースアクセス
-- [ ] contributor: 招待（Contributor以下のロール）、メンバー削除
-- [ ] owner: 全権限、グループ削除、設定変更、オーナー譲渡
+- [ ] contributor: 招待（Viewer のみ付与可能）
+- [ ] owner: 全権限、グループ削除、設定変更、オーナー譲渡、招待（Viewer, Contributor付与可能）
 
 ---
 

@@ -14,49 +14,55 @@
 
 ### UserProfile
 
+**注記:** ユーザーの表示名（display_name）は `users` テーブルの `name` フィールドで管理されます。UserProfile には含まれません。
+
 ```go
 // internal/domain/entity/user_profile.go
 
 package entity
 
 import (
-    "encoding/json"
     "time"
 
     "github.com/google/uuid"
 )
 
-// UserProfileSettings はユーザー設定を定義します
-type UserProfileSettings struct {
-    NotificationsEnabled bool   `json:"notifications_enabled"`
-    EmailNotifications   bool   `json:"email_notifications"`
-    Theme                string `json:"theme,omitempty"`
+// NotificationPreferences はユーザーの通知設定を定義します
+type NotificationPreferences struct {
+    EmailEnabled bool `json:"email_enabled"`
+    PushEnabled  bool `json:"push_enabled"`
 }
 
 // UserProfile はユーザープロファイルエンティティを定義します
+// Note: display_name は users テーブルにあるため、ここには含まれない
 type UserProfile struct {
-    UserID      uuid.UUID
-    DisplayName string
-    AvatarURL   string
-    Bio         string
-    Locale      string
-    Timezone    string
-    Settings    UserProfileSettings
-    UpdatedAt   time.Time
+    ID                      uuid.UUID
+    UserID                  uuid.UUID
+    AvatarURL               string
+    Bio                     string
+    Timezone                string
+    Locale                  string
+    Theme                   string // "system", "light", "dark"
+    NotificationPreferences NotificationPreferences
+    CreatedAt               time.Time
+    UpdatedAt               time.Time
 }
 
 // NewUserProfile は新しいUserProfileを作成します
 func NewUserProfile(userID uuid.UUID) *UserProfile {
+    now := time.Now()
     return &UserProfile{
+        ID:       uuid.New(),
         UserID:   userID,
         Locale:   "ja",
         Timezone: "Asia/Tokyo",
-        Settings: UserProfileSettings{
-            NotificationsEnabled: true,
-            EmailNotifications:   true,
-            Theme:                "system",
+        Theme:    "system",
+        NotificationPreferences: NotificationPreferences{
+            EmailEnabled: true,
+            PushEnabled:  true,
         },
-        UpdatedAt: time.Now(),
+        CreatedAt: now,
+        UpdatedAt: now,
     }
 }
 
@@ -117,16 +123,16 @@ GET /api/v1/me/profile
 ```json
 {
   "profile": {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
     "user_id": "550e8400-e29b-41d4-a716-446655440000",
-    "display_name": "山田太郎",
     "avatar_url": "https://example.com/avatar.png",
     "bio": "自己紹介文",
     "locale": "ja",
     "timezone": "Asia/Tokyo",
-    "settings": {
-      "notifications_enabled": true,
-      "email_notifications": true,
-      "theme": "system"
+    "theme": "system",
+    "notification_preferences": {
+      "email_enabled": true,
+      "push_enabled": true
     }
   },
   "user": {
@@ -140,6 +146,9 @@ GET /api/v1/me/profile
 }
 ```
 
+**注記:** ユーザーの表示名は `user.name` フィールドから取得します。
+```
+
 ### 3.2 プロファイル更新
 
 ```
@@ -151,35 +160,36 @@ PUT /api/v1/me/profile
 **リクエスト:**
 ```json
 {
-  "display_name": "新しい表示名",
   "avatar_url": "https://example.com/new-avatar.png",
   "bio": "新しい自己紹介",
   "locale": "en",
   "timezone": "UTC",
-  "settings": {
-    "notifications_enabled": false,
-    "email_notifications": true,
-    "theme": "dark"
+  "theme": "dark",
+  "notification_preferences": {
+    "email_enabled": false,
+    "push_enabled": true
   }
 }
 ```
 
-**注記:** すべてのフィールドはオプショナルです。指定されたフィールドのみ更新されます。
+**注記:**
+- すべてのフィールドはオプショナルです。指定されたフィールドのみ更新されます。
+- 表示名の更新は `/api/v1/me` エンドポイントで行います（ユーザー情報として管理）。
 
 **レスポンス:**
 ```json
 {
   "profile": {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
     "user_id": "550e8400-e29b-41d4-a716-446655440000",
-    "display_name": "新しい表示名",
     "avatar_url": "https://example.com/new-avatar.png",
     "bio": "新しい自己紹介",
     "locale": "en",
     "timezone": "UTC",
-    "settings": {
-      "notifications_enabled": false,
-      "email_notifications": true,
-      "theme": "dark"
+    "theme": "dark",
+    "notification_preferences": {
+      "email_enabled": false,
+      "push_enabled": true
     }
   }
 }
@@ -287,14 +297,15 @@ import (
 )
 
 // UpdateProfileInput はプロファイル更新の入力を定義します
+// Note: 表示名（DisplayName）は User エンティティで管理されるため、ここには含まれない
 type UpdateProfileInput struct {
-    UserID      uuid.UUID
-    DisplayName *string
-    AvatarURL   *string
-    Bio         *string
-    Locale      *string
-    Timezone    *string
-    Settings    *entity.UserProfileSettings
+    UserID                  uuid.UUID
+    AvatarURL               *string
+    Bio                     *string
+    Locale                  *string
+    Timezone                *string
+    Theme                   *string
+    NotificationPreferences *entity.NotificationPreferences
 }
 
 // UpdateProfileOutput はプロファイル更新の出力を定義します
@@ -338,9 +349,6 @@ func (c *UpdateProfileCommand) Execute(ctx context.Context, input UpdateProfileI
     }
 
     // フィールドを更新
-    if input.DisplayName != nil {
-        profile.DisplayName = *input.DisplayName
-    }
     if input.AvatarURL != nil {
         profile.AvatarURL = *input.AvatarURL
     }
@@ -357,8 +365,11 @@ func (c *UpdateProfileCommand) Execute(ctx context.Context, input UpdateProfileI
     if input.Timezone != nil {
         profile.Timezone = *input.Timezone
     }
-    if input.Settings != nil {
-        profile.Settings = *input.Settings
+    if input.Theme != nil {
+        profile.Theme = *input.Theme
+    }
+    if input.NotificationPreferences != nil {
+        profile.NotificationPreferences = *input.NotificationPreferences
     }
 
     profile.UpdatedAt = time.Now()
@@ -382,8 +393,8 @@ OAuth新規ユーザー作成時、UserProfileも同時に作成されます。
 // OAuthLoginCommand内での処理
 
 // 新規ユーザー作成後
+// Note: 表示名（userInfo.Name）は User.Name に設定済み
 profile := entity.NewUserProfile(user.ID)
-profile.DisplayName = userInfo.Name
 profile.AvatarURL = userInfo.AvatarURL
 if txErr = c.profileRepo.Upsert(ctx, profile); txErr != nil {
     return txErr
@@ -391,8 +402,8 @@ if txErr = c.profileRepo.Upsert(ctx, profile); txErr != nil {
 ```
 
 **注記:**
-- User エンティティには AvatarURL フィールドは存在しません
-- アバター画像は UserProfile.AvatarURL に保存されます
+- ユーザーの表示名は `users.name` で管理されます（UserProfileには含まれない）
+- アバター画像は `UserProfile.AvatarURL` に保存されます
 - OAuthプロバイダーから取得したアバターURLは、新規ユーザー作成時にUserProfileに保存されます
 
 ---
