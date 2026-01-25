@@ -79,6 +79,11 @@ gc-storage/
 │   │   ├── usecase/          # ユースケース層（ビジネスロジック）
 │   │   ├── interface/        # インターフェース層（ハンドラ、DTO）
 │   │   └── infrastructure/   # インフラ層（リポジトリ実装）
+│   │       └── database/
+│   │           ├── migrations/   # DBマイグレーション (golang-migrate)
+│   │           ├── queries/      # SQLC クエリ定義
+│   │           └── sqlcgen/      # SQLC 生成コード
+│   ├── tests/integration/    # 統合テスト
 │   ├── pkg/                  # 共有パッケージ
 │   ├── go.mod
 │   └── .air.toml             # Hot Reload 設定
@@ -86,21 +91,12 @@ gc-storage/
 ├── frontend/                 # React フロントエンド
 │   ├── src/
 │   │   ├── app/routes/       # TanStack Router
-│   │   ├── components/ui/    # UIコンポーネント
+│   │   ├── components/       # UIコンポーネント
 │   │   ├── features/         # 機能モジュール
 │   │   ├── stores/           # Zustand ストア
-│   │   ├── hooks/            # カスタムフック
-│   │   └── lib/api/          # APIクライアント
+│   │   └── lib/              # ユーティリティ、APIクライアント
 │   ├── package.json
 │   └── vite.config.ts
-│
-├── migrations/               # DBマイグレーション (golang-migrate)
-│   ├── 000001_create_users.up.sql
-│   ├── 000002_create_groups.up.sql
-│   ├── 000003_create_folders.up.sql
-│   ├── 000004_create_files.up.sql
-│   ├── 000005_create_permissions.up.sql
-│   └── 000006_create_share_links.up.sql
 │
 ├── docs/                     # ドキュメント
 │   ├── 01-policies/          # 開発ポリシー
@@ -119,32 +115,66 @@ gc-storage/
 
 ## タスクコマンド
 
+### クイックリファレンス
+
+```bash
+task                     # 利用可能なタスク一覧
+task dev                 # 全環境をワンコマンド起動
+task check               # lint + test (クイック検証)
+task doctor              # ツールのインストール確認
+```
+
 ### 開発環境
 
 ```bash
-task dev                 # 全環境をワンコマンド起動
+task dev                 # 全環境起動 (infra + backend + frontend)
+task dev:backend         # バックエンドのみ起動 (infra + backend)
+task dev:frontend        # フロントエンドのみ起動
 task infra:up            # インフラのみ起動
-task infra:down          # インフラ停止・ボリューム削除
+task infra:down          # インフラ停止（データ保持）
+task infra:destroy       # インフラ停止・ボリューム削除（データ削除）
 task infra:logs          # ログ確認
+task infra:status        # ステータス確認
 ```
 
 ### Backend (Go)
 
 ```bash
 task backend:dev         # Air で Hot Reload 起動
-task backend:test        # テスト実行
-task backend:lint        # golangci-lint
+task backend:run         # Hot Reload なしで起動
 task backend:build       # バイナリビルド
+task backend:test        # ユニットテスト実行
+task backend:test-integration  # 統合テスト実行
+task backend:test-coverage     # カバレッジレポート生成
+task backend:lint        # golangci-lint
+task backend:lint-fix    # golangci-lint (自動修正)
+task backend:fmt         # コードフォーマット
 task backend:sqlc        # SQL → Go コード生成
+task backend:mocks       # モック生成
 ```
 
 ### Frontend (React)
 
 ```bash
 task frontend:dev        # Vite dev server
-task frontend:test       # Vitest 実行
-task frontend:lint       # ESLint
 task frontend:build      # プロダクションビルド
+task frontend:preview    # ビルドプレビュー
+task frontend:test       # Vitest 実行
+task frontend:test-watch # ウォッチモード
+task frontend:test-coverage    # カバレッジ
+task frontend:lint       # ESLint
+task frontend:fmt        # Prettier フォーマット
+```
+
+### テスト
+
+```bash
+task test                # 全テスト (unit + integration)
+task test:unit           # ユニットテストのみ
+task test:integration    # 統合テストのみ
+task check               # lint + test (クイック検証)
+task ci                  # CI パイプライン (lint + test + build)
+task ci:full             # フル CI (統合テスト含む)
 ```
 
 ### Database
@@ -152,9 +182,30 @@ task frontend:build      # プロダクションビルド
 ```bash
 task migrate:up          # マイグレーション適用
 task migrate:down        # ロールバック（1つ）
+task migrate:reset       # 全ロールバック（危険）
 task migrate:create NAME=xxx  # 新規マイグレーション作成
+task migrate:version     # 現在のバージョン確認
 task db:connect          # psql でDB接続
 task db:reset            # DB リセット（drop + create + migrate）
+```
+
+### セットアップ
+
+```bash
+task setup               # ツール + 依存関係インストール
+task setup:tools         # Go ツールインストール
+task setup:deps          # 依存関係インストール
+task doctor              # ツールインストール確認
+task clean               # ビルド成果物削除
+```
+
+### ブラウザで開く
+
+```bash
+task open:frontend       # フロントエンド
+task open:api            # API
+task open:minio          # MinIO コンソール
+task open:mailhog        # MailHog UI
 ```
 
 ---
