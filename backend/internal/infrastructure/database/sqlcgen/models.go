@@ -183,6 +183,36 @@ type FolderPath struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+type Group struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description"`
+	OwnerID     uuid.UUID `json:"owner_id"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type Invitation struct {
+	ID        uuid.UUID `json:"id"`
+	GroupID   uuid.UUID `json:"group_id"`
+	Email     string    `json:"email"`
+	Token     string    `json:"token"`
+	Role      string    `json:"role"`
+	InvitedBy uuid.UUID `json:"invited_by"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Membership struct {
+	ID       uuid.UUID `json:"id"`
+	GroupID  uuid.UUID `json:"group_id"`
+	UserID   uuid.UUID `json:"user_id"`
+	Role     string    `json:"role"`
+	JoinedAt time.Time `json:"joined_at"`
+}
+
 type OauthAccount struct {
 	ID             uuid.UUID          `json:"id"`
 	UserID         uuid.UUID          `json:"user_id"`
@@ -202,6 +232,53 @@ type PasswordResetToken struct {
 	ExpiresAt time.Time          `json:"expires_at"`
 	CreatedAt time.Time          `json:"created_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
+}
+
+type PermissionGrant struct {
+	ID           uuid.UUID `json:"id"`
+	ResourceType string    `json:"resource_type"`
+	ResourceID   uuid.UUID `json:"resource_id"`
+	GranteeType  string    `json:"grantee_type"`
+	GranteeID    uuid.UUID `json:"grantee_id"`
+	Role         string    `json:"role"`
+	GrantedBy    uuid.UUID `json:"granted_by"`
+	GrantedAt    time.Time `json:"granted_at"`
+}
+
+type Relationship struct {
+	ID          uuid.UUID `json:"id"`
+	SubjectType string    `json:"subject_type"`
+	SubjectID   uuid.UUID `json:"subject_id"`
+	Relation    string    `json:"relation"`
+	ObjectType  string    `json:"object_type"`
+	ObjectID    uuid.UUID `json:"object_id"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type ShareLink struct {
+	ID             uuid.UUID          `json:"id"`
+	Token          string             `json:"token"`
+	ResourceType   string             `json:"resource_type"`
+	ResourceID     uuid.UUID          `json:"resource_id"`
+	CreatedBy      uuid.UUID          `json:"created_by"`
+	Permission     string             `json:"permission"`
+	PasswordHash   *string            `json:"password_hash"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	MaxAccessCount *int32             `json:"max_access_count"`
+	AccessCount    int32              `json:"access_count"`
+	Status         string             `json:"status"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
+type ShareLinkAccess struct {
+	ID          uuid.UUID   `json:"id"`
+	ShareLinkID uuid.UUID   `json:"share_link_id"`
+	AccessedAt  time.Time   `json:"accessed_at"`
+	IpAddress   *string     `json:"ip_address"`
+	UserAgent   *string     `json:"user_agent"`
+	UserID      pgtype.UUID `json:"user_id"`
+	Action      string      `json:"action"`
 }
 
 type UploadPart struct {
