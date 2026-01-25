@@ -386,6 +386,87 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN001_NameLength() {
 	}).AssertStatus(http.StatusCreated)
 }
 
+func (s *StorageTestSuite) TestCreateFolder_R_FN001_NameLength255Bytes() {
+	// R-FN001: Exactly 255 bytes should be valid
+	accessToken := s.registerAndGetToken("name-255@example.com", "Password123", "Name 255 User")
+
+	// Create a name with exactly 255 bytes
+	name255 := ""
+	for i := 0; i < 255; i++ {
+		name255 += "a"
+	}
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": name255,
+		},
+	})
+
+	resp.AssertStatus(http.StatusCreated).
+		AssertJSONPath("data.name", name255)
+}
+
+func (s *StorageTestSuite) TestCreateFolder_R_FN001_NameLength256Bytes() {
+	// R-FN001: 256 bytes should fail
+	accessToken := s.registerAndGetToken("name-256@example.com", "Password123", "Name 256 User")
+
+	// Create a name with 256 bytes
+	name256 := ""
+	for i := 0; i < 256; i++ {
+		name256 += "a"
+	}
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": name256,
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *StorageTestSuite) TestCreateFolder_R_FN004_WhitespaceOnlyName() {
+	// R-FN004: Whitespace-only names are not allowed
+	accessToken := s.registerAndGetToken("whitespace@example.com", "Password123", "Whitespace User")
+
+	// Spaces only
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": "   ",
+		},
+	}).AssertStatus(http.StatusBadRequest)
+
+	// Tabs only
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": "\t\t\t",
+		},
+	}).AssertStatus(http.StatusBadRequest)
+
+	// Mixed whitespace
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": " \t \n ",
+		},
+	}).AssertStatus(http.StatusBadRequest)
+}
+
 func (s *StorageTestSuite) TestCreateFolder_R_FN002_ForbiddenChars() {
 	// R-FN002: Forbidden characters (/ \ : * ? " < > |)
 	accessToken := s.registerAndGetToken("forbidden-chars@example.com", "Password123", "Forbidden Chars User")
@@ -634,6 +715,28 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD006_CascadeDelete() {
 }
 
 // -----------------------------------------------------------------------------
+// R-FD009: Personal Folder cannot be deleted
+// -----------------------------------------------------------------------------
+
+func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeDeleted() {
+	// R-FD009: Personal Folder cannot be deleted
+	// TODO: Personal Folder auto-creation is not yet implemented
+	s.T().Skip("Personal Folder auto-creation is not yet implemented")
+}
+
+func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeMoved() {
+	// R-FD009: Personal Folder cannot be moved
+	// TODO: Personal Folder auto-creation is not yet implemented
+	s.T().Skip("Personal Folder auto-creation is not yet implemented")
+}
+
+func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeRenamed() {
+	// R-FD009: Personal Folder cannot be renamed
+	// TODO: Personal Folder auto-creation is not yet implemented
+	s.T().Skip("Personal Folder auto-creation is not yet implemented")
+}
+
+// -----------------------------------------------------------------------------
 // Folder Contents and Ancestors Tests
 // -----------------------------------------------------------------------------
 
@@ -765,14 +868,27 @@ func (s *StorageTestSuite) TestFolder_UnauthorizedAccess() {
 func (s *StorageTestSuite) TestInitiateUpload_Success() {
 	accessToken := s.registerAndGetToken("upload-user@example.com", "Password123", "Upload User")
 
+	// Create a folder first (folderId is required)
+	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": "UploadFolder",
+		},
+	})
+	folderResp.AssertStatus(http.StatusCreated)
+	folderID := folderResp.GetJSONData()["id"].(string)
+
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/files/upload",
 		AccessToken: accessToken,
 		Body: map[string]interface{}{
+			"folderId": folderID,
 			"fileName": "test.txt",
 			"mimeType": "text/plain",
-			"size":      int64(1024),
+			"size":     int64(1024),
 		},
 	})
 
@@ -888,15 +1004,28 @@ func (s *StorageTestSuite) TestInitiateUpload_SameNameDifferentFolders_OK() {
 func (s *StorageTestSuite) TestGetUploadStatus_SessionExpiry() {
 	accessToken := s.registerAndGetToken("session-expiry@example.com", "Password123", "Session Expiry User")
 
+	// Create a folder first (folderId is required)
+	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": "ExpiryFolder",
+		},
+	})
+	folderResp.AssertStatus(http.StatusCreated)
+	folderID := folderResp.GetJSONData()["id"].(string)
+
 	// Initiate upload
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/files/upload",
 		AccessToken: accessToken,
 		Body: map[string]interface{}{
+			"folderId": folderID,
 			"fileName": "expiry.txt",
 			"mimeType": "text/plain",
-			"size":      int64(1024),
+			"size":     int64(1024),
 		},
 	})
 	resp.AssertStatus(http.StatusCreated)
@@ -920,14 +1049,28 @@ func (s *StorageTestSuite) TestGetUploadStatus_SessionExpiry() {
 func (s *StorageTestSuite) TestFile_UnauthorizedAccess() {
 	// Create upload as user1
 	accessToken1 := s.registerAndGetToken("fileuser1@example.com", "Password123", "FileUser1")
+
+	// Create a folder first (folderId is required)
+	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken1,
+		Body: map[string]interface{}{
+			"name": "PrivateFolder",
+		},
+	})
+	folderResp.AssertStatus(http.StatusCreated)
+	folderID := folderResp.GetJSONData()["id"].(string)
+
 	uploadResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/files/upload",
 		AccessToken: accessToken1,
 		Body: map[string]interface{}{
+			"folderId": folderID,
 			"fileName": "private.txt",
 			"mimeType": "text/plain",
-			"size":      int64(1024),
+			"size":     int64(1024),
 		},
 	})
 	uploadResp.AssertStatus(http.StatusCreated)

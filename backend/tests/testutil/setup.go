@@ -98,12 +98,28 @@ func CleanupTestEnvironment() {
 }
 
 // TruncateTables clears specified tables for test isolation
+// Tables that don't exist are silently skipped
 func TruncateTables(t *testing.T, pool *pgxpool.Pool, tables ...string) {
 	t.Helper()
 	ctx := context.Background()
 
 	for _, table := range tables {
-		_, err := pool.Exec(ctx, fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table))
+		// Check if table exists first
+		var exists bool
+		err := pool.QueryRow(ctx,
+			"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)",
+			table,
+		).Scan(&exists)
+		if err != nil {
+			t.Fatalf("Failed to check if table %s exists: %v", table, err)
+		}
+
+		if !exists {
+			// Skip non-existent tables silently
+			continue
+		}
+
+		_, err = pool.Exec(ctx, fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table))
 		if err != nil {
 			t.Fatalf("Failed to truncate table %s: %v", table, err)
 		}

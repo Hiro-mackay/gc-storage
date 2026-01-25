@@ -95,6 +95,9 @@ func NewTestServer(t *testing.T) *TestServer {
 	container.InitAuthUseCases()
 	container.InitProfileUseCases()
 	container.InitStorageUseCases(mockStorageService)
+	container.InitCollaborationUseCases()
+	container.InitAuthzUseCases()
+	container.InitSharingUseCases()
 	handlers := di.NewHandlersForTest(container)
 	middlewares := di.NewMiddlewares(container)
 
@@ -135,13 +138,21 @@ func NewTestServer(t *testing.T) *TestServer {
 // Cleanup cleans up test data
 func (ts *TestServer) Cleanup(t *testing.T) {
 	t.Helper()
-	// Truncate storage tables first (due to foreign key constraints)
+	// Truncate all tables in correct order (due to foreign key constraints)
 	// Note: sessions are stored in Redis, not PostgreSQL
 	TruncateTables(t, ts.Pool,
+		// Sharing tables
+		"share_link_accesses", "share_links",
+		// Authorization tables
+		"permission_grants", "relationships",
+		// Collaboration tables
+		"invitations", "memberships", "groups",
+		// Storage tables
 		"upload_parts", "upload_sessions",
 		"archived_file_versions", "archived_files",
 		"file_versions", "files",
 		"folder_paths", "folders",
+		// Identity tables
 		"oauth_accounts", "email_verification_tokens", "password_reset_tokens", "user_profiles", "users",
 	)
 	FlushRedis(t, ts.Redis)

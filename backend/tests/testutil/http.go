@@ -135,6 +135,16 @@ func (r *HTTPResponse) GetJSONData() map[string]interface{} {
 	return data
 }
 
+// GetJSONDataArray returns the "data" field as an array from the response
+func (r *HTTPResponse) GetJSONDataArray() []interface{} {
+	json := r.GetJSON()
+	data, ok := json["data"].([]interface{})
+	if !ok {
+		return nil
+	}
+	return data
+}
+
 // GetCookie returns a cookie by name
 func (r *HTTPResponse) GetCookie(name string) *http.Cookie {
 	cookies := r.Result().Cookies()

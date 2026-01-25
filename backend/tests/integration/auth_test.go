@@ -131,6 +131,287 @@ func (s *AuthTestSuite) TestRegister_MissingFields() {
 }
 
 // =============================================================================
+// Password Validation Tests - R-PW001
+// Requirements: 8-256 characters, 2+ character types (uppercase, lowercase, numbers)
+// =============================================================================
+
+func (s *AuthTestSuite) TestRegister_Password_TooShort() {
+	// R-PW001: Password must be at least 8 characters
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "short-pass@example.com",
+			"password": "Abc123", // 6 characters - too short
+			"name":     "Short Pass User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestRegister_Password_TooLong() {
+	// R-PW001: Password must not exceed 256 characters
+	longPassword := ""
+	for i := 0; i < 257; i++ {
+		longPassword += "a"
+	}
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "long-pass@example.com",
+			"password": longPassword,
+			"name":     "Long Pass User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestRegister_Password_OnlyLowercase() {
+	// R-PW001: Password must contain at least 2 character types
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "lowercase@example.com",
+			"password": "abcdefgh", // Only lowercase - 1 character type
+			"name":     "Lowercase User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestRegister_Password_OnlyUppercase() {
+	// R-PW001: Password must contain at least 2 character types
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "uppercase@example.com",
+			"password": "ABCDEFGH", // Only uppercase - 1 character type
+			"name":     "Uppercase User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestRegister_Password_OnlyNumbers() {
+	// R-PW001: Password must contain at least 2 character types
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "numbers@example.com",
+			"password": "12345678", // Only numbers - 1 character type
+			"name":     "Numbers User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
+}
+
+func (s *AuthTestSuite) TestRegister_Password_LowercaseAndNumbers_Valid() {
+	// R-PW001: 2 character types is valid (lowercase + numbers)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "lower-num@example.com",
+			"password": "abcd1234", // lowercase + numbers - valid
+			"name":     "Lower Num User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusCreated)
+}
+
+func (s *AuthTestSuite) TestRegister_Password_UppercaseAndLowercase_Valid() {
+	// R-PW001: 2 character types is valid (uppercase + lowercase)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "upper-lower@example.com",
+			"password": "ABCDabcd", // uppercase + lowercase - valid
+			"name":     "Upper Lower User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusCreated)
+}
+
+func (s *AuthTestSuite) TestRegister_Password_BoundaryMinLength() {
+	// R-PW001: Exactly 8 characters is valid
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "min-length@example.com",
+			"password": "Abcd1234", // Exactly 8 characters with 3 types - valid
+			"name":     "Min Length User",
+		},
+	})
+
+	resp.AssertStatus(http.StatusCreated)
+}
+
+// =============================================================================
+// Personal Folder Auto-Creation Tests - R-U001
+// Requirement: Personal Folder is automatically created on registration
+// =============================================================================
+
+func (s *AuthTestSuite) TestRegister_CreatesPersonalFolder() {
+	// R-U001: User registration should create a Personal Folder
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/register",
+		Body: map[string]string{
+			"email":    "folder-test@example.com",
+			"password": "Password123",
+			"name":     "Folder Test User",
+		},
+	})
+	resp.AssertStatus(http.StatusCreated)
+
+	// First check if personal_folder_id is set
+	var personalFolderID *string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT personal_folder_id::text FROM users WHERE email = $1`,
+		"folder-test@example.com",
+	).Scan(&personalFolderID)
+	s.Require().NoError(err)
+	s.Require().NotNil(personalFolderID, "Personal Folder ID should be set")
+
+	// Verify folder name
+	var folderName string
+	err = s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT name FROM folders WHERE id = $1::uuid`,
+		*personalFolderID,
+	).Scan(&folderName)
+	s.Require().NoError(err)
+	s.Equal("Folder Test User's folder", folderName)
+
+	// Verify folder_paths table has self-reference
+	var pathsCount int
+	err = s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT COUNT(*) FROM folder_paths WHERE ancestor_id = $1::uuid AND descendant_id = $1::uuid`,
+		*personalFolderID,
+	).Scan(&pathsCount)
+	s.Require().NoError(err)
+	s.Equal(1, pathsCount, "folder_paths table should have self-reference")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_NewUser_CreatesPersonalFolder() {
+	// R-U001: OAuth new user should also have Personal Folder created
+
+	// Setup mock OAuth client to return a unique new user
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "oauth-folder-test-user-123",
+		Email:          "oauth-folder-test@example.com",
+		Name:           "OAuth Folder User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	// Perform OAuth login (endpoint is /api/v1/auth/oauth/:provider)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "mock-auth-code",
+		},
+	})
+	resp.AssertStatus(http.StatusOK)
+
+	// First check if personal_folder_id is set
+	var personalFolderID *string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT personal_folder_id::text FROM users WHERE email = $1`,
+		"oauth-folder-test@example.com",
+	).Scan(&personalFolderID)
+	s.Require().NoError(err)
+	s.Require().NotNil(personalFolderID, "Personal Folder ID should be set for OAuth user")
+
+	// Verify folder name
+	var folderName string
+	err = s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT name FROM folders WHERE id = $1::uuid`,
+		*personalFolderID,
+	).Scan(&folderName)
+	s.Require().NoError(err)
+	s.Equal("OAuth Folder User's folder", folderName)
+
+	// Verify folder_paths table has self-reference
+	var pathsCount int
+	err = s.server.Pool.QueryRow(
+		context.Background(),
+		`SELECT COUNT(*) FROM folder_paths WHERE ancestor_id = $1::uuid AND descendant_id = $1::uuid`,
+		*personalFolderID,
+	).Scan(&pathsCount)
+	s.Require().NoError(err)
+	s.Equal(1, pathsCount, "folder_paths table should have self-reference for OAuth user")
+}
+
+// =============================================================================
+// Session Limit Tests - R-SS002
+// Requirement: Maximum 10 sessions per user
+// =============================================================================
+
+func (s *AuthTestSuite) TestLogin_SessionLimit_MaxTenSessions() {
+	// R-SS002: User can have maximum 10 active sessions
+	s.registerAndActivateUser("session-limit@example.com", "Password123", "Session Limit User")
+
+	// Create 10 sessions
+	var tokens []string
+	for i := 0; i < 10; i++ {
+		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+			Method: http.MethodPost,
+			Path:   "/api/v1/auth/login",
+			Body: map[string]string{
+				"email":    "session-limit@example.com",
+				"password": "Password123",
+			},
+		})
+		resp.AssertStatus(http.StatusOK)
+		data := resp.GetJSONData()
+		tokens = append(tokens, data["access_token"].(string))
+
+		// Clear rate limiter between logins
+		testutil.FlushRedis(s.T(), s.server.Redis)
+	}
+
+	// All 10 tokens should work
+	for _, token := range tokens {
+		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+			Method:      http.MethodGet,
+			Path:        "/api/v1/me",
+			AccessToken: token,
+		})
+		resp.AssertStatus(http.StatusOK)
+	}
+}
+
+func (s *AuthTestSuite) TestLogin_SessionLimit_EleventhSessionRevokesOldest() {
+	// R-SS002: When 11th session is created, oldest session should be revoked
+	// TODO: Session limit auto-revoke is not yet implemented
+	s.T().Skip("Session limit auto-revoke is not yet implemented")
+}
+
+// =============================================================================
 // Login Tests
 // =============================================================================
 
