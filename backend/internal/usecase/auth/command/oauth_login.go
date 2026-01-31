@@ -261,7 +261,20 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 		}
 	}
 
-	// 7. セッション作成
+	// 7. セッション制限チェック (R-SS002)
+	sessionCount, err := c.sessionRepo.CountByUserID(ctx, user.ID)
+	if err != nil {
+		return nil, apperror.NewInternalError(err)
+	}
+
+	// 最大セッション数に達している場合は最古のセッションを削除
+	if sessionCount >= int64(entity.MaxActiveSessionsPerUser) {
+		if err := c.sessionRepo.DeleteOldestByUserID(ctx, user.ID); err != nil {
+			return nil, apperror.NewInternalError(err)
+		}
+	}
+
+	// 8. セッション作成
 	sessionID := uuid.New().String()
 	now := time.Now()
 	expiresAt := now.Add(c.jwtService.GetRefreshTokenExpiry())

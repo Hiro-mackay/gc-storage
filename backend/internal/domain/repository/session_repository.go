@@ -24,4 +24,10 @@ type SessionRepository interface {
 
 	// DeleteByUserID はユーザーの全セッションを削除します
 	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
+
+	// CountByUserID はユーザーのセッション数を返します
+	CountByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
+
+	// DeleteOldestByUserID はユーザーの最古のセッションを削除します (R-SS002)
+	DeleteOldestByUserID(ctx context.Context, userID uuid.UUID) error
 }

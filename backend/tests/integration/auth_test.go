@@ -390,8 +390,8 @@ func (s *AuthTestSuite) TestLogin_SessionLimit_MaxTenSessions() {
 		data := resp.GetJSONData()
 		tokens = append(tokens, data["access_token"].(string))
 
-		// Clear rate limiter between logins
-		testutil.FlushRedis(s.T(), s.server.Redis)
+		// Clear rate limiter between logins (preserve sessions)
+		testutil.ClearRateLimits(s.T(), s.server.Redis)
 	}
 
 	// All 10 tokens should work
@@ -407,8 +407,48 @@ func (s *AuthTestSuite) TestLogin_SessionLimit_MaxTenSessions() {
 
 func (s *AuthTestSuite) TestLogin_SessionLimit_EleventhSessionRevokesOldest() {
 	// R-SS002: When 11th session is created, oldest session should be revoked
-	// TODO: Session limit auto-revoke is not yet implemented
-	s.T().Skip("Session limit auto-revoke is not yet implemented")
+	s.registerAndActivateUser("session-revoke@example.com", "Password123", "Session Revoke User")
+
+	// Create 10 sessions
+	var firstRefreshTokenCookie *http.Cookie
+	for i := 0; i < 10; i++ {
+		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+			Method: http.MethodPost,
+			Path:   "/api/v1/auth/login",
+			Body: map[string]string{
+				"email":    "session-revoke@example.com",
+				"password": "Password123",
+			},
+		})
+		resp.AssertStatus(http.StatusOK)
+		if i == 0 {
+			firstRefreshTokenCookie = resp.GetCookie("refresh_token")
+			s.Require().NotNil(firstRefreshTokenCookie, "first refresh token cookie should exist")
+		}
+		// Clear rate limiter between logins (preserve sessions)
+		testutil.ClearRateLimits(s.T(), s.server.Redis)
+	}
+
+	// Create 11th session (should delete oldest)
+	testutil.ClearRateLimits(s.T(), s.server.Redis)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "session-revoke@example.com",
+			"password": "Password123",
+		},
+	})
+	resp.AssertStatus(http.StatusOK)
+
+	// First session's refresh token should no longer work
+	// (session was deleted when 11th was created)
+	refreshResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:  http.MethodPost,
+		Path:    "/api/v1/auth/refresh",
+		Cookies: []*http.Cookie{firstRefreshTokenCookie},
+	})
+	refreshResp.AssertStatus(http.StatusUnauthorized)
 }
 
 // =============================================================================

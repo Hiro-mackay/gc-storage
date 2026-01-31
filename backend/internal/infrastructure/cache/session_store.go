@@ -234,5 +234,32 @@ func (s *SessionStore) CountByUserID(ctx context.Context, userID uuid.UUID) (int
 	return s.client.SCard(ctx, UserSessionsKey(userID)).Result()
 }
 
+// DeleteOldestByUserID はユーザーの最古のセッションを削除します
+// セッション制限 (R-SS002) のために使用されます
+func (s *SessionStore) DeleteOldestByUserID(ctx context.Context, userID uuid.UUID) error {
+	sessions, err := s.FindByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if len(sessions) == 0 {
+		return nil
+	}
+
+	// 最古のセッションを見つける（CreatedAtでソート）
+	var oldest *entity.Session
+	for _, session := range sessions {
+		if oldest == nil || session.CreatedAt.Before(oldest.CreatedAt) {
+			oldest = session
+		}
+	}
+
+	if oldest != nil {
+		return s.Delete(ctx, oldest.ID)
+	}
+
+	return nil
+}
+
 // インターフェースの実装を保証
 var _ repository.SessionRepository = (*SessionStore)(nil)

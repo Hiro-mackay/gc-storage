@@ -136,6 +136,29 @@ func FlushRedis(t *testing.T, client *redis.Client) {
 	}
 }
 
+// ClearRateLimits clears only rate limiting keys from Redis
+// Use this instead of FlushRedis when you need to preserve sessions
+func ClearRateLimits(t *testing.T, client *redis.Client) {
+	t.Helper()
+	ctx := context.Background()
+
+	// Find and delete all rate limit keys
+	iter := client.Scan(ctx, 0, "ratelimit:*", 0).Iterator()
+	var keys []string
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		t.Fatalf("Failed to scan rate limit keys: %v", err)
+	}
+
+	if len(keys) > 0 {
+		if err := client.Del(ctx, keys...).Err(); err != nil {
+			t.Fatalf("Failed to delete rate limit keys: %v", err)
+		}
+	}
+}
+
 // NewTestTxManager creates a TxManager for testing
 func NewTestTxManager(pool *pgxpool.Pool) *database.TxManager {
 	return database.NewTxManager(pool)

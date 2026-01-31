@@ -6,6 +6,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// MaxActiveSessionsPerUser はユーザーあたりの最大アクティブセッション数 (R-SS002)
+const MaxActiveSessionsPerUser = 10
+
 // Session はセッションエンティティを定義します
 type Session struct {
 	ID           string
