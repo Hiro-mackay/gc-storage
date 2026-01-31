@@ -9,17 +9,16 @@ import (
 // AuthUseCases はAuth関連のUseCaseを保持します
 type AuthUseCases struct {
 	// Commands
-	Register               *authcmd.RegisterCommand
-	Login                  *authcmd.LoginCommand
-	RefreshToken           *authcmd.RefreshTokenCommand
-	Logout                 *authcmd.LogoutCommand
-	VerifyEmail            *authcmd.VerifyEmailCommand
+	Register                *authcmd.RegisterCommand
+	Login                   *authcmd.LoginCommand
+	Logout                  *authcmd.LogoutCommand
+	VerifyEmail             *authcmd.VerifyEmailCommand
 	ResendEmailVerification *authcmd.ResendEmailVerificationCommand
-	ForgotPassword         *authcmd.ForgotPasswordCommand
-	ResetPassword          *authcmd.ResetPasswordCommand
-	ChangePassword         *authcmd.ChangePasswordCommand
-	SetPassword            *authcmd.SetPasswordCommand
-	OAuthLogin             *authcmd.OAuthLoginCommand
+	ForgotPassword          *authcmd.ForgotPasswordCommand
+	ResetPassword           *authcmd.ResetPasswordCommand
+	ChangePassword          *authcmd.ChangePasswordCommand
+	SetPassword             *authcmd.SetPasswordCommand
+	OAuthLogin              *authcmd.OAuthLoginCommand
 
 	// Queries
 	GetUser *authqry.GetUserQuery
@@ -45,17 +44,9 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 		Login: authcmd.NewLoginCommand(
 			c.UserRepo,
 			c.SessionRepo,
-			c.JWTService,
-		),
-		RefreshToken: authcmd.NewRefreshTokenCommand(
-			c.UserRepo,
-			c.SessionRepo,
-			c.JWTService,
-			c.JWTBlacklist,
 		),
 		Logout: authcmd.NewLogoutCommand(
 			c.SessionRepo,
-			c.JWTBlacklist,
 		),
 		VerifyEmail: authcmd.NewVerifyEmailCommand(
 			c.UserRepo,
@@ -94,7 +85,6 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 			c.OAuthFactory,
 			c.TxManager,
 			c.SessionRepo,
-			c.JWTService,
 		),
 
 		// Queries

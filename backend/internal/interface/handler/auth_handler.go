@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/dto/request"
@@ -11,7 +10,6 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/presenter"
 	authcmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/command"
-	authqry "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/auth/query"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -20,7 +18,6 @@ type AuthHandler struct {
 	// Commands
 	registerCommand                *authcmd.RegisterCommand
 	loginCommand                   *authcmd.LoginCommand
-	refreshTokenCommand            *authcmd.RefreshTokenCommand
 	logoutCommand                  *authcmd.LogoutCommand
 	verifyEmailCommand             *authcmd.VerifyEmailCommand
 	resendEmailVerificationCommand *authcmd.ResendEmailVerificationCommand
@@ -29,16 +26,12 @@ type AuthHandler struct {
 	changePasswordCommand          *authcmd.ChangePasswordCommand
 	setPasswordCommand             *authcmd.SetPasswordCommand
 	oauthLoginCommand              *authcmd.OAuthLoginCommand
-
-	// Queries
-	getUserQuery *authqry.GetUserQuery
 }
 
 // NewAuthHandler は新しいAuthHandlerを作成します
 func NewAuthHandler(
 	registerCommand *authcmd.RegisterCommand,
 	loginCommand *authcmd.LoginCommand,
-	refreshTokenCommand *authcmd.RefreshTokenCommand,
 	logoutCommand *authcmd.LogoutCommand,
 	verifyEmailCommand *authcmd.VerifyEmailCommand,
 	resendEmailVerificationCommand *authcmd.ResendEmailVerificationCommand,
@@ -47,12 +40,10 @@ func NewAuthHandler(
 	changePasswordCommand *authcmd.ChangePasswordCommand,
 	setPasswordCommand *authcmd.SetPasswordCommand,
 	oauthLoginCommand *authcmd.OAuthLoginCommand,
-	getUserQuery *authqry.GetUserQuery,
 ) *AuthHandler {
 	return &AuthHandler{
 		registerCommand:                registerCommand,
 		loginCommand:                   loginCommand,
-		refreshTokenCommand:            refreshTokenCommand,
 		logoutCommand:                  logoutCommand,
 		verifyEmailCommand:             verifyEmailCommand,
 		resendEmailVerificationCommand: resendEmailVerificationCommand,
@@ -61,7 +52,6 @@ func NewAuthHandler(
 		changePasswordCommand:          changePasswordCommand,
 		setPasswordCommand:             setPasswordCommand,
 		oauthLoginCommand:              oauthLoginCommand,
-		getUserQuery:                   getUserQuery,
 	}
 }
 
@@ -112,38 +102,11 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return err
 	}
 
-	// リフレッシュトークンをHttpOnly Cookieに設定
-	h.setRefreshTokenCookie(c, output.RefreshToken)
+	// Session IDをHttpOnly Cookieに設定
+	h.setSessionCookie(c, output.SessionID)
 
 	return presenter.OK(c, response.LoginResponse{
-		AccessToken: output.AccessToken,
-		ExpiresIn:   output.ExpiresIn,
-		User:        response.ToUserResponse(output.User),
-	})
-}
-
-// Refresh はトークンリフレッシュを処理します
-// POST /api/v1/auth/refresh
-func (h *AuthHandler) Refresh(c echo.Context) error {
-	// Cookieからリフレッシュトークンを取得
-	cookie, err := c.Cookie("refresh_token")
-	if err != nil {
-		return apperror.NewUnauthorizedError("refresh token not found")
-	}
-
-	output, err := h.refreshTokenCommand.Execute(c.Request().Context(), authcmd.RefreshTokenInput{
-		RefreshToken: cookie.Value,
-	})
-	if err != nil {
-		return err
-	}
-
-	// 新しいリフレッシュトークンをCookieに設定
-	h.setRefreshTokenCookie(c, output.RefreshToken)
-
-	return presenter.OK(c, response.RefreshResponse{
-		AccessToken: output.AccessToken,
-		ExpiresIn:   output.ExpiresIn,
+		User: response.ToUserResponse(output.User),
 	})
 }
 
@@ -151,14 +114,13 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 // POST /api/v1/auth/logout
 func (h *AuthHandler) Logout(c echo.Context) error {
 	sessionID := middleware.GetSessionID(c)
-	accessClaims := middleware.GetAccessClaims(c)
 
-	if err := h.logoutCommand.Execute(c.Request().Context(), sessionID, accessClaims); err != nil {
+	if err := h.logoutCommand.Execute(c.Request().Context(), sessionID); err != nil {
 		// エラーでも成功扱い
 	}
 
 	// Cookieを削除
-	h.clearRefreshTokenCookie(c)
+	h.clearSessionCookie(c)
 
 	return presenter.OK(c, map[string]string{"message": "logged out successfully"})
 }
@@ -166,19 +128,12 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 // Me は現在のユーザー情報を取得します
 // GET /api/v1/me
 func (h *AuthHandler) Me(c echo.Context) error {
-	claims := middleware.GetAccessClaims(c)
-	if claims == nil {
-		return apperror.NewUnauthorizedError("invalid token")
+	user := middleware.GetUser(c)
+	if user == nil {
+		return apperror.NewUnauthorizedError("not authenticated")
 	}
 
-	output, err := h.getUserQuery.Execute(c.Request().Context(), authqry.GetUserInput{
-		UserID: uuid.MustParse(claims.UserID.String()),
-	})
-	if err != nil {
-		return err
-	}
-
-	return presenter.OK(c, response.ToUserResponse(output.User))
+	return presenter.OK(c, response.ToUserResponse(user))
 }
 
 // VerifyEmail はメール確認を処理します
@@ -274,9 +229,9 @@ func (h *AuthHandler) ResetPassword(c echo.Context) error {
 // ChangePassword はパスワード変更を処理します（認証必須）
 // POST /api/v1/auth/password/change
 func (h *AuthHandler) ChangePassword(c echo.Context) error {
-	claims := middleware.GetAccessClaims(c)
-	if claims == nil {
-		return apperror.NewUnauthorizedError("invalid token")
+	user := middleware.GetUser(c)
+	if user == nil {
+		return apperror.NewUnauthorizedError("not authenticated")
 	}
 
 	var req request.ChangePasswordRequest
@@ -288,7 +243,7 @@ func (h *AuthHandler) ChangePassword(c echo.Context) error {
 	}
 
 	output, err := h.changePasswordCommand.Execute(c.Request().Context(), authcmd.ChangePasswordInput{
-		UserID:          claims.UserID,
+		UserID:          user.ID,
 		CurrentPassword: req.CurrentPassword,
 		NewPassword:     req.NewPassword,
 	})
@@ -304,9 +259,9 @@ func (h *AuthHandler) ChangePassword(c echo.Context) error {
 // SetPassword はOAuth専用ユーザーのパスワード設定を処理します（認証必須）
 // POST /api/v1/auth/password/set
 func (h *AuthHandler) SetPassword(c echo.Context) error {
-	claims := middleware.GetAccessClaims(c)
-	if claims == nil {
-		return apperror.NewUnauthorizedError("invalid token")
+	user := middleware.GetUser(c)
+	if user == nil {
+		return apperror.NewUnauthorizedError("not authenticated")
 	}
 
 	var req request.SetPasswordRequest
@@ -318,7 +273,7 @@ func (h *AuthHandler) SetPassword(c echo.Context) error {
 	}
 
 	output, err := h.setPasswordCommand.Execute(c.Request().Context(), authcmd.SetPasswordInput{
-		UserID:   claims.UserID,
+		UserID:   user.ID,
 		Password: req.Password,
 	})
 	if err != nil {
@@ -356,37 +311,35 @@ func (h *AuthHandler) OAuthLogin(c echo.Context) error {
 		return err
 	}
 
-	// リフレッシュトークンをHttpOnly Cookieに設定
-	h.setRefreshTokenCookie(c, output.RefreshToken)
+	// Session IDをHttpOnly Cookieに設定
+	h.setSessionCookie(c, output.SessionID)
 
 	return presenter.OK(c, response.OAuthLoginResponse{
-		AccessToken: output.AccessToken,
-		ExpiresIn:   output.ExpiresIn,
-		User:        response.ToUserResponse(output.User),
-		IsNewUser:   output.IsNewUser,
+		User:      response.ToUserResponse(output.User),
+		IsNewUser: output.IsNewUser,
 	})
 }
 
-func (h *AuthHandler) setRefreshTokenCookie(c echo.Context, token string) {
+func (h *AuthHandler) setSessionCookie(c echo.Context, sessionID string) {
 	c.SetCookie(&http.Cookie{
-		Name:     "refresh_token",
-		Value:    token,
-		Path:     "/api/v1/auth",
+		Name:     "session_id",
+		Value:    sessionID,
+		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   7 * 24 * 60 * 60, // 7日
+		SameSite: http.SameSiteLaxMode, // OAuthリダイレクト対応
+		MaxAge:   7 * 24 * 60 * 60,     // 7日
 	})
 }
 
-func (h *AuthHandler) clearRefreshTokenCookie(c echo.Context) {
+func (h *AuthHandler) clearSessionCookie(c echo.Context) {
 	c.SetCookie(&http.Cookie{
-		Name:     "refresh_token",
+		Name:     "session_id",
 		Value:    "",
-		Path:     "/api/v1/auth",
+		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 }

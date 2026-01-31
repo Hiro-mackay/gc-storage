@@ -67,7 +67,6 @@ func (r *Router) setupAuthRoutes(api *echo.Group) {
 		r.middlewares.RateLimit.ByIP(middleware.RateLimitAuthSignup))
 	authGroup.POST("/login", r.handlers.Auth.Login,
 		r.middlewares.RateLimit.ByIP(middleware.RateLimitAuthLogin))
-	authGroup.POST("/refresh", r.handlers.Auth.Refresh)
 
 	// OAuth routes (public)
 	authGroup.POST("/oauth/:provider", r.handlers.Auth.OAuthLogin,
@@ -87,21 +86,21 @@ func (r *Router) setupAuthRoutes(api *echo.Group) {
 		r.middlewares.RateLimit.ByIP(middleware.RateLimitAuthLogin))
 
 	// Password change route (authenticated)
-	passwordGroup.POST("/change", r.handlers.Auth.ChangePassword, r.middlewares.JWTAuth.Authenticate())
+	passwordGroup.POST("/change", r.handlers.Auth.ChangePassword, r.middlewares.SessionAuth.Authenticate())
 
 	// Password set route (authenticated, for OAuth-only users)
-	passwordGroup.POST("/set", r.handlers.Auth.SetPassword, r.middlewares.JWTAuth.Authenticate())
+	passwordGroup.POST("/set", r.handlers.Auth.SetPassword, r.middlewares.SessionAuth.Authenticate())
 
 	// Auth routes (authenticated)
-	authGroup.POST("/logout", r.handlers.Auth.Logout, r.middlewares.JWTAuth.Authenticate())
+	authGroup.POST("/logout", r.handlers.Auth.Logout, r.middlewares.SessionAuth.Authenticate())
 }
 
 // setupUserRoutes はユーザー関連ルートを設定します
 func (r *Router) setupUserRoutes(api *echo.Group) {
-	api.GET("/me", r.handlers.Auth.Me, r.middlewares.JWTAuth.Authenticate())
+	api.GET("/me", r.handlers.Auth.Me, r.middlewares.SessionAuth.Authenticate())
 
 	// Profile routes (authenticated)
-	meGroup := api.Group("/me", r.middlewares.JWTAuth.Authenticate())
+	meGroup := api.Group("/me", r.middlewares.SessionAuth.Authenticate())
 	meGroup.GET("/profile", r.handlers.Profile.GetProfile)
 	meGroup.PUT("/profile", r.handlers.Profile.UpdateProfile)
 }
@@ -110,7 +109,7 @@ func (r *Router) setupUserRoutes(api *echo.Group) {
 func (r *Router) setupStorageRoutes(api *echo.Group) {
 	// Folder routes (authenticated)
 	if r.handlers.Folder != nil {
-		foldersGroup := api.Group("/folders", r.middlewares.JWTAuth.Authenticate())
+		foldersGroup := api.Group("/folders", r.middlewares.SessionAuth.Authenticate())
 		foldersGroup.POST("", r.handlers.Folder.CreateFolder)
 		foldersGroup.GET("/root/contents", r.handlers.Folder.ListFolderContents)
 		foldersGroup.GET("/:id", r.handlers.Folder.GetFolder)
@@ -123,7 +122,7 @@ func (r *Router) setupStorageRoutes(api *echo.Group) {
 
 	// File routes (authenticated)
 	if r.handlers.File != nil {
-		filesGroup := api.Group("/files", r.middlewares.JWTAuth.Authenticate())
+		filesGroup := api.Group("/files", r.middlewares.SessionAuth.Authenticate())
 		filesGroup.POST("/upload", r.handlers.File.InitiateUpload)
 		filesGroup.GET("/upload/:sessionId", r.handlers.File.GetUploadStatus)
 		filesGroup.GET("/:id/download", r.handlers.File.GetDownloadURL)
@@ -136,7 +135,7 @@ func (r *Router) setupStorageRoutes(api *echo.Group) {
 		api.POST("/files/upload/complete", r.handlers.File.CompleteUpload)
 
 		// Trash routes (authenticated)
-		trashGroup := api.Group("/trash", r.middlewares.JWTAuth.Authenticate())
+		trashGroup := api.Group("/trash", r.middlewares.SessionAuth.Authenticate())
 		trashGroup.GET("", r.handlers.File.ListTrash)
 		trashGroup.POST("/:id/restore", r.handlers.File.RestoreFile)
 	}
@@ -149,7 +148,7 @@ func (r *Router) setupGroupRoutes(api *echo.Group) {
 	}
 
 	// Group routes (authenticated)
-	groupsGroup := api.Group("/groups", r.middlewares.JWTAuth.Authenticate())
+	groupsGroup := api.Group("/groups", r.middlewares.SessionAuth.Authenticate())
 	groupsGroup.POST("", r.handlers.Group.CreateGroup)
 	groupsGroup.GET("", r.handlers.Group.ListMyGroups)
 	groupsGroup.GET("/:id", r.handlers.Group.GetGroup)
@@ -171,7 +170,7 @@ func (r *Router) setupGroupRoutes(api *echo.Group) {
 	groupsGroup.POST("/:id/transfer", r.handlers.Group.TransferOwnership)
 
 	// Invitation routes (authenticated)
-	invitationsGroup := api.Group("/invitations", r.middlewares.JWTAuth.Authenticate())
+	invitationsGroup := api.Group("/invitations", r.middlewares.SessionAuth.Authenticate())
 	invitationsGroup.GET("/pending", r.handlers.Group.ListPendingInvitations)
 	invitationsGroup.POST("/:token/accept", r.handlers.Group.AcceptInvitation)
 	invitationsGroup.POST("/:token/decline", r.handlers.Group.DeclineInvitation)
@@ -184,17 +183,17 @@ func (r *Router) setupPermissionRoutes(api *echo.Group) {
 	}
 
 	// File permission routes (authenticated)
-	filesGroup := api.Group("/files", r.middlewares.JWTAuth.Authenticate())
+	filesGroup := api.Group("/files", r.middlewares.SessionAuth.Authenticate())
 	filesGroup.GET("/:id/permissions", r.handlers.Permission.ListFileGrants)
 	filesGroup.POST("/:id/permissions", r.handlers.Permission.GrantFileRole)
 
 	// Folder permission routes (authenticated)
-	foldersGroup := api.Group("/folders", r.middlewares.JWTAuth.Authenticate())
+	foldersGroup := api.Group("/folders", r.middlewares.SessionAuth.Authenticate())
 	foldersGroup.GET("/:id/permissions", r.handlers.Permission.ListFolderGrants)
 	foldersGroup.POST("/:id/permissions", r.handlers.Permission.GrantFolderRole)
 
 	// Permission grant routes (authenticated)
-	permissionsGroup := api.Group("/permissions", r.middlewares.JWTAuth.Authenticate())
+	permissionsGroup := api.Group("/permissions", r.middlewares.SessionAuth.Authenticate())
 	permissionsGroup.DELETE("/:id", r.handlers.Permission.RevokeGrant)
 }
 
@@ -205,16 +204,16 @@ func (r *Router) setupShareLinkRoutes(api *echo.Group) {
 	}
 
 	// Share link creation routes (authenticated)
-	filesGroup := api.Group("/files", r.middlewares.JWTAuth.Authenticate())
+	filesGroup := api.Group("/files", r.middlewares.SessionAuth.Authenticate())
 	filesGroup.POST("/:id/share", r.handlers.ShareLink.CreateFileShareLink)
 	filesGroup.GET("/:id/share", r.handlers.ShareLink.ListFileShareLinks)
 
-	foldersGroup := api.Group("/folders", r.middlewares.JWTAuth.Authenticate())
+	foldersGroup := api.Group("/folders", r.middlewares.SessionAuth.Authenticate())
 	foldersGroup.POST("/:id/share", r.handlers.ShareLink.CreateFolderShareLink)
 	foldersGroup.GET("/:id/share", r.handlers.ShareLink.ListFolderShareLinks)
 
 	// Share link management routes (authenticated)
-	shareLinksGroup := api.Group("/share-links", r.middlewares.JWTAuth.Authenticate())
+	shareLinksGroup := api.Group("/share-links", r.middlewares.SessionAuth.Authenticate())
 	shareLinksGroup.DELETE("/:id", r.handlers.ShareLink.RevokeShareLink)
 
 	// Public share link access routes (no authentication required)

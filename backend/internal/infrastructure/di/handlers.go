@@ -31,7 +31,6 @@ func NewHandlers(c *Container) *Handlers {
 	authHandler := handler.NewAuthHandler(
 		c.Auth.Register,
 		c.Auth.Login,
-		c.Auth.RefreshToken,
 		c.Auth.Logout,
 		c.Auth.VerifyEmail,
 		c.Auth.ResendEmailVerification,
@@ -40,7 +39,6 @@ func NewHandlers(c *Container) *Handlers {
 		c.Auth.ChangePassword,
 		c.Auth.SetPassword,
 		c.Auth.OAuthLogin,
-		c.Auth.GetUser,
 	)
 
 	// Profile Handler
@@ -139,7 +137,6 @@ func NewHandlersForTest(c *Container) *Handlers {
 	authHandler := handler.NewAuthHandler(
 		c.Auth.Register,
 		c.Auth.Login,
-		c.Auth.RefreshToken,
 		c.Auth.Logout,
 		c.Auth.VerifyEmail,
 		c.Auth.ResendEmailVerification,
@@ -148,7 +145,6 @@ func NewHandlersForTest(c *Container) *Handlers {
 		c.Auth.ChangePassword,
 		c.Auth.SetPassword,
 		c.Auth.OAuthLogin,
-		c.Auth.GetUser,
 	)
 
 	profileHandler := handler.NewProfileHandler(

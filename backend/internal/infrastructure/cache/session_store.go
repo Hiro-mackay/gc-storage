@@ -19,41 +19,38 @@ var ErrSessionNotFound = errors.New("session not found")
 
 // sessionData はRedisに保存するセッションデータを表します（内部用）
 type sessionData struct {
-	ID           string    `json:"id"`
-	UserID       uuid.UUID `json:"user_id"`
-	RefreshToken string    `json:"refresh_token"`
-	UserAgent    string    `json:"user_agent"`
-	IPAddress    string    `json:"ip_address"`
-	CreatedAt    time.Time `json:"created_at"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	LastUsedAt   time.Time `json:"last_used_at"`
+	ID         string    `json:"id"`
+	UserID     uuid.UUID `json:"user_id"`
+	UserAgent  string    `json:"user_agent"`
+	IPAddress  string    `json:"ip_address"`
+	CreatedAt  time.Time `json:"created_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+	LastUsedAt time.Time `json:"last_used_at"`
 }
 
 // toSessionData はentity.SessionからsessionDataに変換します
 func toSessionData(s *entity.Session) *sessionData {
 	return &sessionData{
-		ID:           s.ID,
-		UserID:       s.UserID,
-		RefreshToken: s.RefreshToken,
-		UserAgent:    s.UserAgent,
-		IPAddress:    s.IPAddress,
-		CreatedAt:    s.CreatedAt,
-		ExpiresAt:    s.ExpiresAt,
-		LastUsedAt:   s.LastUsedAt,
+		ID:         s.ID,
+		UserID:     s.UserID,
+		UserAgent:  s.UserAgent,
+		IPAddress:  s.IPAddress,
+		CreatedAt:  s.CreatedAt,
+		ExpiresAt:  s.ExpiresAt,
+		LastUsedAt: s.LastUsedAt,
 	}
 }
 
 // toEntity はsessionDataからentity.Sessionに変換します
 func (d *sessionData) toEntity() *entity.Session {
 	return &entity.Session{
-		ID:           d.ID,
-		UserID:       d.UserID,
-		RefreshToken: d.RefreshToken,
-		UserAgent:    d.UserAgent,
-		IPAddress:    d.IPAddress,
-		CreatedAt:    d.CreatedAt,
-		ExpiresAt:    d.ExpiresAt,
-		LastUsedAt:   d.LastUsedAt,
+		ID:         d.ID,
+		UserID:     d.UserID,
+		UserAgent:  d.UserAgent,
+		IPAddress:  d.IPAddress,
+		CreatedAt:  d.CreatedAt,
+		ExpiresAt:  d.ExpiresAt,
+		LastUsedAt: d.LastUsedAt,
 	}
 }
 

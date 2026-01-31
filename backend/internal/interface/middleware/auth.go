@@ -4,13 +4,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
-	"github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
 const (
-	ContextKeyUserID       = "user_id"
-	ContextKeySessionID    = "session_id"
-	ContextKeyAccessClaims = "access_claims"
+	ContextKeyUserID    = "user_id"
+	ContextKeySessionID = "session_id"
+	ContextKeyUser      = "user"
 )
 
 // GetUserID はコンテキストからユーザーIDを取得します
@@ -38,6 +38,14 @@ func GetSessionID(c echo.Context) string {
 	return ""
 }
 
+// GetUser はコンテキストからユーザーを取得します
+func GetUser(c echo.Context) *entity.User {
+	if user, ok := c.Get(ContextKeyUser).(*entity.User); ok {
+		return user
+	}
+	return nil
+}
+
 // SetUserID はコンテキストにユーザーIDを設定します
 func SetUserID(c echo.Context, userID string) {
 	c.Set(ContextKeyUserID, userID)
@@ -48,15 +56,28 @@ func SetSessionID(c echo.Context, sessionID string) {
 	c.Set(ContextKeySessionID, sessionID)
 }
 
-// GetAccessClaims はコンテキストからアクセストークンクレームを取得します
-func GetAccessClaims(c echo.Context) *jwt.AccessTokenClaims {
-	if claims, ok := c.Get(ContextKeyAccessClaims).(*jwt.AccessTokenClaims); ok {
-		return claims
-	}
-	return nil
+// SetUser はコンテキストにユーザーを設定します
+func SetUser(c echo.Context, user *entity.User) {
+	c.Set(ContextKeyUser, user)
 }
 
-// SetAccessClaims はコンテキストにアクセストークンクレームを設定します
-func SetAccessClaims(c echo.Context, claims *jwt.AccessTokenClaims) {
-	c.Set(ContextKeyAccessClaims, claims)
+// AccessTokenClaims は後方互換性のためのクレーム構造体です
+// 新しいコードでは GetUser() を使用してください
+type AccessTokenClaims struct {
+	UserID    uuid.UUID
+	SessionID string
+}
+
+// GetAccessClaims は後方互換性のためにクレームを返します
+// 新しいコードでは GetUser() を使用してください
+func GetAccessClaims(c echo.Context) *AccessTokenClaims {
+	user := GetUser(c)
+	if user == nil {
+		return nil
+	}
+	sessionID := GetSessionID(c)
+	return &AccessTokenClaims{
+		UserID:    user.ID,
+		SessionID: sessionID,
+	}
 }

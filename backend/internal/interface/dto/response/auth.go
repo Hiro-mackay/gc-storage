@@ -14,15 +14,7 @@ type RegisterResponse struct {
 
 // LoginResponse はログインレスポンス
 type LoginResponse struct {
-	AccessToken string        `json:"access_token"`
-	ExpiresIn   int           `json:"expires_in"`
-	User        *UserResponse `json:"user"`
-}
-
-// RefreshResponse はトークンリフレッシュレスポンス
-type RefreshResponse struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
+	User *UserResponse `json:"user"`
 }
 
 // UserResponse はユーザー情報レスポンス
@@ -80,10 +72,8 @@ type ChangePasswordResponse struct {
 
 // OAuthLoginResponse はOAuthログインレスポンス
 type OAuthLoginResponse struct {
-	AccessToken string        `json:"access_token"`
-	ExpiresIn   int           `json:"expires_in"`
-	User        *UserResponse `json:"user"`
-	IsNewUser   bool          `json:"is_new_user"`
+	User      *UserResponse `json:"user"`
+	IsNewUser bool          `json:"is_new_user"`
 }
 
 // SetPasswordResponse はパスワード設定レスポンス

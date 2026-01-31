@@ -10,7 +10,6 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
-	"github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
 // LoginInput はログインの入力を定義します
@@ -23,29 +22,24 @@ type LoginInput struct {
 
 // LoginOutput はログインの出力を定義します
 type LoginOutput struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresIn    int // seconds
-	User         *entity.User
+	SessionID string
+	User      *entity.User
 }
 
 // LoginCommand はログインコマンドです
 type LoginCommand struct {
 	userRepo    repository.UserRepository
 	sessionRepo repository.SessionRepository
-	jwtService  *jwt.JWTService
 }
 
 // NewLoginCommand は新しいLoginCommandを作成します
 func NewLoginCommand(
 	userRepo repository.UserRepository,
 	sessionRepo repository.SessionRepository,
-	jwtService *jwt.JWTService,
 ) *LoginCommand {
 	return &LoginCommand{
 		userRepo:    userRepo,
 		sessionRepo: sessionRepo,
-		jwtService:  jwtService,
 	}
 }
 
@@ -103,22 +97,15 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
 	// 5. セッション作成
 	sessionID := uuid.New().String()
 	now := time.Now()
-	expiresAt := now.Add(c.jwtService.GetRefreshTokenExpiry())
-
-	accessToken, refreshToken, err := c.jwtService.GenerateTokenPair(user.ID, user.Email.String(), sessionID)
-	if err != nil {
-		return nil, apperror.NewInternalError(err)
-	}
 
 	session := &entity.Session{
-		ID:           sessionID,
-		UserID:       user.ID,
-		RefreshToken: refreshToken,
-		UserAgent:    input.UserAgent,
-		IPAddress:    input.IPAddress,
-		ExpiresAt:    expiresAt,
-		CreatedAt:    now,
-		LastUsedAt:   now,
+		ID:         sessionID,
+		UserID:     user.ID,
+		UserAgent:  input.UserAgent,
+		IPAddress:  input.IPAddress,
+		ExpiresAt:  now.Add(entity.SessionTTL),
+		CreatedAt:  now,
+		LastUsedAt: now,
 	}
 
 	if err := c.sessionRepo.Save(ctx, session); err != nil {
@@ -126,9 +113,7 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
 	}
 
 	return &LoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    int(c.jwtService.GetAccessTokenExpiry().Seconds()),
-		User:         user,
+		SessionID: sessionID,
+		User:      user,
 	}, nil
 }

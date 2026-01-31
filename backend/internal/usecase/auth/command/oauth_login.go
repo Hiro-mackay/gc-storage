@@ -12,7 +12,6 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
-	"github.com/Hiro-mackay/gc-storage/backend/pkg/jwt"
 )
 
 // OAuthLoginInput はOAuthログインの入力を定義します
@@ -25,11 +24,9 @@ type OAuthLoginInput struct {
 
 // OAuthLoginOutput はOAuthログインの出力を定義します
 type OAuthLoginOutput struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresIn    int // seconds
-	User         *entity.User
-	IsNewUser    bool
+	SessionID string
+	User      *entity.User
+	IsNewUser bool
 }
 
 // OAuthLoginCommand はOAuthログインコマンドです
@@ -42,7 +39,6 @@ type OAuthLoginCommand struct {
 	oauthFactory      service.OAuthClientFactory
 	txManager         *database.TxManager
 	sessionRepo       repository.SessionRepository
-	jwtService        *jwt.JWTService
 }
 
 // NewOAuthLoginCommand は新しいOAuthLoginCommandを作成します
@@ -55,7 +51,6 @@ func NewOAuthLoginCommand(
 	oauthFactory service.OAuthClientFactory,
 	txManager *database.TxManager,
 	sessionRepo repository.SessionRepository,
-	jwtService *jwt.JWTService,
 ) *OAuthLoginCommand {
 	return &OAuthLoginCommand{
 		userRepo:          userRepo,
@@ -66,7 +61,6 @@ func NewOAuthLoginCommand(
 		oauthFactory:      oauthFactory,
 		txManager:         txManager,
 		sessionRepo:       sessionRepo,
-		jwtService:        jwtService,
 	}
 }
 
@@ -277,22 +271,15 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 	// 8. セッション作成
 	sessionID := uuid.New().String()
 	now := time.Now()
-	expiresAt := now.Add(c.jwtService.GetRefreshTokenExpiry())
-
-	accessToken, refreshToken, err := c.jwtService.GenerateTokenPair(user.ID, user.Email.String(), sessionID)
-	if err != nil {
-		return nil, apperror.NewInternalError(err)
-	}
 
 	session := &entity.Session{
-		ID:           sessionID,
-		UserID:       user.ID,
-		RefreshToken: refreshToken,
-		UserAgent:    input.UserAgent,
-		IPAddress:    input.IPAddress,
-		ExpiresAt:    expiresAt,
-		CreatedAt:    now,
-		LastUsedAt:   now,
+		ID:         sessionID,
+		UserID:     user.ID,
+		UserAgent:  input.UserAgent,
+		IPAddress:  input.IPAddress,
+		ExpiresAt:  now.Add(entity.SessionTTL),
+		CreatedAt:  now,
+		LastUsedAt: now,
 	}
 
 	if err := c.sessionRepo.Save(ctx, session); err != nil {
@@ -300,10 +287,8 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 	}
 
 	return &OAuthLoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    int(c.jwtService.GetAccessTokenExpiry().Seconds()),
-		User:         user,
-		IsNewUser:    isNewUser,
+		SessionID: sessionID,
+		User:      user,
+		IsNewUser: isNewUser,
 	}, nil
 }
