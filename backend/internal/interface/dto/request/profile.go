@@ -2,6 +2,7 @@ package request
 
 // UpdateProfileRequest はプロファイル更新リクエスト
 type UpdateProfileRequest struct {
+	DisplayName             *string                         `json:"display_name" validate:"omitempty,min=1,max=255"`
 	AvatarURL               *string                         `json:"avatar_url" validate:"omitempty,url"`
 	Bio                     *string                         `json:"bio" validate:"omitempty,max=500"`
 	Locale                  *string                         `json:"locale" validate:"omitempty,max=10"`

@@ -80,9 +80,32 @@ func (s *ProfileTestSuite) TestGetProfile_Unauthorized() {
 // =============================================================================
 
 func (s *ProfileTestSuite) TestUpdateProfile_Success_DisplayName() {
-	// Note: API uses "name" field, not "display_name"
-	// TODO: display_name field is not implemented
-	s.T().Skip("display_name field is not implemented - API uses name field")
+	accessToken := s.createAndLoginUser("display-name@example.com", "Password123", "Original Name")
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPut,
+		Path:   "/api/v1/me/profile",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		},
+		Body: map[string]interface{}{
+			"display_name": "Updated Name",
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK)
+
+	// Verify the name was updated via GET profile
+	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodGet,
+		Path:   "/api/v1/me/profile",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		},
+	})
+
+	getResp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.name", "Updated Name")
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_Success_Bio() {
@@ -191,15 +214,62 @@ func (s *ProfileTestSuite) TestUpdateProfile_Unauthorized() {
 // =============================================================================
 
 func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameTooLong() {
-	// display_name validation is not implemented
-	// TODO: display_name length validation is not implemented
-	s.T().Skip("display_name length validation is not implemented")
+	accessToken := s.createAndLoginUser("long-name@example.com", "Password123", "Long Name User")
+
+	// Create a name that exceeds 255 characters
+	longName := ""
+	for i := 0; i < 256; i++ {
+		longName += "a"
+	}
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPut,
+		Path:   "/api/v1/me/profile",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		},
+		Body: map[string]interface{}{
+			"display_name": longName,
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameBoundary() {
-	// display_name field is not supported - API uses name
-	// TODO: display_name field is not implemented
-	s.T().Skip("display_name field is not implemented")
+	accessToken := s.createAndLoginUser("boundary-name@example.com", "Password123", "Boundary Name User")
+
+	// Create exactly 255 characters
+	name255 := ""
+	for i := 0; i < 255; i++ {
+		name255 += "n"
+	}
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPut,
+		Path:   "/api/v1/me/profile",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		},
+		Body: map[string]interface{}{
+			"display_name": name255,
+		},
+	})
+
+	resp.AssertStatus(http.StatusOK)
+
+	// Verify the name was updated
+	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodGet,
+		Path:   "/api/v1/me/profile",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		},
+	})
+
+	getResp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.name", name255)
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_BioBoundary() {
@@ -228,15 +298,41 @@ func (s *ProfileTestSuite) TestUpdateProfile_BioBoundary() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_InvalidLocale() {
-	// locale validation is not implemented - API accepts any value
-	// TODO: locale validation (ja/en only) is not implemented
-	s.T().Skip("locale validation is not implemented")
+	// locale validation: only "ja" and "en" are allowed
+	accessToken := s.createAndLoginUser("invalid-locale@example.com", "Password123", "Invalid Locale User")
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPut,
+		Path:   "/api/v1/me/profile",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		},
+		Body: map[string]interface{}{
+			"locale": "fr", // unsupported locale
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_InvalidTimezone() {
-	// timezone validation is not implemented - API accepts any value
-	// TODO: timezone (IANA) validation is not implemented
-	s.T().Skip("timezone validation is not implemented")
+	// timezone validation: only IANA timezone format is allowed
+	accessToken := s.createAndLoginUser("invalid-tz@example.com", "Password123", "Invalid Timezone User")
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPut,
+		Path:   "/api/v1/me/profile",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		},
+		Body: map[string]interface{}{
+			"timezone": "Invalid/Timezone", // invalid IANA timezone
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest).
+		AssertJSONError("VALIDATION_ERROR", "")
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_ValidLocaleJa() {

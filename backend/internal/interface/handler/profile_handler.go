@@ -69,12 +69,13 @@ func (h *ProfileHandler) UpdateProfile(c echo.Context) error {
 
 	// リクエストからコマンド入力への変換
 	input := profilecmd.UpdateProfileInput{
-		UserID:    claims.UserID,
-		AvatarURL: req.AvatarURL,
-		Bio:       req.Bio,
-		Locale:    req.Locale,
-		Timezone:  req.Timezone,
-		Theme:     req.Theme,
+		UserID:      claims.UserID,
+		DisplayName: req.DisplayName,
+		AvatarURL:   req.AvatarURL,
+		Bio:         req.Bio,
+		Locale:      req.Locale,
+		Timezone:    req.Timezone,
+		Theme:       req.Theme,
 	}
 
 	// NotificationPreferences の変換
