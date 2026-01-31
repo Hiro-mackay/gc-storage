@@ -20,7 +20,8 @@ type HTTPRequest struct {
 	Body        interface{}
 	Headers     map[string]string
 	Cookies     []*http.Cookie
-	AccessToken string
+	AccessToken string // Deprecated: use SessionID instead
+	SessionID   string // Session ID for cookie-based authentication
 }
 
 // HTTPResponse wraps the HTTP response for testing
@@ -48,9 +49,17 @@ func DoRequest(t *testing.T, e *echo.Echo, req HTTPRequest) *HTTPResponse {
 		httpReq.Header.Set(key, value)
 	}
 
-	// Set access token
+	// Set access token (deprecated, kept for backward compatibility)
 	if req.AccessToken != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+req.AccessToken)
+	}
+
+	// Set session ID cookie for authentication
+	if req.SessionID != "" {
+		httpReq.AddCookie(&http.Cookie{
+			Name:  "session_id",
+			Value: req.SessionID,
+		})
 	}
 
 	// Set cookies

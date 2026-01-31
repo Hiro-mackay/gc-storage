@@ -376,7 +376,7 @@ func (s *AuthTestSuite) TestLogin_SessionLimit_MaxTenSessions() {
 	s.registerAndActivateUser("session-limit@example.com", "Password123", "Session Limit User")
 
 	// Create 10 sessions
-	var tokens []string
+	var sessionIDs []string
 	for i := 0; i < 10; i++ {
 		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 			Method: http.MethodPost,
@@ -387,19 +387,20 @@ func (s *AuthTestSuite) TestLogin_SessionLimit_MaxTenSessions() {
 			},
 		})
 		resp.AssertStatus(http.StatusOK)
-		data := resp.GetJSONData()
-		tokens = append(tokens, data["access_token"].(string))
+		cookie := resp.GetCookie("session_id")
+		s.Require().NotNil(cookie, "session_id cookie should be set")
+		sessionIDs = append(sessionIDs, cookie.Value)
 
 		// Clear rate limiter between logins (preserve sessions)
 		testutil.ClearRateLimits(s.T(), s.server.Redis)
 	}
 
-	// All 10 tokens should work
-	for _, token := range tokens {
+	// All 10 sessions should work
+	for _, sessionID := range sessionIDs {
 		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-			Method:      http.MethodGet,
-			Path:        "/api/v1/me",
-			AccessToken: token,
+			Method:    http.MethodGet,
+			Path:      "/api/v1/me",
+			SessionID: sessionID,
 		})
 		resp.AssertStatus(http.StatusOK)
 	}
@@ -410,7 +411,7 @@ func (s *AuthTestSuite) TestLogin_SessionLimit_EleventhSessionRevokesOldest() {
 	s.registerAndActivateUser("session-revoke@example.com", "Password123", "Session Revoke User")
 
 	// Create 10 sessions
-	var firstRefreshTokenCookie *http.Cookie
+	var firstSessionID string
 	for i := 0; i < 10; i++ {
 		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 			Method: http.MethodPost,
@@ -422,8 +423,9 @@ func (s *AuthTestSuite) TestLogin_SessionLimit_EleventhSessionRevokesOldest() {
 		})
 		resp.AssertStatus(http.StatusOK)
 		if i == 0 {
-			firstRefreshTokenCookie = resp.GetCookie("refresh_token")
-			s.Require().NotNil(firstRefreshTokenCookie, "first refresh token cookie should exist")
+			cookie := resp.GetCookie("session_id")
+			s.Require().NotNil(cookie, "first session_id cookie should exist")
+			firstSessionID = cookie.Value
 		}
 		// Clear rate limiter between logins (preserve sessions)
 		testutil.ClearRateLimits(s.T(), s.server.Redis)
@@ -441,14 +443,14 @@ func (s *AuthTestSuite) TestLogin_SessionLimit_EleventhSessionRevokesOldest() {
 	})
 	resp.AssertStatus(http.StatusOK)
 
-	// First session's refresh token should no longer work
+	// First session should no longer work
 	// (session was deleted when 11th was created)
-	refreshResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:  http.MethodPost,
-		Path:    "/api/v1/auth/refresh",
-		Cookies: []*http.Cookie{firstRefreshTokenCookie},
+	meResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: firstSessionID,
 	})
-	refreshResp.AssertStatus(http.StatusUnauthorized)
+	meResp.AssertStatus(http.StatusUnauthorized)
 }
 
 // =============================================================================
@@ -470,14 +472,12 @@ func (s *AuthTestSuite) TestLogin_Success() {
 	})
 
 	resp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token").
-		AssertJSONPathExists("data.expires_in").
 		AssertJSONPathExists("data.user.id").
 		AssertJSONPath("data.user.email", "login@example.com").
 		AssertJSONPath("data.user.name", "Login User")
 
-	// Verify refresh token cookie is set
-	cookie := resp.GetCookie("refresh_token")
+	// Verify session_id cookie is set
+	cookie := resp.GetCookie("session_id")
 	s.NotNil(cookie)
 	s.True(cookie.HttpOnly)
 }
@@ -557,68 +557,70 @@ func (s *AuthTestSuite) TestLogout_Success() {
 	})
 	loginResp.AssertStatus(http.StatusOK)
 
-	data := loginResp.GetJSONData()
-	accessToken := data["access_token"].(string)
+	cookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
 
 	// Logout
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/logout",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/logout",
+		SessionID: cookie.Value,
 	})
 
 	resp.AssertStatus(http.StatusOK).
 		AssertJSONPath("data.message", "logged out successfully")
 }
 
-func (s *AuthTestSuite) TestLogout_TokenBlacklisted() {
+func (s *AuthTestSuite) TestLogout_SessionInvalidated() {
 	// Register and login
-	s.registerAndActivateUser("blacklist@example.com", "Password123", "Blacklist User")
+	s.registerAndActivateUser("invalidate@example.com", "Password123", "Invalidate User")
 	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/login",
 		Body: map[string]string{
-			"email":    "blacklist@example.com",
+			"email":    "invalidate@example.com",
 			"password": "Password123",
 		},
 	})
 	loginResp.AssertStatus(http.StatusOK)
 
-	data := loginResp.GetJSONData()
-	accessToken := data["access_token"].(string)
+	cookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	sessionID := cookie.Value
 
 	// Logout
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/logout",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/logout",
+		SessionID: sessionID,
 	}).AssertStatus(http.StatusOK)
 
-	// Try to access protected endpoint with blacklisted token
+	// Try to access protected endpoint with invalidated session
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/me",
-		AccessToken: accessToken,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionID,
 	})
 
 	resp.AssertStatus(http.StatusUnauthorized).
-		AssertJSONError("UNAUTHORIZED", "token has been revoked")
+		AssertJSONError("UNAUTHORIZED", "invalid session")
 }
 
-func (s *AuthTestSuite) TestLogout_NoToken() {
+func (s *AuthTestSuite) TestLogout_NoSession() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/logout",
 	})
 
-	resp.AssertStatus(http.StatusUnauthorized)
+	resp.AssertStatus(http.StatusUnauthorized).
+		AssertJSONError("UNAUTHORIZED", "session not found")
 }
 
 // =============================================================================
 // Protected Endpoint Tests
 // =============================================================================
 
-func (s *AuthTestSuite) TestProtectedEndpoint_WithValidToken() {
+func (s *AuthTestSuite) TestProtectedEndpoint_WithValidSession() {
 	// Register and login
 	s.registerAndActivateUser("protected@example.com", "Password123", "Protected User")
 	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
@@ -631,39 +633,38 @@ func (s *AuthTestSuite) TestProtectedEndpoint_WithValidToken() {
 	})
 	loginResp.AssertStatus(http.StatusOK)
 
-	data := loginResp.GetJSONData()
-	accessToken := data["access_token"].(string)
+	cookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
 
 	// Access protected endpoint
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/me",
-		AccessToken: accessToken,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: cookie.Value,
 	})
 
-	// /me returns null data because it's not implemented yet
 	resp.AssertStatus(http.StatusOK)
 }
 
-func (s *AuthTestSuite) TestProtectedEndpoint_NoToken() {
+func (s *AuthTestSuite) TestProtectedEndpoint_NoSession() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodGet,
 		Path:   "/api/v1/me",
 	})
 
 	resp.AssertStatus(http.StatusUnauthorized).
-		AssertJSONError("UNAUTHORIZED", "authorization header required")
+		AssertJSONError("UNAUTHORIZED", "session not found")
 }
 
-func (s *AuthTestSuite) TestProtectedEndpoint_InvalidToken() {
+func (s *AuthTestSuite) TestProtectedEndpoint_InvalidSession() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/me",
-		AccessToken: "invalid-token",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: "invalid-session-id",
 	})
 
 	resp.AssertStatus(http.StatusUnauthorized).
-		AssertJSONError("UNAUTHORIZED", "invalid or expired token")
+		AssertJSONError("UNAUTHORIZED", "invalid session")
 }
 
 // =============================================================================
@@ -928,9 +929,10 @@ func (s *AuthTestSuite) TestFullEmailVerificationFlow() {
 		},
 	})
 	loginResp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token").
 		AssertJSONPath("data.user.email_verified", true).
 		AssertJSONPath("data.user.status", "active")
+	cookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
 }
 
 // =============================================================================
@@ -1113,8 +1115,9 @@ func (s *AuthTestSuite) TestResetPassword_Success() {
 			"password": "NewPassword456",
 		},
 	})
-	loginResp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token")
+	loginResp.AssertStatus(http.StatusOK)
+	cookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
 
 	// Verify cannot login with old password
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
@@ -1326,8 +1329,9 @@ func (s *AuthTestSuite) TestFullPasswordResetFlow() {
 			"password": "NewSecurePass456",
 		},
 	})
-	loginResp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token")
+	loginResp.AssertStatus(http.StatusOK)
+	cookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
 
 	// Clear rate limiter before final check
 	testutil.FlushRedis(s.T(), s.server.Redis)
@@ -1350,13 +1354,13 @@ func (s *AuthTestSuite) TestFullPasswordResetFlow() {
 func (s *AuthTestSuite) TestChangePassword_Success() {
 	// Register, activate and login
 	s.registerAndActivateUser("change@example.com", "OldPassword123", "Change User")
-	accessToken := s.loginAndGetToken("change@example.com", "OldPassword123")
+	sessionID := s.loginAndGetSessionID("change@example.com", "OldPassword123")
 
 	// Change password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/change",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/change",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"current_password": "OldPassword123",
 			"new_password":     "NewPassword456",
@@ -1370,13 +1374,13 @@ func (s *AuthTestSuite) TestChangePassword_Success() {
 func (s *AuthTestSuite) TestChangePassword_WrongCurrentPassword() {
 	// Register, activate and login
 	s.registerAndActivateUser("wrongcurrent@example.com", "CorrectPassword123", "Wrong Current User")
-	accessToken := s.loginAndGetToken("wrongcurrent@example.com", "CorrectPassword123")
+	sessionID := s.loginAndGetSessionID("wrongcurrent@example.com", "CorrectPassword123")
 
 	// Try to change password with wrong current password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/change",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/change",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"current_password": "WrongPassword123",
 			"new_password":     "NewPassword456",
@@ -1390,13 +1394,13 @@ func (s *AuthTestSuite) TestChangePassword_WrongCurrentPassword() {
 func (s *AuthTestSuite) TestChangePassword_WeakNewPassword() {
 	// Register, activate and login
 	s.registerAndActivateUser("weaknew@example.com", "StrongPassword123", "Weak New User")
-	accessToken := s.loginAndGetToken("weaknew@example.com", "StrongPassword123")
+	sessionID := s.loginAndGetSessionID("weaknew@example.com", "StrongPassword123")
 
 	// Try to change password with weak new password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/change",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/change",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"current_password": "StrongPassword123",
 			"new_password":     "weak",
@@ -1410,13 +1414,13 @@ func (s *AuthTestSuite) TestChangePassword_WeakNewPassword() {
 func (s *AuthTestSuite) TestChangePassword_MissingCurrentPassword() {
 	// Register, activate and login
 	s.registerAndActivateUser("missingcurrent@example.com", "Password123", "Missing Current User")
-	accessToken := s.loginAndGetToken("missingcurrent@example.com", "Password123")
+	sessionID := s.loginAndGetSessionID("missingcurrent@example.com", "Password123")
 
 	// Try to change password without current password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/change",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/change",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"new_password": "NewPassword456",
 		},
@@ -1429,13 +1433,13 @@ func (s *AuthTestSuite) TestChangePassword_MissingCurrentPassword() {
 func (s *AuthTestSuite) TestChangePassword_MissingNewPassword() {
 	// Register, activate and login
 	s.registerAndActivateUser("missingnew@example.com", "Password123", "Missing New User")
-	accessToken := s.loginAndGetToken("missingnew@example.com", "Password123")
+	sessionID := s.loginAndGetSessionID("missingnew@example.com", "Password123")
 
 	// Try to change password without new password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/change",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/change",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"current_password": "Password123",
 		},
@@ -1446,7 +1450,7 @@ func (s *AuthTestSuite) TestChangePassword_MissingNewPassword() {
 }
 
 func (s *AuthTestSuite) TestChangePassword_Unauthorized() {
-	// Try to change password without token
+	// Try to change password without session
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/password/change",
@@ -1463,14 +1467,14 @@ func (s *AuthTestSuite) TestFullChangePasswordFlow() {
 	// 1. Register and activate user
 	s.registerAndActivateUser("fullchange@example.com", "OriginalPass123", "Full Change User")
 
-	// 2. Login and get token
-	accessToken := s.loginAndGetToken("fullchange@example.com", "OriginalPass123")
+	// 2. Login and get session
+	sessionID := s.loginAndGetSessionID("fullchange@example.com", "OriginalPass123")
 
 	// 3. Change password
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/change",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/change",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"current_password": "OriginalPass123",
 			"new_password":     "NewSecurePass456",
@@ -1499,16 +1503,17 @@ func (s *AuthTestSuite) TestFullChangePasswordFlow() {
 			"password": "NewSecurePass456",
 		},
 	})
-	loginResp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token")
+	loginResp.AssertStatus(http.StatusOK)
+	newCookie := loginResp.GetCookie("session_id")
+	s.NotNil(newCookie, "session_id cookie should be set")
 }
 
 // =============================================================================
 // Additional Helper Methods
 // =============================================================================
 
-// loginAndGetToken logs in a user and returns the access token
-func (s *AuthTestSuite) loginAndGetToken(email, password string) string {
+// loginAndGetSessionID logs in a user and returns the session ID from cookie
+func (s *AuthTestSuite) loginAndGetSessionID(email, password string) string {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/login",
@@ -1519,8 +1524,14 @@ func (s *AuthTestSuite) loginAndGetToken(email, password string) string {
 	})
 	resp.AssertStatus(http.StatusOK)
 
-	data := resp.GetJSONData()
-	return data["access_token"].(string)
+	cookie := resp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	return cookie.Value
+}
+
+// loginAndGetToken is deprecated, use loginAndGetSessionID instead
+func (s *AuthTestSuite) loginAndGetToken(email, password string) string {
+	return s.loginAndGetSessionID(email, password)
 }
 
 // =============================================================================
@@ -1545,16 +1556,14 @@ func (s *AuthTestSuite) TestOAuthLogin_Google_NewUser_Success() {
 	})
 
 	resp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token").
-		AssertJSONPathExists("data.expires_in").
 		AssertJSONPath("data.is_new_user", true).
 		AssertJSONPath("data.user.email", "oauth-new@example.com").
 		AssertJSONPath("data.user.name", "OAuth New User").
 		AssertJSONPath("data.user.status", "active").
 		AssertJSONPath("data.user.email_verified", true)
 
-	// Verify refresh token cookie is set
-	cookie := resp.GetCookie("refresh_token")
+	// Verify session_id cookie is set
+	cookie := resp.GetCookie("session_id")
 	s.NotNil(cookie)
 	s.True(cookie.HttpOnly)
 }
@@ -1590,9 +1599,12 @@ func (s *AuthTestSuite) TestOAuthLogin_Google_ExistingOAuthUser_Success() {
 	})
 
 	resp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token").
 		AssertJSONPath("data.is_new_user", false).
 		AssertJSONPath("data.user.email", "oauth-existing@example.com")
+
+	// Verify session_id cookie is set
+	cookie := resp.GetCookie("session_id")
+	s.NotNil(cookie)
 }
 
 func (s *AuthTestSuite) TestOAuthLogin_Google_ExistingEmailUser_LinkAccount() {
@@ -1617,9 +1629,12 @@ func (s *AuthTestSuite) TestOAuthLogin_Google_ExistingEmailUser_LinkAccount() {
 	})
 
 	resp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token").
 		AssertJSONPath("data.is_new_user", false).
 		AssertJSONPath("data.user.email", "link-oauth@example.com")
+
+	// Verify session_id cookie is set
+	cookie := resp.GetCookie("session_id")
+	s.NotNil(cookie)
 }
 
 func (s *AuthTestSuite) TestOAuthLogin_GitHub_Success() {
@@ -1640,10 +1655,13 @@ func (s *AuthTestSuite) TestOAuthLogin_GitHub_Success() {
 	})
 
 	resp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token").
 		AssertJSONPath("data.is_new_user", true).
 		AssertJSONPath("data.user.email", "oauth-github@example.com").
 		AssertJSONPath("data.user.name", "GitHub OAuth User")
+
+	// Verify session_id cookie is set
+	cookie := resp.GetCookie("session_id")
+	s.NotNil(cookie)
 }
 
 func (s *AuthTestSuite) TestOAuthLogin_InvalidProvider() {
@@ -1738,30 +1756,31 @@ func (s *AuthTestSuite) TestFullOAuthFlow() {
 	loginResp.AssertStatus(http.StatusOK).
 		AssertJSONPath("data.is_new_user", true)
 
-	data := loginResp.GetJSONData()
-	accessToken := data["access_token"].(string)
+	cookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	sessionID := cookie.Value
 
 	// 2. Access protected endpoint
 	meResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/me",
-		AccessToken: accessToken,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionID,
 	})
 	meResp.AssertStatus(http.StatusOK).
 		AssertJSONPath("data.email", "oauth-fullflow@example.com")
 
 	// 3. Logout
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/logout",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/logout",
+		SessionID: sessionID,
 	}).AssertStatus(http.StatusOK)
 
-	// 4. Token should be blacklisted
+	// 4. Session should be invalidated
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/me",
-		AccessToken: accessToken,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionID,
 	}).AssertStatus(http.StatusUnauthorized)
 
 	// 5. Re-login with OAuth
@@ -1782,14 +1801,14 @@ func (s *AuthTestSuite) TestFullOAuthFlow() {
 // =============================================================================
 
 func (s *AuthTestSuite) TestSetPassword_Success() {
-	// Create OAuth-only user and get token
-	accessToken := s.createOAuthUserAndGetToken("setpass@example.com", "Set Password User")
+	// Create OAuth-only user and get session
+	sessionID := s.createOAuthUserAndGetSessionID("setpass@example.com", "Set Password User")
 
 	// Set password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/set",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/set",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"password": "NewPassword123",
 		},
@@ -1810,20 +1829,21 @@ func (s *AuthTestSuite) TestSetPassword_Success() {
 			"password": "NewPassword123",
 		},
 	})
-	loginResp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token")
+	loginResp.AssertStatus(http.StatusOK)
+	cookie := loginResp.GetCookie("session_id")
+	s.NotNil(cookie, "session_id cookie should be set")
 }
 
 func (s *AuthTestSuite) TestSetPassword_AlreadyHasPassword() {
 	// Create user with password
 	s.registerAndActivateUser("haspass@example.com", "ExistingPass123", "Has Password User")
-	accessToken := s.loginAndGetToken("haspass@example.com", "ExistingPass123")
+	sessionID := s.loginAndGetSessionID("haspass@example.com", "ExistingPass123")
 
 	// Try to set password (should fail - already has password)
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/set",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/set",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"password": "NewPassword456",
 		},
@@ -1834,14 +1854,14 @@ func (s *AuthTestSuite) TestSetPassword_AlreadyHasPassword() {
 }
 
 func (s *AuthTestSuite) TestSetPassword_WeakPassword() {
-	// Create OAuth-only user and get token
-	accessToken := s.createOAuthUserAndGetToken("weaksetpass@example.com", "Weak Set Password User")
+	// Create OAuth-only user and get session
+	sessionID := s.createOAuthUserAndGetSessionID("weaksetpass@example.com", "Weak Set Password User")
 
 	// Try to set weak password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/set",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/set",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"password": "weak",
 		},
@@ -1852,15 +1872,15 @@ func (s *AuthTestSuite) TestSetPassword_WeakPassword() {
 }
 
 func (s *AuthTestSuite) TestSetPassword_MissingPassword() {
-	// Create OAuth-only user and get token
-	accessToken := s.createOAuthUserAndGetToken("missingsetpass@example.com", "Missing Set Password User")
+	// Create OAuth-only user and get session
+	sessionID := s.createOAuthUserAndGetSessionID("missingsetpass@example.com", "Missing Set Password User")
 
 	// Try without password
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/set",
-		AccessToken: accessToken,
-		Body:        map[string]string{},
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/set",
+		SessionID: sessionID,
+		Body:      map[string]string{},
 	})
 
 	resp.AssertStatus(http.StatusBadRequest).
@@ -1868,7 +1888,7 @@ func (s *AuthTestSuite) TestSetPassword_MissingPassword() {
 }
 
 func (s *AuthTestSuite) TestSetPassword_Unauthorized() {
-	// Try to set password without token
+	// Try to set password without session
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/password/set",
@@ -1899,9 +1919,6 @@ func (s *AuthTestSuite) TestFullOAuthToPasswordFlow() {
 	oauthResp.AssertStatus(http.StatusOK).
 		AssertJSONPath("data.is_new_user", true)
 
-	data := oauthResp.GetJSONData()
-	accessToken := data["access_token"].(string)
-
 	// 2. Verify cannot login with password (no password set)
 	testutil.FlushRedis(s.T(), s.server.Redis)
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
@@ -1914,11 +1931,25 @@ func (s *AuthTestSuite) TestFullOAuthToPasswordFlow() {
 	}).AssertStatus(http.StatusUnauthorized).
 		AssertJSONError("UNAUTHORIZED", "please use OAuth to login")
 
-	// 3. Set password
+	// 3. Re-authenticate via OAuth to get a fresh session (FlushRedis cleared the previous one)
+	testutil.FlushRedis(s.T(), s.server.Redis)
+	oauthResp2 := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+	oauthResp2.AssertStatus(http.StatusOK)
+	cookie := oauthResp2.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	sessionID := cookie.Value
+
+	// 4. Set password
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/password/set",
-		AccessToken: accessToken,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/set",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"password": "MyNewPassword123",
 		},
@@ -1934,8 +1965,9 @@ func (s *AuthTestSuite) TestFullOAuthToPasswordFlow() {
 			"password": "MyNewPassword123",
 		},
 	})
-	loginResp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.access_token")
+	loginResp.AssertStatus(http.StatusOK)
+	loginCookie := loginResp.GetCookie("session_id")
+	s.NotNil(loginCookie, "session_id cookie should be set")
 
 	// 5. Verify can still login with OAuth
 	testutil.FlushRedis(s.T(), s.server.Redis)
@@ -1953,8 +1985,8 @@ func (s *AuthTestSuite) TestFullOAuthToPasswordFlow() {
 // Additional Helper Methods for Set Password
 // =============================================================================
 
-// createOAuthUserAndGetToken creates an OAuth-only user and returns access token
-func (s *AuthTestSuite) createOAuthUserAndGetToken(email, name string) string {
+// createOAuthUserAndGetSessionID creates an OAuth-only user and returns session ID from cookie
+func (s *AuthTestSuite) createOAuthUserAndGetSessionID(email, name string) string {
 	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
 		ProviderUserID: "google-" + email,
 		Email:          email,
@@ -1971,6 +2003,12 @@ func (s *AuthTestSuite) createOAuthUserAndGetToken(email, name string) string {
 	})
 	resp.AssertStatus(http.StatusOK)
 
-	data := resp.GetJSONData()
-	return data["access_token"].(string)
+	cookie := resp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	return cookie.Value
+}
+
+// createOAuthUserAndGetToken is deprecated, use createOAuthUserAndGetSessionID instead
+func (s *AuthTestSuite) createOAuthUserAndGetToken(email, name string) string {
+	return s.createOAuthUserAndGetSessionID(email, name)
 }

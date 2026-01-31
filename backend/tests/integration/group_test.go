@@ -77,8 +77,9 @@ func (s *GroupTestSuite) loginAndGetToken(email, password string) string {
 		},
 	})
 	resp.AssertStatus(http.StatusOK)
-	data := resp.GetJSONData()
-	return data["access_token"].(string)
+	cookie := resp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	return cookie.Value
 }
 
 func (s *GroupTestSuite) createUser(email, password, name string) string {
@@ -91,7 +92,7 @@ func (s *GroupTestSuite) createGroup(token, name, description string) (string, m
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        name,
 			"description": description,
@@ -113,7 +114,7 @@ func (s *GroupTestSuite) TestCreateGroup_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        "Test Group",
 			"description": "A test group",
@@ -146,7 +147,7 @@ func (s *GroupTestSuite) TestCreateGroup_InvalidName_TooShort() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        "",
 			"description": "A test group",
@@ -173,7 +174,7 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN001_NameTooLong() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        longName,
 			"description": "A test group",
@@ -197,7 +198,7 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN001_NameBoundary100() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        name100,
 			"description": "A test group",
@@ -215,7 +216,7 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN002_NameTrimmed() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        "  Test Group  ",
 			"description": "A test group",
@@ -233,7 +234,7 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN003_WhitespaceOnlyForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        "   ",
 			"description": "A test group",
@@ -253,7 +254,7 @@ func (s *GroupTestSuite) TestCreateGroup_OwnerIsMember() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/groups/" + groupID + "/members",
-		AccessToken: token,
+		SessionID: token,
 	})
 
 	resp.AssertStatus(http.StatusOK)
@@ -275,7 +276,7 @@ func (s *GroupTestSuite) TestUpdateGroup_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/groups/" + groupID,
-		AccessToken: token,
+		SessionID: token,
 		Body: map[string]string{
 			"name":        "Updated Name",
 			"description": "Updated Description",
@@ -296,7 +297,7 @@ func (s *GroupTestSuite) TestUpdateGroup_NonMemberForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/groups/" + groupID,
-		AccessToken: otherToken,
+		SessionID: otherToken,
 		Body: map[string]string{
 			"name": "Hacked Name",
 		},
@@ -316,7 +317,7 @@ func (s *GroupTestSuite) TestDeleteGroup_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/groups/" + groupID,
-		AccessToken: token,
+		SessionID: token,
 	})
 
 	resp.AssertStatus(http.StatusNoContent)
@@ -325,7 +326,7 @@ func (s *GroupTestSuite) TestDeleteGroup_Success() {
 	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/groups/" + groupID,
-		AccessToken: token,
+		SessionID: token,
 	})
 	getResp.AssertStatus(http.StatusNotFound)
 }
@@ -342,7 +343,7 @@ func (s *GroupTestSuite) TestDeleteGroup_NonOwnerForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/groups/" + groupID,
-		AccessToken: memberToken,
+		SessionID: memberToken,
 	})
 
 	resp.AssertStatus(http.StatusForbidden)
@@ -357,7 +358,7 @@ func (s *GroupTestSuite) inviteAndAcceptMember(ownerToken, memberToken, groupID,
 	inviteResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": email,
 			"role":  role,
@@ -378,7 +379,7 @@ func (s *GroupTestSuite) inviteAndAcceptMember(ownerToken, memberToken, groupID,
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/invitations/" + token + "/accept",
-		AccessToken: memberToken,
+		SessionID: memberToken,
 	}).AssertStatus(http.StatusOK)
 }
 
@@ -390,7 +391,7 @@ func (s *GroupTestSuite) TestInviteMember_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
 			"role":  "contributor",
@@ -415,7 +416,7 @@ func (s *GroupTestSuite) TestInviteMember_AlreadyMember() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
 			"role":  "contributor",
@@ -434,7 +435,7 @@ func (s *GroupTestSuite) TestAcceptInvitation_Success() {
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
 			"role":  "contributor",
@@ -454,7 +455,7 @@ func (s *GroupTestSuite) TestAcceptInvitation_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/invitations/" + token + "/accept",
-		AccessToken: memberToken,
+		SessionID: memberToken,
 	})
 
 	resp.AssertStatus(http.StatusOK)
@@ -463,7 +464,7 @@ func (s *GroupTestSuite) TestAcceptInvitation_Success() {
 	membersResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/groups/" + groupID + "/members",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 	})
 	membersResp.AssertStatus(http.StatusOK)
 	members := membersResp.GetJSONDataArray()
@@ -479,7 +480,7 @@ func (s *GroupTestSuite) TestDeclineInvitation_Success() {
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
 			"role":  "contributor",
@@ -499,7 +500,7 @@ func (s *GroupTestSuite) TestDeclineInvitation_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/invitations/" + token + "/decline",
-		AccessToken: memberToken,
+		SessionID: memberToken,
 	})
 
 	resp.AssertStatus(http.StatusNoContent)
@@ -518,7 +519,7 @@ func (s *GroupTestSuite) TestInviteMember_R_I005_OwnerRoleForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
 			"role":  "owner", // Cannot invite with owner role
@@ -544,7 +545,7 @@ func (s *GroupTestSuite) TestInviteMember_R_I007_ContributorCannotInviteWithHigh
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: contributorToken,
+		SessionID: contributorToken,
 		Body: map[string]string{
 			"email": "invitee@example.com",
 			"role":  "contributor", // Contributor trying to grant contributor role (same level, might be forbidden)
@@ -569,7 +570,7 @@ func (s *GroupTestSuite) TestInviteMember_R_I007_ViewerCannotInvite() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: viewerToken,
+		SessionID: viewerToken,
 		Body: map[string]string{
 			"email": "invitee@example.com",
 			"role":  "viewer",
@@ -610,7 +611,7 @@ func (s *GroupTestSuite) TestRemoveMember_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/groups/" + groupID + "/members/" + userID,
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 	})
 
 	resp.AssertStatus(http.StatusNoContent)
@@ -633,7 +634,7 @@ func (s *GroupTestSuite) TestRemoveMember_CannotRemoveOwner() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/groups/" + groupID + "/members/" + userID,
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 	})
 
 	resp.AssertStatus(http.StatusForbidden)
@@ -655,7 +656,7 @@ func (s *GroupTestSuite) TestLeaveGroup_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/leave",
-		AccessToken: memberToken,
+		SessionID: memberToken,
 	})
 
 	resp.AssertStatus(http.StatusNoContent)
@@ -669,7 +670,7 @@ func (s *GroupTestSuite) TestLeaveGroup_OwnerCannotLeave() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/leave",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 	})
 
 	resp.AssertStatus(http.StatusForbidden)
@@ -700,7 +701,7 @@ func (s *GroupTestSuite) TestChangeRole_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/groups/" + groupID + "/members/" + userID + "/role",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"role": "contributor",
 		},
@@ -733,7 +734,7 @@ func (s *GroupTestSuite) TestChangeRole_NonOwnerForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/groups/" + groupID + "/members/" + userID + "/role",
-		AccessToken: member1Token,
+		SessionID: member1Token,
 		Body: map[string]string{
 			"role": "viewer",
 		},
@@ -767,7 +768,7 @@ func (s *GroupTestSuite) TestTransferOwnership_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/transfer",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"newOwnerId": newOwnerID,
 		},
@@ -779,7 +780,7 @@ func (s *GroupTestSuite) TestTransferOwnership_Success() {
 	groupResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/groups/" + groupID,
-		AccessToken: memberToken,
+		SessionID: memberToken,
 	})
 	groupResp.AssertStatus(http.StatusOK)
 	// GetGroup returns GroupWithMembershipAndCountResponse (nested)
@@ -791,7 +792,7 @@ func (s *GroupTestSuite) TestTransferOwnership_Success() {
 	leaveResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/leave",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 	})
 	leaveResp.AssertStatus(http.StatusNoContent)
 }
@@ -818,7 +819,7 @@ func (s *GroupTestSuite) TestTransferOwnership_NonOwnerForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/transfer",
-		AccessToken: memberToken,
+		SessionID: memberToken,
 		Body: map[string]string{
 			"newOwnerId": otherID,
 		},
@@ -842,7 +843,7 @@ func (s *GroupTestSuite) TestListMyGroups_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/groups",
-		AccessToken: token,
+		SessionID: token,
 	})
 
 	resp.AssertStatus(http.StatusOK)
@@ -860,7 +861,7 @@ func (s *GroupTestSuite) TestListPendingInvitations_Success() {
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/groups/" + groupID + "/invitations",
-		AccessToken: ownerToken,
+		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
 			"role":  "contributor",
@@ -871,7 +872,7 @@ func (s *GroupTestSuite) TestListPendingInvitations_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/invitations/pending",
-		AccessToken: memberToken,
+		SessionID: memberToken,
 	})
 
 	resp.AssertStatus(http.StatusOK)

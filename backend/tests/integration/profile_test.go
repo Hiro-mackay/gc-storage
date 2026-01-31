@@ -48,14 +48,12 @@ func TestProfileSuite(t *testing.T) {
 
 func (s *ProfileTestSuite) TestGetProfile_Success() {
 	// Create and login user
-	accessToken := s.createAndLoginUser("profile-user@example.com", "Password123", "Profile User")
+	sessionID := s.createAndLoginUser("profile-user@example.com", "Password123", "Profile User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodGet,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 	})
 
 	resp.AssertStatus(http.StatusOK).
@@ -80,14 +78,12 @@ func (s *ProfileTestSuite) TestGetProfile_Unauthorized() {
 // =============================================================================
 
 func (s *ProfileTestSuite) TestUpdateProfile_Success_DisplayName() {
-	accessToken := s.createAndLoginUser("display-name@example.com", "Password123", "Original Name")
+	sessionID := s.createAndLoginUser("display-name@example.com", "Password123", "Original Name")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"display_name": "Updated Name",
 		},
@@ -99,9 +95,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_Success_DisplayName() {
 	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodGet,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 	})
 
 	getResp.AssertStatus(http.StatusOK).
@@ -109,14 +103,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_Success_DisplayName() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_Success_Bio() {
-	accessToken := s.createAndLoginUser("bio-test@example.com", "Password123", "Bio User")
+	sessionID := s.createAndLoginUser("bio-test@example.com", "Password123", "Bio User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"bio": "This is my bio. Hello world!",
 		},
@@ -127,14 +119,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_Success_Bio() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_Success_LocaleTimezone() {
-	accessToken := s.createAndLoginUser("locale-test@example.com", "Password123", "Locale User")
+	sessionID := s.createAndLoginUser("locale-test@example.com", "Password123", "Locale User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"locale":   "en",
 			"timezone": "America/New_York",
@@ -153,14 +143,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_Success_Settings() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_Success_MultipleFields() {
-	accessToken := s.createAndLoginUser("multi-field@example.com", "Password123", "Multi User")
+	sessionID := s.createAndLoginUser("multi-field@example.com", "Password123", "Multi User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"locale":   "en",
 			"timezone": "UTC",
@@ -175,7 +163,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_Success_MultipleFields() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_BioTooLong() {
-	accessToken := s.createAndLoginUser("bio-long@example.com", "Password123", "Long Bio User")
+	sessionID := s.createAndLoginUser("bio-long@example.com", "Password123", "Long Bio User")
 
 	// Create a bio that exceeds 500 characters
 	longBio := ""
@@ -186,9 +174,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_BioTooLong() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"bio": longBio,
 		},
@@ -214,7 +200,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_Unauthorized() {
 // =============================================================================
 
 func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameTooLong() {
-	accessToken := s.createAndLoginUser("long-name@example.com", "Password123", "Long Name User")
+	sessionID := s.createAndLoginUser("long-name@example.com", "Password123", "Long Name User")
 
 	// Create a name that exceeds 255 characters
 	longName := ""
@@ -225,9 +211,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameTooLong() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"display_name": longName,
 		},
@@ -238,7 +222,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameTooLong() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameBoundary() {
-	accessToken := s.createAndLoginUser("boundary-name@example.com", "Password123", "Boundary Name User")
+	sessionID := s.createAndLoginUser("boundary-name@example.com", "Password123", "Boundary Name User")
 
 	// Create exactly 255 characters
 	name255 := ""
@@ -249,9 +233,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameBoundary() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"display_name": name255,
 		},
@@ -263,9 +245,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameBoundary() {
 	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodGet,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 	})
 
 	getResp.AssertStatus(http.StatusOK).
@@ -274,7 +254,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameBoundary() {
 
 func (s *ProfileTestSuite) TestUpdateProfile_BioBoundary() {
 	// Exactly 500 characters should be valid
-	accessToken := s.createAndLoginUser("bio-boundary@example.com", "Password123", "Bio Boundary User")
+	sessionID := s.createAndLoginUser("bio-boundary@example.com", "Password123", "Bio Boundary User")
 
 	// Create exactly 500 characters
 	bio := ""
@@ -285,9 +265,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_BioBoundary() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"bio": bio,
 		},
@@ -299,14 +277,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_BioBoundary() {
 
 func (s *ProfileTestSuite) TestUpdateProfile_InvalidLocale() {
 	// locale validation: only "ja" and "en" are allowed
-	accessToken := s.createAndLoginUser("invalid-locale@example.com", "Password123", "Invalid Locale User")
+	sessionID := s.createAndLoginUser("invalid-locale@example.com", "Password123", "Invalid Locale User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"locale": "fr", // unsupported locale
 		},
@@ -318,14 +294,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_InvalidLocale() {
 
 func (s *ProfileTestSuite) TestUpdateProfile_InvalidTimezone() {
 	// timezone validation: only IANA timezone format is allowed
-	accessToken := s.createAndLoginUser("invalid-tz@example.com", "Password123", "Invalid Timezone User")
+	sessionID := s.createAndLoginUser("invalid-tz@example.com", "Password123", "Invalid Timezone User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"timezone": "Invalid/Timezone", // invalid IANA timezone
 		},
@@ -336,14 +310,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_InvalidTimezone() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_ValidLocaleJa() {
-	accessToken := s.createAndLoginUser("locale-ja@example.com", "Password123", "Locale Ja User")
+	sessionID := s.createAndLoginUser("locale-ja@example.com", "Password123", "Locale Ja User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"locale": "ja",
 		},
@@ -354,14 +326,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_ValidLocaleJa() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_ValidLocaleEn() {
-	accessToken := s.createAndLoginUser("locale-en@example.com", "Password123", "Locale En User")
+	sessionID := s.createAndLoginUser("locale-en@example.com", "Password123", "Locale En User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"locale": "en",
 		},
@@ -372,14 +342,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_ValidLocaleEn() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_ValidTimezoneUTC() {
-	accessToken := s.createAndLoginUser("tz-utc@example.com", "Password123", "TZ UTC User")
+	sessionID := s.createAndLoginUser("tz-utc@example.com", "Password123", "TZ UTC User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"timezone": "UTC",
 		},
@@ -390,14 +358,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_ValidTimezoneUTC() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_ValidTimezoneAsiaTokyo() {
-	accessToken := s.createAndLoginUser("tz-tokyo@example.com", "Password123", "TZ Tokyo User")
+	sessionID := s.createAndLoginUser("tz-tokyo@example.com", "Password123", "TZ Tokyo User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"timezone": "Asia/Tokyo",
 		},
@@ -408,14 +374,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_ValidTimezoneAsiaTokyo() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_AvatarURL() {
-	accessToken := s.createAndLoginUser("avatar@example.com", "Password123", "Avatar User")
+	sessionID := s.createAndLoginUser("avatar@example.com", "Password123", "Avatar User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"avatar_url": "https://example.com/avatar.png",
 		},
@@ -426,14 +390,12 @@ func (s *ProfileTestSuite) TestUpdateProfile_AvatarURL() {
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_InvalidAvatarURL() {
-	accessToken := s.createAndLoginUser("invalid-avatar@example.com", "Password123", "Invalid Avatar User")
+	sessionID := s.createAndLoginUser("invalid-avatar@example.com", "Password123", "Invalid Avatar User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"avatar_url": "not-a-valid-url",
 		},
@@ -448,15 +410,13 @@ func (s *ProfileTestSuite) TestUpdateProfile_InvalidAvatarURL() {
 // =============================================================================
 
 func (s *ProfileTestSuite) TestProfilePersistence() {
-	accessToken := s.createAndLoginUser("persist-test@example.com", "Password123", "Persist User")
+	sessionID := s.createAndLoginUser("persist-test@example.com", "Password123", "Persist User")
 
 	// Update profile with supported fields
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPut,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"locale":   "en",
 			"timezone": "UTC",
@@ -467,9 +427,7 @@ func (s *ProfileTestSuite) TestProfilePersistence() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodGet,
 		Path:   "/api/v1/me/profile",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + accessToken,
-		},
+		SessionID: sessionID,
 	})
 
 	resp.AssertStatus(http.StatusOK).
@@ -508,6 +466,7 @@ func (s *ProfileTestSuite) createAndLoginUser(email, password, name string) stri
 	})
 
 	resp.AssertStatus(http.StatusOK)
-	data := resp.GetJSONData()
-	return data["access_token"].(string)
+	cookie := resp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	return cookie.Value
 }

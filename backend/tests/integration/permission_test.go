@@ -67,7 +67,7 @@ func (s *PermissionTestSuite) registerAndActivateUser(email, password, name stri
 	s.Require().NoError(err)
 }
 
-func (s *PermissionTestSuite) loginAndGetToken(email, password string) string {
+func (s *PermissionTestSuite) loginAndGetSessionID(email, password string) string {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/login",
@@ -77,13 +77,14 @@ func (s *PermissionTestSuite) loginAndGetToken(email, password string) string {
 		},
 	})
 	resp.AssertStatus(http.StatusOK)
-	data := resp.GetJSONData()
-	return data["access_token"].(string)
+	cookie := resp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
+	return cookie.Value
 }
 
 func (s *PermissionTestSuite) createUser(email, password, name string) string {
 	s.registerAndActivateUser(email, password, name)
-	return s.loginAndGetToken(email, password)
+	return s.loginAndGetSessionID(email, password)
 }
 
 func (s *PermissionTestSuite) getUserID(email string) string {
@@ -97,11 +98,11 @@ func (s *PermissionTestSuite) getUserID(email string) string {
 	return userID
 }
 
-func (s *PermissionTestSuite) createFolder(token, name string) string {
+func (s *PermissionTestSuite) createFolder(sessionID, name string) string {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
-		AccessToken: token,
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
+		SessionID: sessionID,
 		Body: map[string]string{
 			"name": name,
 		},
@@ -116,18 +117,18 @@ func (s *PermissionTestSuite) createFolder(token, name string) string {
 // =============================================================================
 
 func (s *PermissionTestSuite) TestGrantFolderPermission_Success() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
 	s.createUser("viewer@example.com", "Password123", "Viewer User")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant viewer permission
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -141,19 +142,19 @@ func (s *PermissionTestSuite) TestGrantFolderPermission_Success() {
 }
 
 func (s *PermissionTestSuite) TestGrantPermission_OwnerRoleForbidden() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
 	s.createUser("other@example.com", "Password123", "Other User")
 	otherID := s.getUserID("other@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Try to grant owner role directly (should fail with validation error)
 	// Owner role is not in the allowed list (viewer, contributor, content_manager)
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   otherID,
@@ -165,20 +166,20 @@ func (s *PermissionTestSuite) TestGrantPermission_OwnerRoleForbidden() {
 }
 
 func (s *PermissionTestSuite) TestGrantPermission_CannotGrantHigherRole() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	contributorToken := s.createUser("contributor@example.com", "Password123", "Contributor User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	contributorSessionID := s.createUser("contributor@example.com", "Password123", "Contributor User")
 	s.createUser("other@example.com", "Password123", "Other User")
 	contributorID := s.getUserID("contributor@example.com")
 	otherID := s.getUserID("other@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant contributor permission
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   contributorID,
@@ -190,7 +191,7 @@ func (s *PermissionTestSuite) TestGrantPermission_CannotGrantHigherRole() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: contributorToken,
+		SessionID: contributorSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   otherID,
@@ -202,18 +203,18 @@ func (s *PermissionTestSuite) TestGrantPermission_CannotGrantHigherRole() {
 }
 
 func (s *PermissionTestSuite) TestGrantPermission_DuplicateForbidden() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
 	s.createUser("viewer@example.com", "Password123", "Viewer User")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant viewer permission
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -225,7 +226,7 @@ func (s *PermissionTestSuite) TestGrantPermission_DuplicateForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -241,18 +242,18 @@ func (s *PermissionTestSuite) TestGrantPermission_DuplicateForbidden() {
 // =============================================================================
 
 func (s *PermissionTestSuite) TestRevokePermission_Success() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
 	s.createUser("viewer@example.com", "Password123", "Viewer User")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant permission
 	grantResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -267,26 +268,26 @@ func (s *PermissionTestSuite) TestRevokePermission_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/permissions/" + grantID,
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 	})
 
 	resp.AssertStatus(http.StatusNoContent)
 }
 
 func (s *PermissionTestSuite) TestRevokePermission_UnauthorizedForbidden() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
 	s.createUser("viewer@example.com", "Password123", "Viewer User")
-	otherToken := s.createUser("other@example.com", "Password123", "Other User")
+	otherSessionID := s.createUser("other@example.com", "Password123", "Other User")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant permission
 	grantResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -301,7 +302,7 @@ func (s *PermissionTestSuite) TestRevokePermission_UnauthorizedForbidden() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/permissions/" + grantID,
-		AccessToken: otherToken,
+		SessionID: otherSessionID,
 	})
 
 	resp.AssertStatus(http.StatusForbidden)
@@ -312,18 +313,18 @@ func (s *PermissionTestSuite) TestRevokePermission_UnauthorizedForbidden() {
 // =============================================================================
 
 func (s *PermissionTestSuite) TestListFolderPermissions_Success() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
 	s.createUser("viewer@example.com", "Password123", "Viewer User")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant permission
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -335,7 +336,7 @@ func (s *PermissionTestSuite) TestListFolderPermissions_Success() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 	})
 
 	resp.AssertStatus(http.StatusOK)
@@ -349,18 +350,18 @@ func (s *PermissionTestSuite) TestListFolderPermissions_Success() {
 // =============================================================================
 
 func (s *PermissionTestSuite) TestViewerCanReadFolder() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	viewerToken := s.createUser("viewer@example.com", "Password123", "Viewer User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	viewerSessionID := s.createUser("viewer@example.com", "Password123", "Viewer User")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant viewer permission
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -372,25 +373,25 @@ func (s *PermissionTestSuite) TestViewerCanReadFolder() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/folders/" + folderID,
-		AccessToken: viewerToken,
+		SessionID: viewerSessionID,
 	})
 
 	resp.AssertStatus(http.StatusOK)
 }
 
 func (s *PermissionTestSuite) TestViewerCannotCreateSubfolder() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	viewerToken := s.createUser("viewer@example.com", "Password123", "Viewer User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	viewerSessionID := s.createUser("viewer@example.com", "Password123", "Viewer User")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant viewer permission
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -402,7 +403,7 @@ func (s *PermissionTestSuite) TestViewerCannotCreateSubfolder() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders",
-		AccessToken: viewerToken,
+		SessionID: viewerSessionID,
 		Body: map[string]interface{}{
 			"name":     "Subfolder",
 			"parentId": folderID,
@@ -413,18 +414,18 @@ func (s *PermissionTestSuite) TestViewerCannotCreateSubfolder() {
 }
 
 func (s *PermissionTestSuite) TestContributorCanCreateSubfolder() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	contributorToken := s.createUser("contributor@example.com", "Password123", "Contributor User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	contributorSessionID := s.createUser("contributor@example.com", "Password123", "Contributor User")
 	contributorID := s.getUserID("contributor@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant contributor permission
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   contributorID,
@@ -436,7 +437,7 @@ func (s *PermissionTestSuite) TestContributorCanCreateSubfolder() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders",
-		AccessToken: contributorToken,
+		SessionID: contributorSessionID,
 		Body: map[string]interface{}{
 			"name":     "Subfolder",
 			"parentId": folderID,
@@ -447,17 +448,17 @@ func (s *PermissionTestSuite) TestContributorCanCreateSubfolder() {
 }
 
 func (s *PermissionTestSuite) TestNoPermission_Forbidden() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	otherToken := s.createUser("other@example.com", "Password123", "Other User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	otherSessionID := s.createUser("other@example.com", "Password123", "Other User")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Other user tries to read folder (should fail)
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodGet,
 		Path:        "/api/v1/folders/" + folderID,
-		AccessToken: otherToken,
+		SessionID: otherSessionID,
 	})
 
 	resp.AssertStatus(http.StatusForbidden)
@@ -468,18 +469,18 @@ func (s *PermissionTestSuite) TestNoPermission_Forbidden() {
 // =============================================================================
 
 func (s *PermissionTestSuite) TestGrantContentManagerPermission_Success() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
 	s.createUser("manager@example.com", "Password123", "Manager User")
 	managerID := s.getUserID("manager@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant content_manager permission
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   managerID,
@@ -492,20 +493,20 @@ func (s *PermissionTestSuite) TestGrantContentManagerPermission_Success() {
 }
 
 func (s *PermissionTestSuite) TestContentManagerCanGrantPermissions() {
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	managerToken := s.createUser("manager@example.com", "Password123", "Manager User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	managerSessionID := s.createUser("manager@example.com", "Password123", "Manager User")
 	s.createUser("viewer@example.com", "Password123", "Viewer User")
 	managerID := s.getUserID("manager@example.com")
 	viewerID := s.getUserID("viewer@example.com")
 
 	// Create folder
-	folderID := s.createFolder(ownerToken, "Test Folder")
+	folderID := s.createFolder(ownerSessionID, "Test Folder")
 
 	// Grant content_manager permission to manager
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   managerID,
@@ -517,7 +518,7 @@ func (s *PermissionTestSuite) TestContentManagerCanGrantPermissions() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + folderID + "/permissions",
-		AccessToken: managerToken,
+		SessionID: managerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   viewerID,
@@ -546,16 +547,16 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL003_MoveOutRequiresContentManag
 
 func (s *PermissionTestSuite) TestMoveFolder_R_RL003_ContentManagerCanMoveOut() {
 	// R-RL003: Content Manager can move_out
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	managerToken := s.createUser("manager@example.com", "Password123", "Manager User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	managerSessionID := s.createUser("manager@example.com", "Password123", "Manager User")
 	managerID := s.getUserID("manager@example.com")
 
 	// Create source folder with content_manager permission
-	sourceFolderID := s.createFolder(ownerToken, "Source Folder")
+	sourceFolderID := s.createFolder(ownerSessionID, "Source Folder")
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + sourceFolderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   managerID,
@@ -567,7 +568,7 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL003_ContentManagerCanMoveOut() 
 	subfolderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders",
-		AccessToken: managerToken,
+		SessionID: managerSessionID,
 		Body: map[string]interface{}{
 			"name":     "Subfolder",
 			"parentId": sourceFolderID,
@@ -577,11 +578,11 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL003_ContentManagerCanMoveOut() 
 	subfolderID := subfolderResp.GetJSONData()["id"].(string)
 
 	// Create destination folder with contributor permission (enough for move_in)
-	destFolderID := s.createFolder(ownerToken, "Destination Folder")
+	destFolderID := s.createFolder(ownerSessionID, "Destination Folder")
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + destFolderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   managerID,
@@ -593,7 +594,7 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL003_ContentManagerCanMoveOut() 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/folders/" + subfolderID + "/move",
-		AccessToken: managerToken,
+		SessionID: managerSessionID,
 		Body: map[string]interface{}{
 			"parentId": destFolderID,
 		},
@@ -610,16 +611,16 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL004_MoveInRequiresContributor()
 
 func (s *PermissionTestSuite) TestMoveFolder_R_RL004_ContributorCanMoveIn() {
 	// R-RL004: Contributor can move_in
-	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
-	managerToken := s.createUser("manager@example.com", "Password123", "Manager User")
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	managerSessionID := s.createUser("manager@example.com", "Password123", "Manager User")
 	managerID := s.getUserID("manager@example.com")
 
 	// Create source folder with content_manager permission
-	sourceFolderID := s.createFolder(ownerToken, "Source Folder")
+	sourceFolderID := s.createFolder(ownerSessionID, "Source Folder")
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + sourceFolderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   managerID,
@@ -631,7 +632,7 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL004_ContributorCanMoveIn() {
 	subfolderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders",
-		AccessToken: managerToken,
+		SessionID: managerSessionID,
 		Body: map[string]interface{}{
 			"name":     "Subfolder",
 			"parentId": sourceFolderID,
@@ -641,11 +642,11 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL004_ContributorCanMoveIn() {
 	subfolderID := subfolderResp.GetJSONData()["id"].(string)
 
 	// Create destination folder with contributor permission
-	destFolderID := s.createFolder(ownerToken, "Destination Folder")
+	destFolderID := s.createFolder(ownerSessionID, "Destination Folder")
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPost,
 		Path:        "/api/v1/folders/" + destFolderID + "/permissions",
-		AccessToken: ownerToken,
+		SessionID: ownerSessionID,
 		Body: map[string]interface{}{
 			"granteeType": "user",
 			"granteeId":   managerID,
@@ -657,7 +658,7 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL004_ContributorCanMoveIn() {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/folders/" + subfolderID + "/move",
-		AccessToken: managerToken,
+		SessionID: managerSessionID,
 		Body: map[string]interface{}{
 			"parentId": destFolderID,
 		},
