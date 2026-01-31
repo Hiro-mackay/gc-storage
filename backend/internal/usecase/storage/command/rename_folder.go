@@ -26,12 +26,17 @@ type RenameFolderOutput struct {
 // RenameFolderCommand はフォルダ名変更コマンドです
 type RenameFolderCommand struct {
 	folderRepo repository.FolderRepository
+	userRepo   repository.UserRepository
 }
 
 // NewRenameFolderCommand は新しいRenameFolderCommandを作成します
-func NewRenameFolderCommand(folderRepo repository.FolderRepository) *RenameFolderCommand {
+func NewRenameFolderCommand(
+	folderRepo repository.FolderRepository,
+	userRepo repository.UserRepository,
+) *RenameFolderCommand {
 	return &RenameFolderCommand{
 		folderRepo: folderRepo,
+		userRepo:   userRepo,
 	}
 }
 
@@ -54,7 +59,16 @@ func (c *RenameFolderCommand) Execute(ctx context.Context, input RenameFolderInp
 		return nil, apperror.NewForbiddenError("not authorized to rename this folder")
 	}
 
-	// 4. 同名フォルダの存在チェック（同じ名前への変更は許可）
+	// 4. パーソナルフォルダチェック (R-FD009)
+	user, err := c.userRepo.FindByID(ctx, input.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if user.PersonalFolderID != nil && *user.PersonalFolderID == input.FolderID {
+		return nil, apperror.NewForbiddenError("personal folder cannot be renamed")
+	}
+
+	// 6. 同名フォルダの存在チェック（同じ名前への変更は許可）
 	if !folder.EqualsName(newName) {
 		var exists bool
 		if folder.ParentID != nil {
@@ -70,10 +84,10 @@ func (c *RenameFolderCommand) Execute(ctx context.Context, input RenameFolderInp
 		}
 	}
 
-	// 5. フォルダ名変更（エンティティメソッド）
+	// 7. フォルダ名変更（エンティティメソッド）
 	folder.Rename(newName)
 
-	// 6. 永続化
+	// 8. 永続化
 	if err := c.folderRepo.Update(ctx, folder); err != nil {
 		return nil, err
 	}

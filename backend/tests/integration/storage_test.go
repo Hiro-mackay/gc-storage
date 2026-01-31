@@ -720,20 +720,74 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD006_CascadeDelete() {
 
 func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeDeleted() {
 	// R-FD009: Personal Folder cannot be deleted
-	// TODO: Personal Folder auto-creation is not yet implemented
-	s.T().Skip("Personal Folder auto-creation is not yet implemented")
+	accessToken := s.registerAndGetToken("pf-delete@example.com", "Password123", "Personal Folder Delete User")
+
+	// Get the user's personal folder ID
+	personalFolderID := s.getPersonalFolderID("pf-delete@example.com")
+
+	// Try to delete personal folder - should fail with 403
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/folders/" + personalFolderID.String(),
+		AccessToken: accessToken,
+	})
+
+	resp.AssertStatus(http.StatusForbidden).
+		AssertJSONError("FORBIDDEN", "personal folder cannot be deleted")
 }
 
 func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeMoved() {
 	// R-FD009: Personal Folder cannot be moved
-	// TODO: Personal Folder auto-creation is not yet implemented
-	s.T().Skip("Personal Folder auto-creation is not yet implemented")
+	accessToken := s.registerAndGetToken("pf-move@example.com", "Password123", "Personal Folder Move User")
+
+	// Get the user's personal folder ID
+	personalFolderID := s.getPersonalFolderID("pf-move@example.com")
+
+	// Create a destination folder
+	destResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPost,
+		Path:        "/api/v1/folders",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": "Destination",
+		},
+	})
+	destResp.AssertStatus(http.StatusCreated)
+	destID := destResp.GetJSONData()["id"].(string)
+
+	// Try to move personal folder - should fail with 403
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/folders/" + personalFolderID.String() + "/move",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"newParentId": destID,
+		},
+	})
+
+	resp.AssertStatus(http.StatusForbidden).
+		AssertJSONError("FORBIDDEN", "personal folder cannot be moved")
 }
 
 func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeRenamed() {
 	// R-FD009: Personal Folder cannot be renamed
-	// TODO: Personal Folder auto-creation is not yet implemented
-	s.T().Skip("Personal Folder auto-creation is not yet implemented")
+	accessToken := s.registerAndGetToken("pf-rename@example.com", "Password123", "Personal Folder Rename User")
+
+	// Get the user's personal folder ID
+	personalFolderID := s.getPersonalFolderID("pf-rename@example.com")
+
+	// Try to rename personal folder - should fail with 403
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/folders/" + personalFolderID.String() + "/rename",
+		AccessToken: accessToken,
+		Body: map[string]interface{}{
+			"name": "New Personal Name",
+		},
+	})
+
+	resp.AssertStatus(http.StatusForbidden).
+		AssertJSONError("FORBIDDEN", "personal folder cannot be renamed")
 }
 
 // -----------------------------------------------------------------------------
@@ -1233,6 +1287,18 @@ func (s *StorageTestSuite) registerAndGetToken(email, password, name string) str
 
 	data := loginResp.GetJSONData()
 	return data["access_token"].(string)
+}
+
+// getPersonalFolderID retrieves the personal folder ID for a user by email
+func (s *StorageTestSuite) getPersonalFolderID(email string) uuid.UUID {
+	var personalFolderID uuid.UUID
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT personal_folder_id FROM users WHERE email = $1",
+		email,
+	).Scan(&personalFolderID)
+	s.Require().NoError(err, "failed to get personal folder ID")
+	return personalFolderID
 }
 
 // createFileInFolder is a helper to create a file in a folder and complete the upload

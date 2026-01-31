@@ -68,12 +68,12 @@ func NewStorageRepositories(txManager *database.TxManager) *StorageRepositories 
 }
 
 // NewStorageUseCases は新しいStorageUseCasesを作成します
-func NewStorageUseCases(repos *StorageRepositories, relationshipRepo authz.RelationshipRepository, permissionResolver authz.PermissionResolver, txManager repository.TransactionManager, storageService service.StorageService) *StorageUseCases {
+func NewStorageUseCases(repos *StorageRepositories, userRepo repository.UserRepository, relationshipRepo authz.RelationshipRepository, permissionResolver authz.PermissionResolver, txManager repository.TransactionManager, storageService service.StorageService) *StorageUseCases {
 	return &StorageUseCases{
 		// Folder Commands
 		CreateFolder: storagecmd.NewCreateFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, relationshipRepo, permissionResolver, txManager),
-		RenameFolder: storagecmd.NewRenameFolderCommand(repos.FolderRepo),
-		MoveFolder:   storagecmd.NewMoveFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, txManager),
+		RenameFolder: storagecmd.NewRenameFolderCommand(repos.FolderRepo, userRepo),
+		MoveFolder:   storagecmd.NewMoveFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, txManager, userRepo),
 		DeleteFolder: storagecmd.NewDeleteFolderCommand(
 			repos.FolderRepo,
 			repos.FolderClosureRepo,
@@ -82,6 +82,7 @@ func NewStorageUseCases(repos *StorageRepositories, relationshipRepo authz.Relat
 			repos.ArchivedFileRepo,
 			repos.ArchivedFileVersionRepo,
 			txManager,
+			userRepo,
 		),
 
 		// Folder Queries

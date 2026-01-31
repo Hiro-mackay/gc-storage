@@ -31,6 +31,7 @@ type DeleteFolderCommand struct {
 	archivedFileRepo        repository.ArchivedFileRepository
 	archivedFileVersionRepo repository.ArchivedFileVersionRepository
 	txManager               repository.TransactionManager
+	userRepo                repository.UserRepository
 }
 
 // NewDeleteFolderCommand は新しいDeleteFolderCommandを作成します
@@ -42,6 +43,7 @@ func NewDeleteFolderCommand(
 	archivedFileRepo repository.ArchivedFileRepository,
 	archivedFileVersionRepo repository.ArchivedFileVersionRepository,
 	txManager repository.TransactionManager,
+	userRepo repository.UserRepository,
 ) *DeleteFolderCommand {
 	return &DeleteFolderCommand{
 		folderRepo:              folderRepo,
@@ -51,6 +53,7 @@ func NewDeleteFolderCommand(
 		archivedFileRepo:        archivedFileRepo,
 		archivedFileVersionRepo: archivedFileVersionRepo,
 		txManager:               txManager,
+		userRepo:                userRepo,
 	}
 }
 
@@ -65,6 +68,15 @@ func (c *DeleteFolderCommand) Execute(ctx context.Context, input DeleteFolderInp
 	// 2. 所有者チェック
 	if !folder.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to delete this folder")
+	}
+
+	// 3. パーソナルフォルダチェック (R-FD009)
+	user, err := c.userRepo.FindByID(ctx, input.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if user.PersonalFolderID != nil && *user.PersonalFolderID == input.FolderID {
+		return nil, apperror.NewForbiddenError("personal folder cannot be deleted")
 	}
 
 	// 3. 削除対象のフォルダID一覧を取得（自身 + 子孫）

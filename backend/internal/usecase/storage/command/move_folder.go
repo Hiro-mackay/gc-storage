@@ -27,6 +27,7 @@ type MoveFolderCommand struct {
 	folderRepo        repository.FolderRepository
 	folderClosureRepo repository.FolderClosureRepository
 	txManager         repository.TransactionManager
+	userRepo          repository.UserRepository
 }
 
 // NewMoveFolderCommand は新しいMoveFolderCommandを作成します
@@ -34,11 +35,13 @@ func NewMoveFolderCommand(
 	folderRepo repository.FolderRepository,
 	folderClosureRepo repository.FolderClosureRepository,
 	txManager repository.TransactionManager,
+	userRepo repository.UserRepository,
 ) *MoveFolderCommand {
 	return &MoveFolderCommand{
 		folderRepo:        folderRepo,
 		folderClosureRepo: folderClosureRepo,
 		txManager:         txManager,
+		userRepo:          userRepo,
 	}
 }
 
@@ -55,7 +58,16 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 		return nil, apperror.NewForbiddenError("not authorized to move this folder")
 	}
 
-	// 3. 同じ場所への移動は何もしない
+	// 3. パーソナルフォルダチェック (R-FD009)
+	user, err := c.userRepo.FindByID(ctx, input.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if user.PersonalFolderID != nil && *user.PersonalFolderID == input.FolderID {
+		return nil, apperror.NewForbiddenError("personal folder cannot be moved")
+	}
+
+	// 4. 同じ場所への移動は何もしない
 	if (folder.ParentID == nil && input.NewParentID == nil) ||
 		(folder.ParentID != nil && input.NewParentID != nil && *folder.ParentID == *input.NewParentID) {
 		return &MoveFolderOutput{Folder: folder}, nil

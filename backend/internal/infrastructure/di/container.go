@@ -194,7 +194,7 @@ func (c *Container) InitStorageUseCases(storageService service.StorageService) {
 	if c.PermissionResolver == nil {
 		c.PermissionResolver = NewPermissionResolver(c.AuthzRepos, c.CollabRepos)
 	}
-	c.Storage = NewStorageUseCases(c.StorageRepos, c.AuthzRepos.RelationshipRepo, c.PermissionResolver, c.TxManager, storageService)
+	c.Storage = NewStorageUseCases(c.StorageRepos, c.UserRepo, c.AuthzRepos.RelationshipRepo, c.PermissionResolver, c.TxManager, storageService)
 }
 
 // InitCollaborationUseCases はCollaboration UseCasesを初期化します
