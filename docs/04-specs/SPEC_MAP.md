@@ -512,35 +512,40 @@ ShareLink.status: active | revoked | expired
 > **依存関係**: Phase 0〜4 の API 完成後
 > **目的**: React SPA の実装
 
+📄 **詳細設計**:
+- [fe-foundation.md](./fe-foundation.md) - フロントエンド基盤（APIクライアント、認証、ルーター、レイアウト）
+- [fe-auth-pages.md](./fe-auth-pages.md) - 認証画面（ログイン、登録、OAuth、パスワードリセット）
+- [fe-file-browser.md](./fe-file-browser.md) - ファイル管理画面（一覧、アップロード、コンテキストメニュー）
+
 ### 5A: 共通コンポーネント・基盤
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 5A.1 | `fe-api-client` | APIクライアント設定 | High | Draft | 0E |
-| 5A.2 | `fe-auth-context` | 認証コンテキスト | High | Draft | 5A.1 |
-| 5A.3 | `fe-router-setup` | TanStack Router設定 | High | Draft | - |
-| 5A.4 | `fe-ui-components` | 共通UIコンポーネント | High | Draft | - |
-| 5A.5 | `fe-error-boundary` | エラーバウンダリ | Medium | Draft | 5A.4 |
-| 5A.6 | `fe-loading-states` | ローディング状態管理 | Medium | Draft | 5A.4 |
+| 5A.1 | `fe-api-client` | APIクライアント設定 | High | Ready | 0E |
+| 5A.2 | `fe-auth-context` | 認証コンテキスト | High | Ready | 5A.1 |
+| 5A.3 | `fe-router-setup` | TanStack Router設定 | High | Ready | - |
+| 5A.4 | `fe-ui-components` | 共通UIコンポーネント | High | Ready | - |
+| 5A.5 | `fe-error-boundary` | エラーバウンダリ | Medium | Ready | 5A.4 |
+| 5A.6 | `fe-loading-states` | ローディング状態管理 | Medium | Ready | 5A.4 |
 
 ### 5B: 認証画面
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 5B.1 | `fe-login-page` | ログインページ | High | Draft | 5A.2 |
-| 5B.2 | `fe-register-page` | 新規登録ページ | High | Draft | 5A.2 |
-| 5B.3 | `fe-oauth-callback` | OAuthコールバック | High | Draft | 5B.1 |
-| 5B.4 | `fe-password-reset` | パスワードリセット画面 | Medium | Draft | 5A.2 |
+| 5B.1 | `fe-login-page` | ログインページ | High | Ready | 5A.2 |
+| 5B.2 | `fe-register-page` | 新規登録ページ | High | Ready | 5A.2 |
+| 5B.3 | `fe-oauth-callback` | OAuthコールバック | High | Ready | 5B.1 |
+| 5B.4 | `fe-password-reset` | パスワードリセット画面 | Medium | Ready | 5A.2 |
 
 ### 5C: ファイル管理画面
 
 | # | 仕様ID | 機能名 | 優先度 | 状態 | 依存 |
 |---|--------|--------|--------|------|------|
-| 5C.1 | `fe-file-browser` | ファイルブラウザ | High | Draft | 5A.3 |
-| 5C.2 | `fe-file-upload` | アップロードUI | High | Draft | 5C.1 |
+| 5C.1 | `fe-file-browser` | ファイルブラウザ | High | Ready | 5A.3 |
+| 5C.2 | `fe-file-upload` | アップロードUI | High | Ready | 5C.1 |
 | 5C.3 | `fe-file-preview` | プレビューモーダル | Medium | Draft | 5C.1 |
-| 5C.4 | `fe-file-context-menu` | コンテキストメニュー | Medium | Draft | 5C.1 |
-| 5C.5 | `fe-drag-drop` | ドラッグ&ドロップ | Medium | Draft | 5C.1 |
+| 5C.4 | `fe-file-context-menu` | コンテキストメニュー | Medium | Ready | 5C.1 |
+| 5C.5 | `fe-drag-drop` | ドラッグ&ドロップ | Medium | Ready | 5C.1 |
 | 5C.6 | `fe-trash-view` | ゴミ箱ビュー | Low | Draft | 5C.1 |
 
 ### 5D: グループ・共有画面
