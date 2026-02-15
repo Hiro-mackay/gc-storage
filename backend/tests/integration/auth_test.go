@@ -2012,3 +2012,220 @@ func (s *AuthTestSuite) createOAuthUserAndGetSessionID(email, name string) strin
 func (s *AuthTestSuite) createOAuthUserAndGetToken(email, name string) string {
 	return s.createOAuthUserAndGetSessionID(email, name)
 }
+
+// =============================================================================
+// Session Invalidation Tests (Security)
+// =============================================================================
+
+func (s *AuthTestSuite) TestChangePassword_InvalidatesOtherSessions() {
+	// Register and activate user
+	s.registerAndActivateUser("change-inv@example.com", "Password123", "Change Invalidate User")
+
+	// Login twice to create two sessions
+	sessionA := s.loginAndGetSessionID("change-inv@example.com", "Password123")
+	testutil.ClearRateLimits(s.T(), s.server.Redis)
+	sessionB := s.loginAndGetSessionID("change-inv@example.com", "Password123")
+
+	// Change password using sessionA
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/change",
+		SessionID: sessionA,
+		Body: map[string]string{
+			"current_password": "Password123",
+			"new_password":     "NewPassword456",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// sessionA should still work (current session is preserved)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionA,
+	}).AssertStatus(http.StatusOK)
+
+	// sessionB should be invalidated
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionB,
+	}).AssertStatus(http.StatusUnauthorized)
+}
+
+func (s *AuthTestSuite) TestResetPassword_InvalidatesAllSessions() {
+	// Register and activate user
+	s.registerAndActivateUser("reset-inv@example.com", "Password123", "Reset Invalidate User")
+
+	// Login to create a session
+	sessionA := s.loginAndGetSessionID("reset-inv@example.com", "Password123")
+
+	// Verify session works
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionA,
+	}).AssertStatus(http.StatusOK)
+
+	// Request password reset
+	testutil.ClearRateLimits(s.T(), s.server.Redis)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/forgot",
+		Body: map[string]string{
+			"email": "reset-inv@example.com",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Get reset token and reset password
+	token := s.getPasswordResetToken("reset-inv@example.com")
+	s.Require().NotEmpty(token)
+
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/password/reset",
+		Body: map[string]string{
+			"token":    token,
+			"password": "NewPassword789",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// sessionA should be invalidated (all sessions deleted after password reset)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionA,
+	}).AssertStatus(http.StatusUnauthorized)
+}
+
+func (s *AuthTestSuite) TestSetPassword_InvalidatesOtherSessions() {
+	// Create OAuth-only user and login twice
+	sessionA := s.createOAuthUserAndGetSessionID("setpass-inv@example.com", "SetPass Invalidate User")
+	testutil.ClearRateLimits(s.T(), s.server.Redis)
+
+	// Create second session via OAuth
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-setpass-inv@example.com",
+		Email:          "setpass-inv@example.com",
+		Name:           "SetPass Invalidate User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+	resp.AssertStatus(http.StatusOK)
+	cookieB := resp.GetCookie("session_id")
+	s.Require().NotNil(cookieB, "session_id cookie should be set")
+	sessionB := cookieB.Value
+
+	// Set password using sessionA
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/password/set",
+		SessionID: sessionA,
+		Body: map[string]string{
+			"password": "NewPassword123",
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// sessionA should still work (current session is preserved)
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionA,
+	}).AssertStatus(http.StatusOK)
+
+	// sessionB should be invalidated
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/me",
+		SessionID: sessionB,
+	}).AssertStatus(http.StatusUnauthorized)
+}
+
+// =============================================================================
+// CSRF Cookie Tests (Security)
+// =============================================================================
+
+func (s *AuthTestSuite) TestLogin_SetsCsrfCookie() {
+	s.registerAndActivateUser("csrf-login@example.com", "Password123", "CSRF Login User")
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "csrf-login@example.com",
+			"password": "Password123",
+		},
+	})
+	resp.AssertStatus(http.StatusOK)
+
+	// Verify csrf_token cookie exists
+	csrfCookie := resp.GetCookie("csrf_token")
+	s.Require().NotNil(csrfCookie, "csrf_token cookie should be set on login")
+	s.NotEmpty(csrfCookie.Value, "csrf_token cookie should have a value")
+
+	// Verify cookie attributes
+	s.False(csrfCookie.HttpOnly, "csrf_token should NOT be HttpOnly (JS needs to read it)")
+	s.True(csrfCookie.Secure, "csrf_token should be Secure")
+	s.Equal(http.SameSiteLaxMode, csrfCookie.SameSite, "csrf_token should have SameSite=Lax")
+}
+
+func (s *AuthTestSuite) TestOAuthLogin_SetsCsrfCookie() {
+	s.server.MockGoogleClient.SetUserInfo(&service.OAuthUserInfo{
+		ProviderUserID: "google-csrf-oauth-user",
+		Email:          "csrf-oauth@example.com",
+		Name:           "CSRF OAuth User",
+		AvatarURL:      "https://example.com/avatar.png",
+	})
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/oauth/google",
+		Body: map[string]string{
+			"code": "valid-google-auth-code",
+		},
+	})
+	resp.AssertStatus(http.StatusOK)
+
+	// Verify csrf_token cookie exists
+	csrfCookie := resp.GetCookie("csrf_token")
+	s.Require().NotNil(csrfCookie, "csrf_token cookie should be set on OAuth login")
+	s.NotEmpty(csrfCookie.Value, "csrf_token cookie should have a value")
+}
+
+func (s *AuthTestSuite) TestLogout_ClearsCsrfCookie() {
+	// Login first
+	s.registerAndActivateUser("csrf-logout@example.com", "Password123", "CSRF Logout User")
+	loginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    "csrf-logout@example.com",
+			"password": "Password123",
+		},
+	})
+	loginResp.AssertStatus(http.StatusOK)
+	sessionCookie := loginResp.GetCookie("session_id")
+	s.Require().NotNil(sessionCookie, "session_id cookie should be set")
+
+	// Verify CSRF cookie was set on login
+	csrfLoginCookie := loginResp.GetCookie("csrf_token")
+	s.Require().NotNil(csrfLoginCookie, "csrf_token cookie should be set on login")
+
+	// Logout
+	logoutResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/auth/logout",
+		SessionID: sessionCookie.Value,
+	})
+	logoutResp.AssertStatus(http.StatusOK)
+
+	// Verify csrf_token cookie is cleared (MaxAge <= 0)
+	csrfLogoutCookie := logoutResp.GetCookie("csrf_token")
+	s.Require().NotNil(csrfLogoutCookie, "csrf_token cookie should be present in logout response")
+	s.True(csrfLogoutCookie.MaxAge < 0, "csrf_token MaxAge should be negative (cookie deleted)")
+}
