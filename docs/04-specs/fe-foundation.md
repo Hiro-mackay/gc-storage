@@ -7,7 +7,7 @@
 | ステータス | Ready |
 | 優先度 | High |
 | 関連ドメイン | user, session |
-| 依存する仕様 | auth-identity, infra-api |
+| 依存する仕様 | auth-identity, infra-api, fe-openapi-typegen |
 
 ---
 
@@ -30,7 +30,18 @@
 **I want to** 統一されたAPI通信基盤を使用する
 **So that** バックエンドAPIとの通信を一貫した方法で行える
 
-### 2.2 機能要件
+### 2.2 技術選定
+
+API通信基盤は `openapi-fetch` + `openapi-typescript` を使用します。
+
+| ライブラリ | 用途 |
+|-----------|------|
+| openapi-fetch | OpenAPIスキーマから型推論するfetch wrapper |
+| openapi-typescript | OpenAPIスキーマからTypeScript型定義を自動生成 |
+
+型生成パイプラインの詳細は [fe-openapi-typegen.md](./fe-openapi-typegen.md) を参照。
+
+### 2.3 機能要件
 
 | ID | 要件 | 優先度 |
 |----|------|--------|
@@ -39,8 +50,9 @@
 | API-03 | 401エラー時にログアウト状態に遷移する | High |
 | API-04 | ネットワークエラーを適切にハンドリングする | Medium |
 | API-05 | リクエストタイムアウトを設定する（30秒） | Medium |
+| API-06 | OpenAPIスキーマから生成された型定義でE2Eの型安全性を確保する | High |
 
-### 2.3 エラーハンドリング要件
+### 2.4 エラーハンドリング要件
 
 | HTTPステータス | 動作 |
 |---------------|------|
@@ -51,7 +63,7 @@
 | 500+ Server Error | サーバーエラーとして処理、リトライ可能 |
 | Network Error | ネットワークエラーとして処理 |
 
-### 2.4 受け入れ基準
+### 2.5 受け入れ基準
 
 - [ ] APIリクエストにCookieが自動送信される（credentials: 'include'）
 - [ ] APIエラーレスポンスからエラーコード・メッセージを取得できる

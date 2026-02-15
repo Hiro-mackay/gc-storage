@@ -18,11 +18,16 @@
 | UI Components | shadcn/ui | latest |
 | Styling | Tailwind CSS | 3.x |
 | Form Validation | Zod | latest |
-| HTTP Client | ky | 1.x |
+| HTTP Client | openapi-fetch | 0.x |
+| Type Generation | openapi-typescript | 7.x |
 | Testing | Vitest + Testing Library | latest |
 
+**補足:**
+- openapi-fetch: OpenAPIスキーマから型推論するfetch wrapper
+- openapi-typescript: OpenAPIスキーマからTypeScript型定義を自動生成
+
 **使用しないライブラリ:**
-- React Hook Form（shadcn/ui Fieldに準拠するため）
+- React Hook Form（shadcn/ui form依存として使用）
 - Redux（TanStack Query + Zustandで十分なため）
 - React Context（グローバル状態管理にはZustandを使用）
 
@@ -53,6 +58,8 @@ frontend/
 │   ├── hooks/                    # 共通カスタムフック
 │   ├── lib/
 │   │   ├── api/                  # APIクライアント
+│   │   │   ├── schema.d.ts       # OpenAPI型定義（自動生成）
+│   │   │   └── client.ts         # openapi-fetch クライアント
 │   │   └── utils/                # ユーティリティ
 │   ├── types/                    # 型定義
 │   └── styles/                   # グローバルスタイル
@@ -235,7 +242,22 @@ const store = useUIStore();
 
 ## 4. データフェッチ設計
 
-### 4.1 TanStack Router + Query連携
+### 4.1 API呼び出しパターン（openapi-fetch）
+
+APIクライアントは `openapi-fetch` を使用し、OpenAPIスキーマから自動生成された型定義による型安全なAPI呼び出しを行います。
+
+```typescript
+import { api } from "@/lib/api/client";
+
+// 型安全なAPI呼び出し
+const { data, error } = await api.GET("/folders/{id}/contents", {
+  params: { path: { id: folderId } },
+});
+```
+
+パス・パラメータ・リクエストボディ・レスポンスがすべてOpenAPIスキーマから型推論されるため、コンパイル時にAPIの不整合を検出できます。
+
+### 4.2 TanStack Router + Query連携
 
 ```
 Route loader (prefetchQuery)
@@ -245,7 +267,7 @@ Page Component (useSuspenseQuery)
 Child Component (useQuery - cached)
 ```
 
-### 4.2 ルートローダーでのプリフェッチ
+### 4.3 ルートローダーでのプリフェッチ
 
 ```typescript
 // app/routes/_authenticated.files.$folderId.tsx
@@ -257,19 +279,29 @@ export const Route = createFileRoute('/_authenticated/files/$folderId')({
     // データをプリフェッチ（キャッシュに格納）
     await queryClient.ensureQueryData({
       queryKey: fileKeys.list(params.folderId, defaultOptions),
-      queryFn: () => filesApi.getFolderContents(params.folderId),
+      queryFn: async () => {
+        const { data } = await api.GET("/folders/{id}/contents", {
+          params: { path: { id: params.folderId } },
+        });
+        return data;
+      },
     });
 
     // パンくず用のパスもプリフェッチ
     await queryClient.ensureQueryData({
       queryKey: folderKeys.path(params.folderId),
-      queryFn: () => filesApi.getFolderPath(params.folderId),
+      queryFn: async () => {
+        const { data } = await api.GET("/folders/{id}/ancestors", {
+          params: { path: { id: params.folderId } },
+        });
+        return data;
+      },
     });
   },
 });
 ```
 
-### 4.3 ページコンポーネントでの取得
+### 4.4 ページコンポーネントでの取得
 
 ```typescript
 // ページコンポーネント: useSuspenseQueryでSuspense対応
@@ -278,14 +310,19 @@ function FolderPage() {
 
   const { data } = useSuspenseQuery({
     queryKey: fileKeys.list(folderId, defaultOptions),
-    queryFn: () => filesApi.getFolderContents(folderId),
+    queryFn: async () => {
+      const { data } = await api.GET("/folders/{id}/contents", {
+        params: { path: { id: folderId } },
+      });
+      return data;
+    },
   });
 
   return <FileList files={data.files} folders={data.folders} />;
 }
 ```
 
-### 4.4 子コンポーネントでの取得
+### 4.5 子コンポーネントでの取得
 
 ```typescript
 // 子コンポーネント: useQueryでキャッシュ済みデータを取得
@@ -293,7 +330,12 @@ function FileItem({ fileId }: { fileId: string }) {
   // 既にキャッシュされていれば即座に返る
   const { data } = useQuery({
     queryKey: fileKeys.detail(fileId),
-    queryFn: () => filesApi.getFile(fileId),
+    queryFn: async () => {
+      const { data } = await api.GET("/files/{id}", {
+        params: { path: { id: fileId } },
+      });
+      return data;
+    },
     staleTime: 30 * 1000,
   });
 
@@ -301,7 +343,7 @@ function FileItem({ fileId }: { fileId: string }) {
 }
 ```
 
-### 4.5 データ更新時のキャッシュ無効化
+### 4.6 データ更新時のキャッシュ無効化
 
 ```typescript
 // ファイルアップロード完了時

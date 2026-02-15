@@ -68,6 +68,13 @@ GC Storage の機能仕様を **6つのフェーズ** に分類し、インフ�
 | Phase 3 | [collab-group.md](./collab-group.md) | グループ・メンバー・招待 |
 | Phase 2-3 | [authz-permission.md](./authz-permission.md) | 権限管理（PBAC + ReBAC） |
 | Phase 4 | [share-link.md](./share-link.md) | 共有リンク |
+| Phase 5 | [fe-foundation.md](./fe-foundation.md) | フロントエンド基盤 |
+| Phase 5 | [fe-auth-pages.md](./fe-auth-pages.md) | 認証画面 |
+| Phase 5 | [fe-file-browser.md](./fe-file-browser.md) | ファイル管理画面 |
+| Phase 5 | [fe-api-integration.md](./fe-api-integration.md) | API連携仕様 |
+| Phase 5 | [fe-routing.md](./fe-routing.md) | ルーティング仕様 |
+| Phase 5 | [fe-state-management.md](./fe-state-management.md) | 状態管理仕様 |
+| Phase 5 | [fe-openapi-typegen.md](./fe-openapi-typegen.md) | OpenAPI型生成パイプライン仕様 |
 
 ---
 
@@ -516,6 +523,10 @@ ShareLink.status: active | revoked | expired
 - [fe-foundation.md](./fe-foundation.md) - フロントエンド基盤（APIクライアント、認証、ルーター、レイアウト）
 - [fe-auth-pages.md](./fe-auth-pages.md) - 認証画面（ログイン、登録、OAuth、パスワードリセット）
 - [fe-file-browser.md](./fe-file-browser.md) - ファイル管理画面（一覧、アップロード、コンテキストメニュー）
+- [fe-api-integration.md](./fe-api-integration.md) - API連携仕様（エンドポイント、リクエスト/レスポンス形式）
+- [fe-routing.md](./fe-routing.md) - ルーティング仕様
+- [fe-state-management.md](./fe-state-management.md) - 状態管理仕様
+- [fe-openapi-typegen.md](./fe-openapi-typegen.md) - OpenAPI型生成パイプライン仕様
 
 ### 5A: 共通コンポーネント・基盤
 
@@ -527,6 +538,7 @@ ShareLink.status: active | revoked | expired
 | 5A.4 | `fe-ui-components` | 共通UIコンポーネント | High | Ready | - |
 | 5A.5 | `fe-error-boundary` | エラーバウンダリ | Medium | Ready | 5A.4 |
 | 5A.6 | `fe-loading-states` | ローディング状態管理 | Medium | Ready | 5A.4 |
+| 5A.7 | `fe-openapi-typegen` | OpenAPI型生成パイプライン | High | Ready | 0E |
 
 ### 5B: 認証画面
 

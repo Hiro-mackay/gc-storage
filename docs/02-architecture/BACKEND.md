@@ -50,8 +50,10 @@ backend/
 │   ├── logger/
 │   └── jwt/
 ├── migrations/                     # DBマイグレーション
-├── api/
-│   └── openapi.yaml               # OpenAPI仕様
+├── docs/                           # Swagger/OpenAPI（自動生成）
+│   ├── swagger.json
+│   ├── swagger.yaml
+│   └── docs.go
 └── scripts/
 ```
 

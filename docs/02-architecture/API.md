@@ -239,29 +239,27 @@ Link: </api/v2/files>; rel="successor-version"
 
 ### 3.4 クライアント側の処理例
 
+openapi-fetch + openapi-typescript による型安全なAPI呼び出し:
+
 ```typescript
-// 統一されたレスポンス型
-interface ApiResponse<T> {
-  data: T | null;
-  meta: Record<string, unknown> | null;
-  error: {
-    code: string;
-    message: string;
-    details: Array<{ field: string; message: string }> | null;
-  } | null;
+import createClient from "openapi-fetch";
+import type { paths } from "@/lib/api/schema";
+
+const api = createClient<paths>({
+  baseUrl: "/api/v1",
+  credentials: "include", // Cookie自動送信
+});
+
+// 型安全なAPI呼び出し（パス・パラメータ・レスポンスすべて型推論される）
+const { data, error } = await api.GET("/folders/{id}/contents", {
+  params: { path: { id: folderId } },
+});
+
+if (error) {
+  // error は OpenAPI スキーマから推論されたエラー型
+  console.error(error);
 }
-
-// 共通処理
-async function apiCall<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  const json: ApiResponse<T> = await response.json();
-
-  if (!json.success) {
-    throw new ApiError(json.error!);
-  }
-
-  return json.data!;
-}
+// data.data は FolderContentsResponse 型として推論される
 ```
 
 ### 3.5 エラーコード体系
@@ -289,7 +287,7 @@ async function apiCall<T>(url: string): Promise<T> {
 | ヘッダー | 必須 | 説明 |
 |---------|------|------|
 | Content-Type | Yes (POST/PUT/PATCH) | `application/json` |
-| Authorization | Yes (認証API以外) | `Bearer {token}` |
+| Cookie | Yes (認証API以外) | `session_id=xxx`（HttpOnly、自動送信） |
 | X-Request-ID | No | トレーシング用（未指定時は自動生成） |
 | Accept-Language | No | レスポンス言語（デフォルト: ja） |
 
@@ -392,18 +390,19 @@ Retry-After: 60
 
 ### 7.1 認証方式
 
-JWT (JSON Web Token) を使用したBearer認証:
+セッションベース認証を使用:
 
-| トークン | 有効期限 | 用途 |
-|---------|---------|------|
-| Access Token | 1時間 | API認証 |
-| Refresh Token | 7日 | Access Token再発行 |
+| 要素 | 説明 |
+|------|------|
+| Session ID | HttpOnly Cookie (`session_id`) で自動送信 |
+| 有効期限 | 7日（サーバー側で管理） |
+| 保存先 | Redis（サーバー側） |
 
-### 7.2 トークン管理
+### 7.2 セッション管理
 
-- Access Tokenはメモリ/ローカルストレージに保存
-- Refresh TokenはHttpOnly Cookieに保存推奨
-- トークンローテーション: Refresh使用時に新しいペアを発行
+- Session IDはHttpOnly + Secure + SameSite=Lax CookieでブラウザからAPIに自動送信
+- サーバー側でRedisにセッション情報を保持し、ユーザーを特定
+- ログアウト時にサーバー側セッションを破棄し、Cookieを削除
 
 ### 7.3 認可モデル
 
@@ -422,10 +421,10 @@ JWT (JSON Web Token) を使用したBearer認証:
 
 ## 8. スケーリング考慮
 
-### 8.1 ステートレス設計
+### 8.1 セッション管理
 
-- セッション状態をサーバーに保持しない
-- 認証状態はJWTで管理
+- セッション情報はRedisに保持（高速アクセス、自動期限管理）
+- Session IDはHttpOnly Cookieで管理（XSS耐性）
 - アップロードセッションはDBで管理
 
 ### 8.2 キャッシュ戦略
@@ -464,33 +463,45 @@ JWT (JSON Web Token) を使用したBearer認証:
 
 ## 9. API仕様管理
 
-### 9.1 OpenAPI (Swagger)
+### 9.1 コードファーストアプローチ（swaggo/swag）
+
+GoハンドラーのアノテーションからOpenAPI仕様を自動生成:
+
+```
+Go Handler Annotations → swag init → swagger.json → openapi-typescript → schema.d.ts → openapi-fetch client
+```
 
 **ファイル構成:**
 ```
-api/
-├── openapi.yaml         # メイン定義
-├── components/
-│   ├── schemas/         # スキーマ定義
-│   ├── parameters/      # パラメータ定義
-│   ├── responses/       # レスポンス定義
-│   └── securitySchemes/ # 認証定義
-└── paths/               # パス定義
-    ├── auth.yaml
-    ├── files.yaml
-    └── ...
+backend/
+├── cmd/api/main.go              # @title, @BasePath 等のAPI情報
+├── docs/                        # 自動生成（git管理外）
+│   ├── swagger.json
+│   ├── swagger.yaml
+│   └── docs.go
+└── internal/interface/
+    └── handler/                  # @Router, @Param 等のエンドポイント定義
+        └── swagger_models.go    # Swagger専用ラッパー型
 ```
 
-### 9.2 仕様ファーストアプローチ
+### 9.2 フロントエンド型生成パイプライン
 
-1. OpenAPI定義を先に作成
-2. 定義からクライアントコード生成
-3. 定義からバリデーション生成
-4. 定義とE2Eテストで整合性確認
+| ツール | 役割 |
+|-------|------|
+| swaggo/swag | Go → swagger.json 生成 |
+| openapi-typescript | swagger.json → TypeScript型定義 (schema.d.ts) |
+| openapi-fetch | schema.d.ts を使った型安全なfetch wrapper |
+
+**コマンド:**
+```bash
+task api:generate          # swagger.json生成 + TypeScript型生成（一括）
+task backend:swagger       # swagger.json のみ生成
+task frontend:generate-types  # TypeScript型のみ生成
+```
 
 ### 9.3 ドキュメント公開
 
-- Swagger UI を `/docs` で公開（開発環境のみ）
+- Swagger UI を `/swagger/` で公開（開発環境のみ）
 - 本番環境ではアクセス制限または非公開
 
 ---
@@ -513,7 +524,8 @@ api/
 ```
 Access-Control-Allow-Origin: https://app.gc-storage.example.com
 Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Authorization, X-Request-ID
+Access-Control-Allow-Headers: Content-Type, X-Request-ID
+Access-Control-Allow-Credentials: true
 Access-Control-Max-Age: 86400
 ```
 
