@@ -99,6 +99,36 @@ type TrashListResponse struct {
 	Items []TrashItemResponse `json:"items"`
 }
 
+// CompleteUploadResponse はアップロード完了レスポンスです
+type CompleteUploadResponse struct {
+	FileID    string `json:"fileId"`
+	SessionID string `json:"sessionId"`
+	Completed bool   `json:"completed"`
+}
+
+// RenameFileResponse はファイル名変更レスポンスです
+type RenameFileResponse struct {
+	FileID string `json:"fileId"`
+	Name   string `json:"name"`
+}
+
+// MoveFileResponse はファイル移動レスポンスです
+type MoveFileResponse struct {
+	FileID   string `json:"fileId"`
+	FolderID string `json:"folderId"`
+}
+
+// TrashFileResponse はファイルゴミ箱移動レスポンスです
+type TrashFileResponse struct {
+	ArchivedFileID string `json:"archivedFileId"`
+}
+
+// RestoreFileResponse はファイル復元レスポンスです
+type RestoreFileResponse struct {
+	FileID   string `json:"fileId"`
+	FolderID string `json:"folderId"`
+}
+
 // ToFileResponse はエンティティからレスポンスに変換します
 func ToFileResponse(file *entity.File) FileResponse {
 	return FileResponse{

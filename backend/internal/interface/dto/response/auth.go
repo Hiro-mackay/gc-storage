@@ -80,3 +80,8 @@ type OAuthLoginResponse struct {
 type SetPasswordResponse struct {
 	Message string `json:"message"`
 }
+
+// LogoutResponse はログアウトレスポンス
+type LogoutResponse struct {
+	Message string `json:"message"`
+}
