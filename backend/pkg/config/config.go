@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type Config struct {
 	Redis    RedisConfig
 	JWT      JWTConfig
 	OAuth    OAuthConfig
+	Security SecurityConfig
 	App      AppConfig
 }
 
@@ -49,6 +51,12 @@ type OAuthConfig struct {
 	GitHubClientID     string
 	GitHubClientSecret string
 	GitHubRedirectURL  string
+}
+
+// SecurityConfig はセキュリティ設定を定義します
+type SecurityConfig struct {
+	CORSOrigins []string
+	EnableHSTS  bool
 }
 
 // AppConfig はアプリケーション設定を定義します
@@ -93,10 +101,27 @@ func Load() (*Config, error) {
 			GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 			GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", appURL+"/auth/callback/github"),
 		},
+		Security: SecurityConfig{
+			CORSOrigins: parseCORSOrigins(getEnv("CORS_ORIGINS", appURL)),
+			EnableHSTS:  os.Getenv("ENABLE_HSTS") == "true",
+		},
 		App: AppConfig{
 			URL: appURL,
 		},
 	}, nil
+}
+
+// parseCORSOrigins はカンマ区切りのオリジン文字列をスライスに変換します
+func parseCORSOrigins(origins string) []string {
+	parts := strings.Split(origins, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 // getEnv は環境変数を取得し、存在しない場合はデフォルト値を返します

@@ -24,6 +24,7 @@ type ResetPasswordOutput struct {
 type ResetPasswordCommand struct {
 	userRepo               repository.UserRepository
 	passwordResetTokenRepo repository.PasswordResetTokenRepository
+	sessionRepo            repository.SessionRepository
 	txManager              repository.TransactionManager
 }
 
@@ -31,11 +32,13 @@ type ResetPasswordCommand struct {
 func NewResetPasswordCommand(
 	userRepo repository.UserRepository,
 	passwordResetTokenRepo repository.PasswordResetTokenRepository,
+	sessionRepo repository.SessionRepository,
 	txManager repository.TransactionManager,
 ) *ResetPasswordCommand {
 	return &ResetPasswordCommand{
 		userRepo:               userRepo,
 		passwordResetTokenRepo: passwordResetTokenRepo,
+		sessionRepo:            sessionRepo,
 		txManager:              txManager,
 	}
 }
@@ -95,6 +98,9 @@ func (c *ResetPasswordCommand) Execute(ctx context.Context, input ResetPasswordI
 	if err != nil {
 		return nil, apperror.NewInternalError(err)
 	}
+
+	// 全セッションを無効化（セキュリティ: パスワードリセット後は再ログインが必要）
+	_ = c.sessionRepo.DeleteByUserID(ctx, token.UserID)
 
 	return &ResetPasswordOutput{
 		Message: "password reset successfully",

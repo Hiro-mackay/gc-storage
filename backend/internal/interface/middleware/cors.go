@@ -19,7 +19,7 @@ func DefaultCORSConfig() CORSConfig {
 	return CORSConfig{
 		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization", "X-Request-ID"},
+		AllowHeaders:     []string{"Content-Type", "Authorization", "X-Request-ID", CSRFHeaderName},
 		AllowCredentials: true,
 		MaxAge:           86400, // 24時間
 	}

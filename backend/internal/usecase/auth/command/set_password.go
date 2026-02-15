@@ -13,8 +13,9 @@ import (
 
 // SetPasswordInput はパスワード設定の入力を定義します
 type SetPasswordInput struct {
-	UserID   uuid.UUID
-	Password string
+	UserID           uuid.UUID
+	Password         string
+	CurrentSessionID string // 現在のセッションIDを保持するため
 }
 
 // SetPasswordOutput はパスワード設定の出力を定義します
@@ -24,15 +25,18 @@ type SetPasswordOutput struct {
 
 // SetPasswordCommand はOAuthユーザーのパスワード設定コマンドです
 type SetPasswordCommand struct {
-	userRepo repository.UserRepository
+	userRepo    repository.UserRepository
+	sessionRepo repository.SessionRepository
 }
 
 // NewSetPasswordCommand は新しいSetPasswordCommandを作成します
 func NewSetPasswordCommand(
 	userRepo repository.UserRepository,
+	sessionRepo repository.SessionRepository,
 ) *SetPasswordCommand {
 	return &SetPasswordCommand{
-		userRepo: userRepo,
+		userRepo:    userRepo,
+		sessionRepo: sessionRepo,
 	}
 }
 
@@ -61,6 +65,17 @@ func (c *SetPasswordCommand) Execute(ctx context.Context, input SetPasswordInput
 
 	if err := c.userRepo.Update(ctx, user); err != nil {
 		return nil, apperror.NewInternalError(err)
+	}
+
+	// 5. 現在のセッション以外の全セッションを無効化
+	if input.CurrentSessionID != "" {
+		currentSession, _ := c.sessionRepo.FindByID(ctx, input.CurrentSessionID)
+		if err := c.sessionRepo.DeleteByUserID(ctx, input.UserID); err != nil {
+			return nil, apperror.NewInternalError(err)
+		}
+		if currentSession != nil {
+			_ = c.sessionRepo.Save(ctx, currentSession)
+		}
 	}
 
 	return &SetPasswordOutput{

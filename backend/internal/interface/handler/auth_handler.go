@@ -123,6 +123,13 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	// Session IDをHttpOnly Cookieに設定
 	h.setSessionCookie(c, output.SessionID)
 
+	// CSRFトークンCookieを設定（double-submit cookie pattern）
+	csrfToken, err := middleware.GenerateCSRFToken()
+	if err != nil {
+		return apperror.NewInternalError(err)
+	}
+	middleware.SetCSRFCookie(c, csrfToken)
+
 	return presenter.OK(c, response.LoginResponse{
 		User: response.ToUserResponse(output.User),
 	})
@@ -146,6 +153,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 
 	// Cookieを削除
 	h.clearSessionCookie(c)
+	middleware.ClearCSRFCookie(c)
 
 	return presenter.OK(c, response.LogoutResponse{
 		Message: "logged out successfully",
@@ -318,9 +326,10 @@ func (h *AuthHandler) ChangePassword(c echo.Context) error {
 	}
 
 	output, err := h.changePasswordCommand.Execute(c.Request().Context(), authcmd.ChangePasswordInput{
-		UserID:          user.ID,
-		CurrentPassword: req.CurrentPassword,
-		NewPassword:     req.NewPassword,
+		UserID:           user.ID,
+		CurrentPassword:  req.CurrentPassword,
+		NewPassword:      req.NewPassword,
+		CurrentSessionID: middleware.GetSessionID(c),
 	})
 	if err != nil {
 		return err
@@ -358,8 +367,9 @@ func (h *AuthHandler) SetPassword(c echo.Context) error {
 	}
 
 	output, err := h.setPasswordCommand.Execute(c.Request().Context(), authcmd.SetPasswordInput{
-		UserID:   user.ID,
-		Password: req.Password,
+		UserID:           user.ID,
+		Password:         req.Password,
+		CurrentSessionID: middleware.GetSessionID(c),
 	})
 	if err != nil {
 		return err
@@ -408,6 +418,13 @@ func (h *AuthHandler) OAuthLogin(c echo.Context) error {
 
 	// Session IDをHttpOnly Cookieに設定
 	h.setSessionCookie(c, output.SessionID)
+
+	// CSRFトークンCookieを設定
+	csrfToken, err := middleware.GenerateCSRFToken()
+	if err != nil {
+		return apperror.NewInternalError(err)
+	}
+	middleware.SetCSRFCookie(c, csrfToken)
 
 	return presenter.OK(c, response.OAuthLoginResponse{
 		User:      response.ToUserResponse(output.User),

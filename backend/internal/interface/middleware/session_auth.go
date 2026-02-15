@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/labstack/echo/v4"
 
@@ -61,7 +62,9 @@ func (m *SessionAuthMiddleware) Authenticate() echo.MiddlewareFunc {
 
 			// 5. セッションをリフレッシュ（スライディングウィンドウ）
 			session.Refresh()
-			m.sessionRepo.Save(c.Request().Context(), session)
+			if err := m.sessionRepo.Save(c.Request().Context(), session); err != nil {
+				slog.Warn("failed to refresh session", "session_id", session.ID, "error", err)
+			}
 
 			// 6. コンテキストにユーザー情報を設定
 			c.Set(ContextKeyUserID, user.ID.String())
@@ -109,7 +112,9 @@ func (m *SessionAuthMiddleware) OptionalAuth() echo.MiddlewareFunc {
 
 			// セッションをリフレッシュ
 			session.Refresh()
-			m.sessionRepo.Save(c.Request().Context(), session)
+			if err := m.sessionRepo.Save(c.Request().Context(), session); err != nil {
+				slog.Warn("failed to refresh session (optional auth)", "session_id", session.ID, "error", err)
+			}
 
 			c.Set(ContextKeyUserID, user.ID.String())
 			c.Set(ContextKeySessionID, session.ID)

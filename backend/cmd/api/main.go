@@ -70,8 +70,19 @@ func main() {
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.SecurityHeaders())
-	e.Use(middleware.CORS())
+	e.Use(middleware.SecurityHeadersWithConfig(middleware.SecurityHeadersConfig{
+		EnableHSTS:    cfg.Security.EnableHSTS,
+		HSTSMaxAge:    31536000, // 1年
+		CSPDirectives: "default-src 'self'",
+	}))
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     cfg.Security.CORSOrigins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Content-Type", "Authorization", "X-Request-ID", middleware.CSRFHeaderName},
+		AllowCredentials: true,
+		MaxAge:           86400,
+	}))
+	e.Use(middleware.CSRF())
 
 	// Setup Router
 	router.NewRouter(e, handlers, middlewares).Setup()

@@ -68,13 +68,16 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 		ResetPassword: authcmd.NewResetPasswordCommand(
 			c.UserRepo,
 			c.PasswordResetTokenRepo,
+			c.SessionRepo,
 			c.TxManager,
 		),
 		ChangePassword: authcmd.NewChangePasswordCommand(
 			c.UserRepo,
+			c.SessionRepo,
 		),
 		SetPassword: authcmd.NewSetPasswordCommand(
 			c.UserRepo,
+			c.SessionRepo,
 		),
 		OAuthLogin: authcmd.NewOAuthLoginCommand(
 			c.UserRepo,
