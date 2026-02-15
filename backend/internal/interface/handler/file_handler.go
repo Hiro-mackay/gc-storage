@@ -60,7 +60,17 @@ func NewFileHandler(
 }
 
 // InitiateUpload はアップロードを開始します
-// POST /api/v1/files/upload
+// @Summary アップロード開始
+// @Description ファイルアップロードセッションを開始し、署名付きURLを返します
+// @Tags Files
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param body body request.InitiateUploadRequest true "アップロード情報"
+// @Success 201 {object} handler.SwaggerInitiateUploadResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /files/upload [post]
 func (h *FileHandler) InitiateUpload(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -99,7 +109,15 @@ func (h *FileHandler) InitiateUpload(c echo.Context) error {
 }
 
 // CompleteUpload はアップロードを完了します（MinIO Webhook用）
-// POST /api/v1/files/upload/complete
+// @Summary アップロード完了
+// @Description MinIO Webhookからの通知を受けてアップロードを完了します
+// @Tags Files
+// @Accept json
+// @Produce json
+// @Param body body request.CompleteUploadRequest true "アップロード完了情報"
+// @Success 200 {object} handler.SwaggerCompleteUploadResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Router /files/upload/complete [post]
 func (h *FileHandler) CompleteUpload(c echo.Context) error {
 	var req request.CompleteUploadRequest
 	if err := c.Bind(&req); err != nil {
@@ -119,15 +137,25 @@ func (h *FileHandler) CompleteUpload(c echo.Context) error {
 		return err
 	}
 
-	return presenter.OK(c, map[string]interface{}{
-		"fileId":    output.FileID.String(),
-		"sessionId": output.SessionID.String(),
-		"completed": output.Completed,
+	return presenter.OK(c, response.CompleteUploadResponse{
+		FileID:    output.FileID.String(),
+		SessionID: output.SessionID.String(),
+		Completed: output.Completed,
 	})
 }
 
 // GetUploadStatus はアップロード状態を取得します
-// GET /api/v1/files/upload/:sessionId
+// @Summary アップロード状態取得
+// @Description 指定されたセッションIDのアップロード状態を取得します
+// @Tags Files
+// @Produce json
+// @Security SessionCookie
+// @Param sessionId path string true "セッションID"
+// @Success 200 {object} handler.SwaggerUploadStatusResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /files/upload/{sessionId} [get]
 func (h *FileHandler) GetUploadStatus(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -151,7 +179,18 @@ func (h *FileHandler) GetUploadStatus(c echo.Context) error {
 }
 
 // GetDownloadURL はダウンロードURLを取得します
-// GET /api/v1/files/:id/download
+// @Summary ダウンロードURL取得
+// @Description ファイルのダウンロード用署名付きURLを取得します
+// @Tags Files
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Param version query int false "バージョン番号"
+// @Success 200 {object} handler.SwaggerDownloadURLResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/download [get]
 func (h *FileHandler) GetDownloadURL(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -184,7 +223,17 @@ func (h *FileHandler) GetDownloadURL(c echo.Context) error {
 }
 
 // ListFileVersions はファイルバージョン一覧を取得します
-// GET /api/v1/files/:id/versions
+// @Summary ファイルバージョン一覧取得
+// @Description 指定されたファイルのバージョン一覧を取得します
+// @Tags Files
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Success 200 {object} handler.SwaggerFileVersionsResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/versions [get]
 func (h *FileHandler) ListFileVersions(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -208,7 +257,19 @@ func (h *FileHandler) ListFileVersions(c echo.Context) error {
 }
 
 // RenameFile はファイル名を変更します
-// PATCH /api/v1/files/:id/rename
+// @Summary ファイル名変更
+// @Description 指定されたファイルの名前を変更します
+// @Tags Files
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Param body body request.RenameFileRequest true "新しいファイル名"
+// @Success 200 {object} handler.SwaggerRenameFileResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/rename [patch]
 func (h *FileHandler) RenameFile(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -237,14 +298,26 @@ func (h *FileHandler) RenameFile(c echo.Context) error {
 		return err
 	}
 
-	return presenter.OK(c, map[string]interface{}{
-		"fileId": output.FileID.String(),
-		"name":   output.Name,
+	return presenter.OK(c, response.RenameFileResponse{
+		FileID: output.FileID.String(),
+		Name:   output.Name,
 	})
 }
 
 // MoveFile はファイルを移動します
-// PATCH /api/v1/files/:id/move
+// @Summary ファイル移動
+// @Description 指定されたファイルを別のフォルダに移動します
+// @Tags Files
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Param body body request.MoveFileRequest true "移動先フォルダ情報"
+// @Success 200 {object} handler.SwaggerMoveFileResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/move [patch]
 func (h *FileHandler) MoveFile(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -279,14 +352,24 @@ func (h *FileHandler) MoveFile(c echo.Context) error {
 		return err
 	}
 
-	return presenter.OK(c, map[string]interface{}{
-		"fileId":   output.FileID.String(),
-		"folderId": output.FolderID.String(),
+	return presenter.OK(c, response.MoveFileResponse{
+		FileID:   output.FileID.String(),
+		FolderID: output.FolderID.String(),
 	})
 }
 
 // TrashFile はファイルをゴミ箱に移動します
-// POST /api/v1/files/:id/trash
+// @Summary ファイルをゴミ箱に移動
+// @Description 指定されたファイルをゴミ箱に移動します
+// @Tags Files
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Success 200 {object} handler.SwaggerTrashFileResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/trash [post]
 func (h *FileHandler) TrashFile(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -306,13 +389,20 @@ func (h *FileHandler) TrashFile(c echo.Context) error {
 		return err
 	}
 
-	return presenter.OK(c, map[string]interface{}{
-		"archivedFileId": output.ArchivedFileID.String(),
+	return presenter.OK(c, response.TrashFileResponse{
+		ArchivedFileID: output.ArchivedFileID.String(),
 	})
 }
 
 // ListTrash はゴミ箱一覧を取得します
-// GET /api/v1/trash
+// @Summary ゴミ箱一覧取得
+// @Description ゴミ箱に入っているファイルの一覧を取得します
+// @Tags Trash
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} handler.SwaggerTrashListResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /trash [get]
 func (h *FileHandler) ListTrash(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -331,7 +421,19 @@ func (h *FileHandler) ListTrash(c echo.Context) error {
 }
 
 // RestoreFile はファイルをゴミ箱から復元します
-// POST /api/v1/trash/:id/restore
+// @Summary ファイル復元
+// @Description ゴミ箱からファイルを復元します
+// @Tags Trash
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "アーカイブファイルID"
+// @Param body body request.RestoreFileRequest false "復元先フォルダ情報"
+// @Success 200 {object} handler.SwaggerRestoreFileResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /trash/{id}/restore [post]
 func (h *FileHandler) RestoreFile(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -367,8 +469,8 @@ func (h *FileHandler) RestoreFile(c echo.Context) error {
 		return err
 	}
 
-	return presenter.OK(c, map[string]interface{}{
-		"fileId":   output.FileID.String(),
-		"folderId": output.FolderID.String(),
+	return presenter.OK(c, response.RestoreFileResponse{
+		FileID:   output.FileID.String(),
+		FolderID: output.FolderID.String(),
 	})
 }

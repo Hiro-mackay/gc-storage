@@ -47,13 +47,35 @@ func NewShareLinkHandler(
 }
 
 // CreateFileShareLink はファイルの共有リンクを作成します
-// POST /api/v1/files/:id/share
+// @Summary ファイル共有リンク作成
+// @Description 指定したファイルの共有リンクを作成します
+// @Tags ShareLinks
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Param body body request.CreateShareLinkRequest true "共有リンク作成情報"
+// @Success 201 {object} handler.SwaggerShareLinkResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/share [post]
 func (h *ShareLinkHandler) CreateFileShareLink(c echo.Context) error {
 	return h.createShareLink(c, "file")
 }
 
 // CreateFolderShareLink はフォルダの共有リンクを作成します
-// POST /api/v1/folders/:id/share
+// @Summary フォルダ共有リンク作成
+// @Description 指定したフォルダの共有リンクを作成します
+// @Tags ShareLinks
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Param body body request.CreateShareLinkRequest true "共有リンク作成情報"
+// @Success 201 {object} handler.SwaggerShareLinkResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/share [post]
 func (h *ShareLinkHandler) CreateFolderShareLink(c echo.Context) error {
 	return h.createShareLink(c, "folder")
 }
@@ -108,13 +130,31 @@ func (h *ShareLinkHandler) createShareLink(c echo.Context, resourceType string) 
 }
 
 // ListFileShareLinks はファイルの共有リンク一覧を取得します
-// GET /api/v1/files/:id/share
+// @Summary ファイル共有リンク一覧取得
+// @Description 指定したファイルの共有リンク一覧を取得します
+// @Tags ShareLinks
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Success 200 {object} handler.SwaggerShareLinkListResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/share [get]
 func (h *ShareLinkHandler) ListFileShareLinks(c echo.Context) error {
 	return h.listShareLinks(c, "file")
 }
 
 // ListFolderShareLinks はフォルダの共有リンク一覧を取得します
-// GET /api/v1/folders/:id/share
+// @Summary フォルダ共有リンク一覧取得
+// @Description 指定したフォルダの共有リンク一覧を取得します
+// @Tags ShareLinks
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Success 200 {object} handler.SwaggerShareLinkListResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/share [get]
 func (h *ShareLinkHandler) ListFolderShareLinks(c echo.Context) error {
 	return h.listShareLinks(c, "folder")
 }
@@ -143,7 +183,16 @@ func (h *ShareLinkHandler) listShareLinks(c echo.Context, resourceType string) e
 }
 
 // RevokeShareLink は共有リンクを無効化します
-// DELETE /api/v1/share-links/:id
+// @Summary 共有リンク無効化
+// @Description 指定した共有リンクを無効化します
+// @Tags ShareLinks
+// @Security SessionCookie
+// @Param id path string true "共有リンクID"
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /share-links/{id} [delete]
 func (h *ShareLinkHandler) RevokeShareLink(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -167,7 +216,15 @@ func (h *ShareLinkHandler) RevokeShareLink(c echo.Context) error {
 }
 
 // GetShareLinkInfo は共有リンク情報を取得します（認証不要）
-// GET /api/v1/share/:token
+// @Summary 共有リンク情報取得
+// @Description トークンを使用して共有リンクの情報を取得します（認証不要）
+// @Tags ShareLinks
+// @Produce json
+// @Param token path string true "共有リンクトークン"
+// @Success 200 {object} handler.SwaggerShareLinkInfoResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /share/{token} [get]
 func (h *ShareLinkHandler) GetShareLinkInfo(c echo.Context) error {
 	token := c.Param("token")
 	if token == "" {
@@ -189,7 +246,19 @@ func (h *ShareLinkHandler) GetShareLinkInfo(c echo.Context) error {
 }
 
 // AccessShareLink は共有リンクにアクセスします
-// POST /api/v1/share/:token/access
+// @Summary 共有リンクアクセス
+// @Description 共有リンクにアクセスしてリソース情報を取得します（認証不要）
+// @Tags ShareLinks
+// @Accept json
+// @Produce json
+// @Param token path string true "共有リンクトークン"
+// @Param action query string false "アクション (view, download)" default(download)
+// @Param body body request.AccessShareLinkRequest false "パスワード（パスワード保護されている場合）"
+// @Success 200 {object} handler.SwaggerShareLinkAccessResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /share/{token}/access [post]
 func (h *ShareLinkHandler) AccessShareLink(c echo.Context) error {
 	token := c.Param("token")
 	if token == "" {

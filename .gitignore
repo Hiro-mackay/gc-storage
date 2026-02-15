@@ -14,6 +14,7 @@
 # =============================================================================
 backend/bin/
 backend/tmp/
+backend/docs/
 backend/coverage.out
 backend/coverage.html
 backend/*.log

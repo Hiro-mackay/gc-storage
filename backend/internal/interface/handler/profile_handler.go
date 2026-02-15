@@ -34,7 +34,14 @@ func NewProfileHandler(
 }
 
 // GetProfile は現在のユーザーのプロファイルを取得します
-// GET /api/v1/me/profile
+// @Summary プロファイル取得
+// @Description 現在のユーザーのプロファイル情報を取得します
+// @Tags Profile
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} handler.SwaggerProfileResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /me/profile [get]
 func (h *ProfileHandler) GetProfile(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -52,7 +59,17 @@ func (h *ProfileHandler) GetProfile(c echo.Context) error {
 }
 
 // UpdateProfile は現在のユーザーのプロファイルを更新します
-// PUT /api/v1/me/profile
+// @Summary プロファイル更新
+// @Description 現在のユーザーのプロファイル情報を更新します
+// @Tags Profile
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param body body request.UpdateProfileRequest true "プロファイル更新情報"
+// @Success 200 {object} handler.SwaggerUpdateProfileResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /me/profile [put]
 func (h *ProfileHandler) UpdateProfile(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {

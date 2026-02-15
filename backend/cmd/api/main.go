@@ -16,6 +16,15 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/logger"
 )
 
+// @title GC Storage API
+// @version 1.0
+// @description クラウドストレージシステム GC Storage の REST API
+// @host localhost:8080
+// @BasePath /api/v1
+// @schemes http https
+// @securityDefinitions.apikey SessionCookie
+// @in cookie
+// @name session_id
 func main() {
 	// Logger setup
 	if err := logger.Setup(logger.DefaultConfig()); err != nil {

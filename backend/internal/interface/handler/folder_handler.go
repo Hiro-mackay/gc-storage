@@ -49,7 +49,17 @@ func NewFolderHandler(
 }
 
 // CreateFolder はフォルダを作成します
-// POST /api/v1/folders
+// @Summary フォルダ作成
+// @Description 新しいフォルダを作成します
+// @Tags Folders
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param body body request.CreateFolderRequest true "フォルダ情報"
+// @Success 201 {object} handler.SwaggerFolderResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /folders [post]
 func (h *FolderHandler) CreateFolder(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -86,7 +96,17 @@ func (h *FolderHandler) CreateFolder(c echo.Context) error {
 }
 
 // GetFolder はフォルダを取得します
-// GET /api/v1/folders/:id
+// @Summary フォルダ取得
+// @Description 指定したフォルダの情報を取得します
+// @Tags Folders
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Success 200 {object} handler.SwaggerFolderResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id} [get]
 func (h *FolderHandler) GetFolder(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -110,7 +130,17 @@ func (h *FolderHandler) GetFolder(c echo.Context) error {
 }
 
 // ListFolderContents はフォルダ内容一覧を取得します
-// GET /api/v1/folders/:id/contents または GET /api/v1/folders/root/contents
+// @Summary フォルダ内容一覧取得
+// @Description 指定したフォルダ内のフォルダとファイルの一覧を取得します
+// @Tags Folders
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Success 200 {object} handler.SwaggerFolderContentsResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/contents [get]
 func (h *FolderHandler) ListFolderContents(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -149,7 +179,17 @@ func (h *FolderHandler) ListFolderContents(c echo.Context) error {
 }
 
 // GetAncestors はフォルダの祖先一覧を取得します（パンくずリスト用）
-// GET /api/v1/folders/:id/ancestors
+// @Summary フォルダ祖先一覧取得
+// @Description 指定したフォルダの祖先一覧を取得します（パンくずリスト用）
+// @Tags Folders
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Success 200 {object} handler.SwaggerBreadcrumbResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/ancestors [get]
 func (h *FolderHandler) GetAncestors(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -173,7 +213,19 @@ func (h *FolderHandler) GetAncestors(c echo.Context) error {
 }
 
 // RenameFolder はフォルダ名を変更します
-// PATCH /api/v1/folders/:id/rename
+// @Summary フォルダ名変更
+// @Description 指定したフォルダの名前を変更します
+// @Tags Folders
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Param body body request.RenameFolderRequest true "新しいフォルダ名"
+// @Success 200 {object} handler.SwaggerFolderResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/rename [patch]
 func (h *FolderHandler) RenameFolder(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -206,7 +258,19 @@ func (h *FolderHandler) RenameFolder(c echo.Context) error {
 }
 
 // MoveFolder はフォルダを移動します
-// PATCH /api/v1/folders/:id/move
+// @Summary フォルダ移動
+// @Description 指定したフォルダを別のフォルダに移動します
+// @Tags Folders
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Param body body request.MoveFolderRequest true "移動先フォルダ情報"
+// @Success 200 {object} handler.SwaggerFolderResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/move [patch]
 func (h *FolderHandler) MoveFolder(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -245,7 +309,17 @@ func (h *FolderHandler) MoveFolder(c echo.Context) error {
 }
 
 // DeleteFolder はフォルダを削除します
-// DELETE /api/v1/folders/:id
+// @Summary フォルダ削除
+// @Description 指定したフォルダを削除します
+// @Tags Folders
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id} [delete]
 func (h *FolderHandler) DeleteFolder(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {

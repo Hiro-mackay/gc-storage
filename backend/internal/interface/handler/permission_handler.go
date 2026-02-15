@@ -40,13 +40,31 @@ func NewPermissionHandler(
 }
 
 // ListFileGrants はファイルの権限一覧を取得します
-// GET /api/v1/files/:id/permissions
+// @Summary ファイル権限一覧取得
+// @Description 指定したファイルに付与されている権限の一覧を取得します
+// @Tags Permissions
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Success 200 {object} handler.SwaggerPermissionGrantListResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/permissions [get]
 func (h *PermissionHandler) ListFileGrants(c echo.Context) error {
 	return h.listGrants(c, "file")
 }
 
 // ListFolderGrants はフォルダの権限一覧を取得します
-// GET /api/v1/folders/:id/permissions
+// @Summary フォルダ権限一覧取得
+// @Description 指定したフォルダに付与されている権限の一覧を取得します
+// @Tags Permissions
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Success 200 {object} handler.SwaggerPermissionGrantListResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/permissions [get]
 func (h *PermissionHandler) ListFolderGrants(c echo.Context) error {
 	return h.listGrants(c, "folder")
 }
@@ -75,13 +93,35 @@ func (h *PermissionHandler) listGrants(c echo.Context, resourceType string) erro
 }
 
 // GrantFileRole はファイルに権限を付与します
-// POST /api/v1/files/:id/permissions
+// @Summary ファイル権限付与
+// @Description 指定したファイルにユーザーまたはグループの権限を付与します
+// @Tags Permissions
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "ファイルID"
+// @Param body body request.GrantRoleRequest true "権限付与情報"
+// @Success 201 {object} handler.SwaggerPermissionGrantResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /files/{id}/permissions [post]
 func (h *PermissionHandler) GrantFileRole(c echo.Context) error {
 	return h.grantRole(c, "file")
 }
 
 // GrantFolderRole はフォルダに権限を付与します
-// POST /api/v1/folders/:id/permissions
+// @Summary フォルダ権限付与
+// @Description 指定したフォルダにユーザーまたはグループの権限を付与します
+// @Tags Permissions
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "フォルダID"
+// @Param body body request.GrantRoleRequest true "権限付与情報"
+// @Success 201 {object} handler.SwaggerPermissionGrantResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /folders/{id}/permissions [post]
 func (h *PermissionHandler) GrantFolderRole(c echo.Context) error {
 	return h.grantRole(c, "folder")
 }
@@ -126,7 +166,16 @@ func (h *PermissionHandler) grantRole(c echo.Context, resourceType string) error
 }
 
 // RevokeGrant は権限を取り消します
-// DELETE /api/v1/permissions/:id
+// @Summary 権限取り消し
+// @Description 指定した権限付与を取り消します
+// @Tags Permissions
+// @Security SessionCookie
+// @Param id path string true "権限付与ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /permissions/{id} [delete]
 func (h *PermissionHandler) RevokeGrant(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -150,7 +199,18 @@ func (h *PermissionHandler) RevokeGrant(c echo.Context) error {
 }
 
 // CheckPermission は権限を確認します
-// GET /api/v1/:resourceType/:id/permissions/check
+// @Summary 権限チェック
+// @Description 指定したリソースに対する権限を確認します
+// @Tags Permissions
+// @Produce json
+// @Security SessionCookie
+// @Param resourceType path string true "リソースタイプ (files, folders)"
+// @Param id path string true "リソースID"
+// @Param permission query string true "確認する権限"
+// @Success 200 {object} handler.SwaggerCheckPermissionResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /{resourceType}/{id}/permissions/check [get]
 func (h *PermissionHandler) CheckPermission(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {

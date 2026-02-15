@@ -56,7 +56,16 @@ func NewAuthHandler(
 }
 
 // Register はユーザー登録を処理します
-// POST /api/v1/auth/register
+// @Summary ユーザー登録
+// @Description メールアドレスとパスワードで新規ユーザーを登録します
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body request.RegisterRequest true "登録情報"
+// @Success 201 {object} handler.SwaggerRegisterResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 409 {object} handler.SwaggerErrorResponse
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c echo.Context) error {
 	var req request.RegisterRequest
 	if err := c.Bind(&req); err != nil {
@@ -82,7 +91,16 @@ func (h *AuthHandler) Register(c echo.Context) error {
 }
 
 // Login はログインを処理します
-// POST /api/v1/auth/login
+// @Summary ログイン
+// @Description メールアドレスとパスワードでログインし、セッションCookieを発行します
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body request.LoginRequest true "ログイン情報"
+// @Success 200 {object} handler.SwaggerLoginResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c echo.Context) error {
 	var req request.LoginRequest
 	if err := c.Bind(&req); err != nil {
@@ -111,7 +129,14 @@ func (h *AuthHandler) Login(c echo.Context) error {
 }
 
 // Logout はログアウトを処理します
-// POST /api/v1/auth/logout
+// @Summary ログアウト
+// @Description 現在のセッションを無効化し、セッションCookieを削除します
+// @Tags Auth
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} handler.SwaggerLogoutResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c echo.Context) error {
 	sessionID := middleware.GetSessionID(c)
 
@@ -122,11 +147,20 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	// Cookieを削除
 	h.clearSessionCookie(c)
 
-	return presenter.OK(c, map[string]string{"message": "logged out successfully"})
+	return presenter.OK(c, response.LogoutResponse{
+		Message: "logged out successfully",
+	})
 }
 
 // Me は現在のユーザー情報を取得します
-// GET /api/v1/me
+// @Summary 現在のユーザー情報取得
+// @Description 認証済みユーザーの情報を取得します
+// @Tags Auth
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} handler.SwaggerUserResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /me [get]
 func (h *AuthHandler) Me(c echo.Context) error {
 	user := middleware.GetUser(c)
 	if user == nil {
@@ -137,7 +171,14 @@ func (h *AuthHandler) Me(c echo.Context) error {
 }
 
 // VerifyEmail はメール確認を処理します
-// POST /api/v1/auth/email/verify?token=xxx
+// @Summary メールアドレス確認
+// @Description トークンを使用してメールアドレスの確認を行います
+// @Tags Auth
+// @Produce json
+// @Param token query string true "メール確認トークン"
+// @Success 200 {object} handler.SwaggerVerifyEmailResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Router /auth/email/verify [post]
 func (h *AuthHandler) VerifyEmail(c echo.Context) error {
 	token := c.QueryParam("token")
 	if token == "" {
@@ -157,7 +198,15 @@ func (h *AuthHandler) VerifyEmail(c echo.Context) error {
 }
 
 // ResendEmailVerification は確認メール再送を処理します
-// POST /api/v1/auth/email/resend
+// @Summary 確認メール再送
+// @Description メールアドレス確認用のメールを再送信します
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body request.ResendEmailVerificationRequest true "再送先メールアドレス"
+// @Success 200 {object} handler.SwaggerResendEmailVerificationResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Router /auth/email/resend [post]
 func (h *AuthHandler) ResendEmailVerification(c echo.Context) error {
 	var req request.ResendEmailVerificationRequest
 	if err := c.Bind(&req); err != nil {
@@ -180,7 +229,15 @@ func (h *AuthHandler) ResendEmailVerification(c echo.Context) error {
 }
 
 // ForgotPassword はパスワードリセットリクエストを処理します
-// POST /api/v1/auth/password/forgot
+// @Summary パスワードリセット要求
+// @Description パスワードリセット用のメールを送信します
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body request.ForgotPasswordRequest true "パスワードリセット対象のメールアドレス"
+// @Success 200 {object} handler.SwaggerForgotPasswordResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Router /auth/password/forgot [post]
 func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	var req request.ForgotPasswordRequest
 	if err := c.Bind(&req); err != nil {
@@ -203,7 +260,15 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 }
 
 // ResetPassword はパスワードリセットを処理します
-// POST /api/v1/auth/password/reset
+// @Summary パスワードリセット実行
+// @Description トークンを使用してパスワードをリセットします
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body request.ResetPasswordRequest true "リセットトークンと新しいパスワード"
+// @Success 200 {object} handler.SwaggerResetPasswordResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Router /auth/password/reset [post]
 func (h *AuthHandler) ResetPassword(c echo.Context) error {
 	var req request.ResetPasswordRequest
 	if err := c.Bind(&req); err != nil {
@@ -227,7 +292,17 @@ func (h *AuthHandler) ResetPassword(c echo.Context) error {
 }
 
 // ChangePassword はパスワード変更を処理します（認証必須）
-// POST /api/v1/auth/password/change
+// @Summary パスワード変更
+// @Description 現在のパスワードを確認した上で新しいパスワードに変更します
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param body body request.ChangePasswordRequest true "現在のパスワードと新しいパスワード"
+// @Success 200 {object} handler.SwaggerChangePasswordResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /auth/password/change [post]
 func (h *AuthHandler) ChangePassword(c echo.Context) error {
 	user := middleware.GetUser(c)
 	if user == nil {
@@ -257,7 +332,17 @@ func (h *AuthHandler) ChangePassword(c echo.Context) error {
 }
 
 // SetPassword はOAuth専用ユーザーのパスワード設定を処理します（認証必須）
-// POST /api/v1/auth/password/set
+// @Summary パスワード設定（OAuth専用ユーザー向け）
+// @Description OAuthのみで登録したユーザーがパスワードを新規設定します
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param body body request.SetPasswordRequest true "設定するパスワード"
+// @Success 200 {object} handler.SwaggerSetPasswordResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /auth/password/set [post]
 func (h *AuthHandler) SetPassword(c echo.Context) error {
 	user := middleware.GetUser(c)
 	if user == nil {
@@ -286,7 +371,17 @@ func (h *AuthHandler) SetPassword(c echo.Context) error {
 }
 
 // OAuthLogin はOAuthログインを処理します
-// POST /api/v1/auth/oauth/:provider
+// @Summary OAuthログイン
+// @Description OAuth認証コードを使用してログインまたは新規登録します
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param provider path string true "OAuthプロバイダー (google, github)"
+// @Param body body request.OAuthLoginRequest true "OAuth認証コード"
+// @Success 200 {object} handler.SwaggerOAuthLoginResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /auth/oauth/{provider} [post]
 func (h *AuthHandler) OAuthLogin(c echo.Context) error {
 	provider := c.Param("provider")
 	if provider == "" {

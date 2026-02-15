@@ -172,6 +172,12 @@ tasks:
     cmds:
       - go generate ./...
 
+  backend:swagger:
+    desc: Generate Swagger/OpenAPI spec from handler annotations
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+
   # =============================================================================
   # Frontend
   # =============================================================================
@@ -222,6 +228,22 @@ tasks:
     dir: "{{.FRONTEND_DIR}}"
     cmds:
       - pnpm format
+
+  frontend:generate-types:
+    desc: Generate TypeScript types from OpenAPI spec
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm exec swagger2openapi ../backend/docs/swagger.json -o src/lib/api/openapi.json
+      - pnpm exec openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts
+
+  # =============================================================================
+  # API Type Generation
+  # =============================================================================
+  api:generate:
+    desc: Generate OpenAPI spec and TypeScript types (full pipeline)
+    cmds:
+      - task: backend:swagger
+      - task: frontend:generate-types
 
   # =============================================================================
   # Testing (All-in-one)

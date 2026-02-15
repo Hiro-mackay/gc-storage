@@ -76,7 +76,17 @@ func NewGroupHandler(
 }
 
 // CreateGroup はグループを作成します
-// POST /api/v1/groups
+// @Summary グループ作成
+// @Description 新しいグループを作成します
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param body body request.CreateGroupRequest true "グループ情報"
+// @Success 201 {object} handler.SwaggerGroupWithMembershipResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /groups [post]
 func (h *GroupHandler) CreateGroup(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -104,7 +114,14 @@ func (h *GroupHandler) CreateGroup(c echo.Context) error {
 }
 
 // ListMyGroups はユーザーが所属するグループ一覧を取得します
-// GET /api/v1/groups
+// @Summary 所属グループ一覧取得
+// @Description 認証ユーザーが所属するグループの一覧を取得します
+// @Tags Groups
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} handler.SwaggerGroupListResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /groups [get]
 func (h *GroupHandler) ListMyGroups(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -122,7 +139,17 @@ func (h *GroupHandler) ListMyGroups(c echo.Context) error {
 }
 
 // GetGroup はグループを取得します
-// GET /api/v1/groups/:id
+// @Summary グループ取得
+// @Description 指定されたグループの詳細情報を取得します
+// @Tags Groups
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Success 200 {object} handler.SwaggerGroupWithMembershipResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id} [get]
 func (h *GroupHandler) GetGroup(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -146,7 +173,18 @@ func (h *GroupHandler) GetGroup(c echo.Context) error {
 }
 
 // DeleteGroup はグループを削除します
-// DELETE /api/v1/groups/:id
+// @Summary グループ削除
+// @Description 指定されたグループを削除します
+// @Tags Groups
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id} [delete]
 func (h *GroupHandler) DeleteGroup(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -170,7 +208,20 @@ func (h *GroupHandler) DeleteGroup(c echo.Context) error {
 }
 
 // InviteMember はメンバーを招待します
-// POST /api/v1/groups/:id/invitations
+// @Summary メンバー招待
+// @Description グループにメンバーを招待します
+// @Tags Invitations
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Param body body request.InviteMemberRequest true "招待情報"
+// @Success 201 {object} handler.SwaggerInvitationResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 409 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/invitations [post]
 func (h *GroupHandler) InviteMember(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -204,7 +255,17 @@ func (h *GroupHandler) InviteMember(c echo.Context) error {
 }
 
 // AcceptInvitation は招待を承諾します
-// POST /api/v1/invitations/:token/accept
+// @Summary 招待承諾
+// @Description 招待トークンを使用して招待を承諾します
+// @Tags Invitations
+// @Produce json
+// @Security SessionCookie
+// @Param token path string true "招待トークン"
+// @Success 200 {object} handler.SwaggerGroupWithMembershipResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /invitations/{token}/accept [post]
 func (h *GroupHandler) AcceptInvitation(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -228,7 +289,17 @@ func (h *GroupHandler) AcceptInvitation(c echo.Context) error {
 }
 
 // ListMembers はグループメンバー一覧を取得します
-// GET /api/v1/groups/:id/members
+// @Summary メンバー一覧取得
+// @Description グループのメンバー一覧を取得します
+// @Tags Groups
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Success 200 {object} handler.SwaggerMemberListResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/members [get]
 func (h *GroupHandler) ListMembers(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -252,7 +323,19 @@ func (h *GroupHandler) ListMembers(c echo.Context) error {
 }
 
 // RemoveMember はメンバーを削除します
-// DELETE /api/v1/groups/:id/members/:userId
+// @Summary メンバー削除
+// @Description グループからメンバーを削除します
+// @Tags Groups
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Param userId path string true "ユーザーID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/members/{userId} [delete]
 func (h *GroupHandler) RemoveMember(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -282,7 +365,17 @@ func (h *GroupHandler) RemoveMember(c echo.Context) error {
 }
 
 // LeaveGroup はグループから退出します
-// POST /api/v1/groups/:id/leave
+// @Summary グループ退出
+// @Description 認証ユーザーがグループから退出します
+// @Tags Groups
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/leave [post]
 func (h *GroupHandler) LeaveGroup(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -306,7 +399,21 @@ func (h *GroupHandler) LeaveGroup(c echo.Context) error {
 }
 
 // ChangeRole はメンバーのロールを変更します
-// PATCH /api/v1/groups/:id/members/:userId/role
+// @Summary ロール変更
+// @Description グループメンバーのロールを変更します
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Param userId path string true "ユーザーID" format(uuid)
+// @Param body body request.ChangeRoleRequest true "ロール情報"
+// @Success 200 {object} handler.SwaggerMembershipResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/members/{userId}/role [patch]
 func (h *GroupHandler) ChangeRole(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -345,7 +452,20 @@ func (h *GroupHandler) ChangeRole(c echo.Context) error {
 }
 
 // TransferOwnership は所有権を譲渡します
-// POST /api/v1/groups/:id/transfer
+// @Summary 所有権譲渡
+// @Description グループの所有権を他のメンバーに譲渡します
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Param body body request.TransferOwnershipRequest true "譲渡先情報"
+// @Success 200 {object} handler.SwaggerGroupResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/transfer [post]
 func (h *GroupHandler) TransferOwnership(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -383,7 +503,20 @@ func (h *GroupHandler) TransferOwnership(c echo.Context) error {
 }
 
 // UpdateGroup はグループを更新します
-// PATCH /api/v1/groups/:id
+// @Summary グループ更新
+// @Description グループの名前や説明を更新します
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Param body body request.UpdateGroupRequest true "更新情報"
+// @Success 200 {object} handler.SwaggerGroupResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id} [patch]
 func (h *GroupHandler) UpdateGroup(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -417,7 +550,17 @@ func (h *GroupHandler) UpdateGroup(c echo.Context) error {
 }
 
 // DeclineInvitation は招待を辞退します
-// POST /api/v1/invitations/:token/decline
+// @Summary 招待辞退
+// @Description 招待トークンを使用して招待を辞退します
+// @Tags Invitations
+// @Produce json
+// @Security SessionCookie
+// @Param token path string true "招待トークン"
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /invitations/{token}/decline [post]
 func (h *GroupHandler) DeclineInvitation(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -441,7 +584,19 @@ func (h *GroupHandler) DeclineInvitation(c echo.Context) error {
 }
 
 // CancelInvitation は招待をキャンセルします
-// DELETE /api/v1/groups/:id/invitations/:invitationId
+// @Summary 招待キャンセル
+// @Description グループへの招待をキャンセルします
+// @Tags Invitations
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Param invitationId path string true "招待ID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/invitations/{invitationId} [delete]
 func (h *GroupHandler) CancelInvitation(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -471,7 +626,17 @@ func (h *GroupHandler) CancelInvitation(c echo.Context) error {
 }
 
 // ListInvitations はグループの招待一覧を取得します
-// GET /api/v1/groups/:id/invitations
+// @Summary 招待一覧取得
+// @Description グループの招待一覧を取得します
+// @Tags Invitations
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "グループID" format(uuid)
+// @Success 200 {object} handler.SwaggerInvitationListResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Router /groups/{id}/invitations [get]
 func (h *GroupHandler) ListInvitations(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
@@ -495,7 +660,14 @@ func (h *GroupHandler) ListInvitations(c echo.Context) error {
 }
 
 // ListPendingInvitations はユーザー宛の保留中招待一覧を取得します
-// GET /api/v1/invitations/pending
+// @Summary 保留中招待一覧取得
+// @Description 認証ユーザー宛の保留中招待一覧を取得します
+// @Tags Invitations
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} handler.SwaggerPendingInvitationListResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /invitations/pending [get]
 func (h *GroupHandler) ListPendingInvitations(c echo.Context) error {
 	claims := middleware.GetAccessClaims(c)
 	if claims == nil {
