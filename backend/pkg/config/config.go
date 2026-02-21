@@ -16,6 +16,7 @@ type Config struct {
 	OAuth    OAuthConfig
 	Security SecurityConfig
 	App      AppConfig
+	Storage  StorageConfig
 }
 
 // ServerConfig はサーバー設定を定義します
@@ -64,6 +65,15 @@ type AppConfig struct {
 	URL string
 }
 
+// StorageConfig はオブジェクトストレージ設定を定義します
+type StorageConfig struct {
+	Endpoint        string
+	AccessKeyID     string
+	SecretAccessKey string
+	BucketName      string
+	UseSSL          bool
+}
+
 // Load は環境変数から設定を読み込みます
 func Load() (*Config, error) {
 	port := 8080
@@ -87,7 +97,7 @@ func Load() (*Config, error) {
 			URL: getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		},
 		JWT: JWTConfig{
-			SecretKey:          getEnv("JWT_SECRET_KEY", "your-secret-key-change-in-production"),
+			SecretKey:          getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 			Issuer:             "gc-storage",
 			Audience:           []string{"gc-storage-api"},
 			AccessTokenExpiry:  15 * time.Minute,
@@ -102,11 +112,18 @@ func Load() (*Config, error) {
 			GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", appURL+"/auth/callback/github"),
 		},
 		Security: SecurityConfig{
-			CORSOrigins: parseCORSOrigins(getEnv("CORS_ORIGINS", appURL)),
+			CORSOrigins: parseCORSOrigins(getEnv("CORS_ALLOWED_ORIGINS", appURL)),
 			EnableHSTS:  os.Getenv("ENABLE_HSTS") == "true",
 		},
 		App: AppConfig{
 			URL: appURL,
+		},
+		Storage: StorageConfig{
+			Endpoint:        getEnv("MINIO_ENDPOINT", "localhost:9000"),
+			AccessKeyID:     getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+			SecretAccessKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
+			BucketName:      getEnv("MINIO_BUCKET", "gc-storage"),
+			UseSSL:          os.Getenv("MINIO_USE_SSL") == "true",
 		},
 	}, nil
 }

@@ -7,7 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"time"
+
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/di"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/storage"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/worker"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/middleware"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/router"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/interface/server"
@@ -49,9 +53,35 @@ func main() {
 	}
 	defer container.Close()
 
+	// Initialize MinIO Storage
+	slog.Info("connecting to MinIO...")
+	minioClient, err := storage.NewMinIOClient(storage.Config{
+		Endpoint:        cfg.Storage.Endpoint,
+		AccessKeyID:     cfg.Storage.AccessKeyID,
+		SecretAccessKey: cfg.Storage.SecretAccessKey,
+		BucketName:      cfg.Storage.BucketName,
+		UseSSL:          cfg.Storage.UseSSL,
+		Region:          "us-east-1",
+	})
+	if err != nil {
+		slog.Error("failed to initialize MinIO client", "error", err)
+		os.Exit(1)
+	}
+	if err := minioClient.EnsureBucket(ctx); err != nil {
+		slog.Error("failed to ensure MinIO bucket", "error", err)
+		os.Exit(1)
+	}
+	storageService := storage.NewStorageServiceAdapter(storage.NewStorageService(minioClient))
+	slog.Info("connected to MinIO", "endpoint", cfg.Storage.Endpoint, "bucket", cfg.Storage.BucketName)
+
 	// Initialize UseCases, Handlers, and Middlewares
 	container.InitAuthUseCases()
 	container.InitProfileUseCases()
+	container.InitCollaborationUseCases()
+	container.InitAuthzUseCases()
+	container.InitStorageUseCases(storageService)
+	container.InitSharingUseCases()
+	container.InitAuditService()
 	handlers := di.NewHandlers(container)
 	middlewares := di.NewMiddlewares(container)
 
@@ -83,9 +113,19 @@ func main() {
 		MaxAge:           86400,
 	}))
 	e.Use(middleware.CSRF())
+	if middlewares.Audit != nil {
+		e.Use(middlewares.Audit.Inject())
+	}
 
 	// Setup Router
 	router.NewRouter(e, handlers, middlewares).Setup()
+
+	// Start background workers
+	workerMgr := worker.NewManager()
+	workerMgr.Register(worker.NewHealthCheckJob(func(ctx context.Context) error {
+		return container.PgClient.Pool().Ping(ctx)
+	}))
+	workerMgr.Start()
 
 	// Start server
 	slog.Info("starting server", "port", cfg.Server.Port)
@@ -101,6 +141,8 @@ func main() {
 	<-quit
 
 	slog.Info("shutting down server...")
+	workerMgr.Shutdown(10 * time.Second)
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), srv.Config().ShutdownTimeout)
 	defer cancel()
 
