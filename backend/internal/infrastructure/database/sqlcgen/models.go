@@ -129,6 +129,19 @@ type ArchivedFileVersion struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
+type AuditLog struct {
+	ID           uuid.UUID   `json:"id"`
+	UserID       pgtype.UUID `json:"user_id"`
+	Action       string      `json:"action"`
+	ResourceType string      `json:"resource_type"`
+	ResourceID   pgtype.UUID `json:"resource_id"`
+	Details      []byte      `json:"details"`
+	IpAddress    *string     `json:"ip_address"`
+	UserAgent    *string     `json:"user_agent"`
+	RequestID    *string     `json:"request_id"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
 type EmailVerificationToken struct {
 	ID        uuid.UUID          `json:"id"`
 	UserID    uuid.UUID          `json:"user_id"`

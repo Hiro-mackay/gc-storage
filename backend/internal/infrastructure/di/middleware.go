@@ -9,6 +9,7 @@ type Middlewares struct {
 	SessionAuth *middleware.SessionAuthMiddleware
 	RateLimit   *middleware.RateLimitMiddleware
 	Permission  *middleware.PermissionMiddleware
+	Audit       *middleware.AuditMiddleware
 }
 
 // NewMiddlewares はContainerから全てのミドルウェアを初期化します
@@ -21,6 +22,11 @@ func NewMiddlewares(c *Container) *Middlewares {
 	// Permission Middleware (if PermissionResolver is initialized)
 	if c.PermissionResolver != nil {
 		m.Permission = middleware.NewPermissionMiddleware(c.PermissionResolver)
+	}
+
+	// Audit Middleware (if AuditService is initialized)
+	if c.AuditService != nil {
+		m.Audit = middleware.NewAuditMiddleware(c.AuditService)
 	}
 
 	return m

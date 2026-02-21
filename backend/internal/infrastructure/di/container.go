@@ -12,6 +12,7 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/audit"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/cache"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/email"
@@ -75,6 +76,10 @@ type Container struct {
 
 	// Sharing Repositories
 	SharingRepos *SharingRepositories
+
+	// Audit
+	AuditLogRepo repository.AuditLogRepository
+	AuditService *audit.Service
 
 	// config
 	config *config.Config
@@ -165,6 +170,7 @@ func NewContainerWithOptions(ctx context.Context, cfg *config.Config, opts Optio
 	c.PasswordResetTokenRepo = infraRepo.NewPasswordResetTokenRepository(c.TxManager)
 	c.OAuthAccountRepo = infraRepo.NewOAuthAccountRepository(c.TxManager)
 	c.UserProfileRepo = infraRepo.NewUserProfileRepository(c.TxManager)
+	c.AuditLogRepo = infraRepo.NewAuditLogRepository(c.TxManager)
 
 	return c, nil
 }
@@ -210,6 +216,11 @@ func (c *Container) InitAuthzUseCases() {
 	c.Authz = NewAuthzUseCases(c.AuthzRepos, c.PermissionResolver)
 }
 
+// InitAuditService は監査ログサービスを初期化します
+func (c *Container) InitAuditService() {
+	c.AuditService = audit.NewService(c.AuditLogRepo, 1000)
+}
+
 // InitSharingUseCases はSharing UseCasesを初期化します
 func (c *Container) InitSharingUseCases() {
 	c.SharingRepos = NewSharingRepositories(c.TxManager)
@@ -219,6 +230,10 @@ func (c *Container) InitSharingUseCases() {
 // Close はリソースをクリーンアップします
 func (c *Container) Close() error {
 	var errs []error
+
+	if c.AuditService != nil {
+		c.AuditService.Shutdown()
+	}
 
 	if c.PgClient != nil {
 		c.PgClient.Close()
