@@ -11,6 +11,10 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { LoginPage } from '@/features/auth/pages/login-page'
 import { RegisterPage } from '@/features/auth/pages/register-page'
 import { FileBrowserPage } from '@/features/files/pages/file-browser-page'
+import { TrashPage } from '@/features/trash/pages/trash-page'
+import { SettingsPage } from '@/features/settings/pages/settings-page'
+import { GroupsPage } from '@/features/groups/pages/groups-page'
+import { GroupDetailPage } from '@/features/groups/pages/group-detail-page'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const queryClient = new QueryClient({
@@ -83,23 +87,25 @@ const folderRoute = createRoute({
 const trashRoute = createRoute({
   getParentRoute: () => authenticatedLayoutRoute,
   path: '/trash',
-  component: () => (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Trash</h1>
-      <p className="text-muted-foreground mt-2">Coming soon</p>
-    </div>
-  ),
+  component: TrashPage,
 })
 
 const settingsRoute = createRoute({
   getParentRoute: () => authenticatedLayoutRoute,
   path: '/settings',
-  component: () => (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
-      <p className="text-muted-foreground mt-2">Coming soon</p>
-    </div>
-  ),
+  component: SettingsPage,
+})
+
+const groupsRoute = createRoute({
+  getParentRoute: () => authenticatedLayoutRoute,
+  path: '/groups',
+  component: GroupsPage,
+})
+
+const groupDetailRoute = createRoute({
+  getParentRoute: () => authenticatedLayoutRoute,
+  path: '/groups/$groupId',
+  component: GroupDetailPage,
 })
 
 // Index route redirects to /files
@@ -119,6 +125,8 @@ const routeTree = rootRoute.addChildren([
     folderRoute,
     trashRoute,
     settingsRoute,
+    groupsRoute,
+    groupDetailRoute,
   ]),
 ])
 

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Outlet, Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { useUIStore } from '@/stores/ui-store'
@@ -10,21 +11,40 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Files, Trash2, Settings, Menu, LogOut } from 'lucide-react'
+import { Files, Trash2, Settings, Menu, LogOut, Users } from 'lucide-react'
 import { api } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/files' as const, label: 'My Files', icon: Files },
+  { to: '/groups' as const, label: 'Groups', icon: Users },
   { to: '/trash' as const, label: 'Trash', icon: Trash2 },
   { to: '/settings' as const, label: 'Settings', icon: Settings },
 ]
 
 export function MainLayout() {
   const { user, clearAuth } = useAuthStore()
-  const { sidebarOpen, toggleSidebar } = useUIStore()
+  const { sidebarOpen, toggleSidebar, theme } = useUIStore()
   const matchRoute = useMatchRoute()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'dark') {
+      root.classList.add('dark')
+    } else if (theme === 'light') {
+      root.classList.remove('dark')
+    } else {
+      // system
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const apply = () => {
+        root.classList.toggle('dark', mq.matches)
+      }
+      apply()
+      mq.addEventListener('change', apply)
+      return () => mq.removeEventListener('change', apply)
+    }
+  }, [theme])
 
   const handleLogout = async () => {
     await api.POST('/auth/logout')
