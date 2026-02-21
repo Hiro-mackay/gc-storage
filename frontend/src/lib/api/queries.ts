@@ -32,3 +32,13 @@ export const groupKeys = {
   invitations: (groupId: string) => [...groupKeys.all, 'invitations', groupId] as const,
   pending: () => [...groupKeys.all, 'pending'] as const,
 }
+
+export const shareKeys = {
+  all: ['shares'] as const,
+  list: (resourceType: string, resourceId: string) =>
+    [...shareKeys.all, resourceType, resourceId] as const,
+}
+
+export const profileKeys = {
+  all: ['profile'] as const,
+}
