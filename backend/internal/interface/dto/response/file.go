@@ -129,6 +129,17 @@ type RestoreFileResponse struct {
 	FolderID string `json:"folderId"`
 }
 
+// EmptyTrashResponse はゴミ箱空にするレスポンスです
+type EmptyTrashResponse struct {
+	DeletedCount int `json:"deletedCount"`
+}
+
+// AbortUploadResponse はアップロード中断レスポンスです
+type AbortUploadResponse struct {
+	SessionID string `json:"sessionId"`
+	Aborted   bool   `json:"aborted"`
+}
+
 // ToFileResponse はエンティティからレスポンスに変換します
 func ToFileResponse(file *entity.File) FileResponse {
 	return FileResponse{

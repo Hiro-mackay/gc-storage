@@ -2,6 +2,7 @@ package presenter
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 )
@@ -116,4 +117,28 @@ func NormalizePagination(page, perPage int) (int, int) {
 // Offset はオフセット値を計算します
 func Offset(page, perPage int) int {
 	return (page - 1) * perPage
+}
+
+// PaginationParams はリクエストから抽出したページネーションパラメータです
+type PaginationParams struct {
+	Page    int
+	PerPage int
+	Limit   int
+	Offset  int
+}
+
+// ParsePagination はクエリパラメータからページネーション情報を抽出・正規化します
+func ParsePagination(c echo.Context) PaginationParams {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+
+	page, perPage = NormalizePagination(page, perPage)
+	offset := Offset(page, perPage)
+
+	return PaginationParams{
+		Page:    page,
+		PerPage: perPage,
+		Limit:   perPage,
+		Offset:  offset,
+	}
 }

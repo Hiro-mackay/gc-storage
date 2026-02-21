@@ -11,7 +11,7 @@ type InitiateUploadRequest struct {
 // CompleteUploadRequest はアップロード完了リクエストです（Webhook用）
 type CompleteUploadRequest struct {
 	StorageKey     string `json:"storageKey" validate:"required"`
-	MinioVersionID string `json:"minioVersionId" validate:"required"`
+	MinioVersionID string `json:"minioVersionId"`
 	Size           int64  `json:"size" validate:"required"`
 	ETag           string `json:"etag" validate:"required"`
 }

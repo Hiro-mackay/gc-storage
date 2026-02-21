@@ -18,12 +18,15 @@ import (
 // FileHandler はファイル関連のHTTPハンドラーです
 type FileHandler struct {
 	// Commands
-	initiateUploadCommand *storagecmd.InitiateUploadCommand
-	completeUploadCommand *storagecmd.CompleteUploadCommand
-	renameFileCommand     *storagecmd.RenameFileCommand
-	moveFileCommand       *storagecmd.MoveFileCommand
-	trashFileCommand      *storagecmd.TrashFileCommand
-	restoreFileCommand    *storagecmd.RestoreFileCommand
+	initiateUploadCommand        *storagecmd.InitiateUploadCommand
+	completeUploadCommand        *storagecmd.CompleteUploadCommand
+	abortUploadCommand           *storagecmd.AbortUploadCommand
+	renameFileCommand            *storagecmd.RenameFileCommand
+	moveFileCommand              *storagecmd.MoveFileCommand
+	trashFileCommand             *storagecmd.TrashFileCommand
+	restoreFileCommand           *storagecmd.RestoreFileCommand
+	permanentlyDeleteFileCommand *storagecmd.PermanentlyDeleteFileCommand
+	emptyTrashCommand            *storagecmd.EmptyTrashCommand
 
 	// Queries
 	getDownloadURLQuery   *storageqry.GetDownloadURLQuery
@@ -36,26 +39,32 @@ type FileHandler struct {
 func NewFileHandler(
 	initiateUploadCommand *storagecmd.InitiateUploadCommand,
 	completeUploadCommand *storagecmd.CompleteUploadCommand,
+	abortUploadCommand *storagecmd.AbortUploadCommand,
 	renameFileCommand *storagecmd.RenameFileCommand,
 	moveFileCommand *storagecmd.MoveFileCommand,
 	trashFileCommand *storagecmd.TrashFileCommand,
 	restoreFileCommand *storagecmd.RestoreFileCommand,
+	permanentlyDeleteFileCommand *storagecmd.PermanentlyDeleteFileCommand,
+	emptyTrashCommand *storagecmd.EmptyTrashCommand,
 	getDownloadURLQuery *storageqry.GetDownloadURLQuery,
 	getUploadStatusQuery *storageqry.GetUploadStatusQuery,
 	listFileVersionsQuery *storageqry.ListFileVersionsQuery,
 	listTrashQuery *storageqry.ListTrashQuery,
 ) *FileHandler {
 	return &FileHandler{
-		initiateUploadCommand: initiateUploadCommand,
-		completeUploadCommand: completeUploadCommand,
-		renameFileCommand:     renameFileCommand,
-		moveFileCommand:       moveFileCommand,
-		trashFileCommand:      trashFileCommand,
-		restoreFileCommand:    restoreFileCommand,
-		getDownloadURLQuery:   getDownloadURLQuery,
-		getUploadStatusQuery:  getUploadStatusQuery,
-		listFileVersionsQuery: listFileVersionsQuery,
-		listTrashQuery:        listTrashQuery,
+		initiateUploadCommand:        initiateUploadCommand,
+		completeUploadCommand:        completeUploadCommand,
+		abortUploadCommand:           abortUploadCommand,
+		renameFileCommand:            renameFileCommand,
+		moveFileCommand:              moveFileCommand,
+		trashFileCommand:             trashFileCommand,
+		restoreFileCommand:           restoreFileCommand,
+		permanentlyDeleteFileCommand: permanentlyDeleteFileCommand,
+		emptyTrashCommand:            emptyTrashCommand,
+		getDownloadURLQuery:          getDownloadURLQuery,
+		getUploadStatusQuery:         getUploadStatusQuery,
+		listFileVersionsQuery:        listFileVersionsQuery,
+		listTrashQuery:               listTrashQuery,
 	}
 }
 
@@ -472,5 +481,107 @@ func (h *FileHandler) RestoreFile(c echo.Context) error {
 	return presenter.OK(c, response.RestoreFileResponse{
 		FileID:   output.FileID.String(),
 		FolderID: output.FolderID.String(),
+	})
+}
+
+// PermanentlyDeleteFile はファイルを完全に削除します
+// @Summary ファイル完全削除
+// @Description ゴミ箱のファイルを完全に削除します
+// @Tags Trash
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "アーカイブファイルID"
+// @Success 200 {object} handler.SwaggerDeletedResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /trash/{id} [delete]
+func (h *FileHandler) PermanentlyDeleteFile(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
+	}
+
+	archivedFileID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return apperror.NewValidationError("invalid archived file ID", nil)
+	}
+
+	err = h.permanentlyDeleteFileCommand.Execute(c.Request().Context(), storagecmd.PermanentlyDeleteFileInput{
+		ArchivedFileID: archivedFileID,
+		UserID:         claims.UserID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.Deleted(c, "file permanently deleted")
+}
+
+// EmptyTrash はゴミ箱を空にします
+// @Summary ゴミ箱を空にする
+// @Description ゴミ箱の全ファイルを完全に削除します
+// @Tags Trash
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} handler.SwaggerEmptyTrashResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Router /trash [delete]
+func (h *FileHandler) EmptyTrash(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
+	}
+
+	output, err := h.emptyTrashCommand.Execute(c.Request().Context(), storagecmd.EmptyTrashInput{
+		OwnerID: claims.UserID,
+		UserID:  claims.UserID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.EmptyTrashResponse{
+		DeletedCount: output.DeletedCount,
+	})
+}
+
+// AbortUpload はアップロードを中断します
+// @Summary アップロード中断
+// @Description 進行中のアップロードセッションを中断します
+// @Tags Files
+// @Produce json
+// @Security SessionCookie
+// @Param sessionId path string true "セッションID"
+// @Success 200 {object} handler.SwaggerAbortUploadResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /files/upload/{sessionId} [delete]
+func (h *FileHandler) AbortUpload(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
+	}
+
+	sessionID, err := uuid.Parse(c.Param("sessionId"))
+	if err != nil {
+		return apperror.NewValidationError("invalid session ID", nil)
+	}
+
+	output, err := h.abortUploadCommand.Execute(c.Request().Context(), storagecmd.AbortUploadInput{
+		SessionID: sessionID,
+		UserID:    claims.UserID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.AbortUploadResponse{
+		SessionID: output.SessionID.String(),
+		Aborted:   output.Aborted,
 	})
 }

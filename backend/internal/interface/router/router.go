@@ -125,6 +125,7 @@ func (r *Router) setupStorageRoutes(api *echo.Group) {
 		filesGroup := api.Group("/files", r.middlewares.SessionAuth.Authenticate())
 		filesGroup.POST("/upload", r.handlers.File.InitiateUpload)
 		filesGroup.GET("/upload/:sessionId", r.handlers.File.GetUploadStatus)
+		filesGroup.DELETE("/upload/:sessionId", r.handlers.File.AbortUpload)
 		filesGroup.GET("/:id/download", r.handlers.File.GetDownloadURL)
 		filesGroup.GET("/:id/versions", r.handlers.File.ListFileVersions)
 		filesGroup.PATCH("/:id/rename", r.handlers.File.RenameFile)
@@ -137,6 +138,8 @@ func (r *Router) setupStorageRoutes(api *echo.Group) {
 		// Trash routes (authenticated)
 		trashGroup := api.Group("/trash", r.middlewares.SessionAuth.Authenticate())
 		trashGroup.GET("", r.handlers.File.ListTrash)
+		trashGroup.DELETE("", r.handlers.File.EmptyTrash)
+		trashGroup.DELETE("/:id", r.handlers.File.PermanentlyDeleteFile)
 		trashGroup.POST("/:id/restore", r.handlers.File.RestoreFile)
 	}
 }
