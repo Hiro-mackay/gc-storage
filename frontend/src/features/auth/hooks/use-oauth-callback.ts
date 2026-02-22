@@ -23,8 +23,8 @@ export function useOAuthCallback(
   const mutation = useOAuthLoginMutation()
 
   // Validate CSRF state once (ref prevents double-execution in StrictMode)
-  const stateCheckRef = useRef<{ valid: boolean }>()
-  if (!stateCheckRef.current) {
+  const stateCheckRef = useRef<{ valid: boolean } | null>(null)
+  if (stateCheckRef.current === null) {
     stateCheckRef.current = {
       valid: validateOAuthState(provider, search.state),
     }
@@ -33,7 +33,7 @@ export function useOAuthCallback(
   // Derive validation errors synchronously during render (not in an effect)
   const validationError = search.error
     ? (search.error_description ?? 'Authorization was denied.')
-    : !stateCheckRef.current.valid
+    : !stateCheckRef.current?.valid
       ? 'Invalid OAuth state. Please try again.'
       : !search.code
         ? 'No authorization code received.'
