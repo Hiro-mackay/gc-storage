@@ -1,7 +1,4 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
-import { folderKeys } from '@/lib/api/queries';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import { useRenameMutation } from '../api/mutations';
 
 interface RenameDialogProps {
   open: boolean;
@@ -22,45 +19,21 @@ interface RenameDialogProps {
 
 export function RenameDialog({ open, onOpenChange, item }: RenameDialogProps) {
   const [name, setName] = useState('');
-  const queryClient = useQueryClient();
   const [prevItem, setPrevItem] = useState(item);
+  const renameMutation = useRenameMutation();
 
   if (item !== prevItem) {
     setPrevItem(item);
     if (item) setName(item.name);
   }
 
-  const mutation = useMutation({
-    mutationFn: async (newName: string) => {
-      if (!item) return;
-      if (item.type === 'folder') {
-        const { error } = await api.PATCH('/folders/{id}/rename', {
-          params: { path: { id: item.id } },
-          body: { name: newName },
-        });
-        if (error) throw error;
-      } else {
-        const { error } = await api.PATCH('/files/{id}/rename', {
-          params: { path: { id: item.id } },
-          body: { name: newName },
-        });
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.lists() });
-      toast.success(`${item?.type === 'folder' ? 'Folder' : 'File'} renamed`);
-      onOpenChange(false);
-    },
-    onError: () => {
-      toast.error('Failed to rename');
-    },
-  });
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim() && name.trim() !== item?.name) {
-      mutation.mutate(name.trim());
+      renameMutation.mutate(
+        { id: item!.id, name: name.trim(), type: item!.type },
+        { onSuccess: () => onOpenChange(false) },
+      );
     }
   };
 
@@ -93,10 +66,12 @@ export function RenameDialog({ open, onOpenChange, item }: RenameDialogProps) {
             <Button
               type="submit"
               disabled={
-                !name.trim() || name.trim() === item?.name || mutation.isPending
+                !name.trim() ||
+                name.trim() === item?.name ||
+                renameMutation.isPending
               }
             >
-              {mutation.isPending ? 'Renaming...' : 'Rename'}
+              {renameMutation.isPending ? 'Renaming...' : 'Rename'}
             </Button>
           </DialogFooter>
         </form>

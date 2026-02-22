@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { folderKeys } from '@/lib/api/queries';
+import { fileKeys, folderKeys, uploadKeys } from '@/lib/api/queries';
 
 export function useFolderContents(folderId: string | null) {
   return useQuery({
@@ -28,5 +28,33 @@ export function useFolderAncestors(folderId: string | null) {
       return data?.data?.items ?? [];
     },
     enabled: !!folderId,
+  });
+}
+
+export function useFileVersions(fileId: string) {
+  return useQuery({
+    queryKey: fileKeys.versions(fileId),
+    queryFn: async () => {
+      const { data, error } = await api.GET('/files/{id}/versions', {
+        params: { path: { id: fileId } },
+      });
+      if (error) throw error;
+      return data?.data?.versions ?? [];
+    },
+  });
+}
+
+export function useUploadStatus(sessionId: string) {
+  return useQuery({
+    queryKey: uploadKeys.status(sessionId),
+    queryFn: async () => {
+      const { data, error } = await api.GET('/files/upload/{sessionId}', {
+        params: { path: { sessionId } },
+      });
+      if (error) throw error;
+      return data?.data;
+    },
+    refetchInterval: 1000,
+    enabled: !!sessionId,
   });
 }

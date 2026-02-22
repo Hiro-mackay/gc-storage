@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useLogoutMutation } from '@/features/auth/api/mutations';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Files, Trash2, Settings, Menu, LogOut, Users } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { UploadProgressPanel } from '@/features/files/components/upload-progress-panel';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -28,10 +29,11 @@ const navItems = [
 ];
 
 export function MainLayout() {
-  const { user, clearAuth } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const { sidebarOpen, toggleSidebar, theme } = useUIStore();
   const matchRoute = useMatchRoute();
   const navigate = useNavigate();
+  const logoutMutation = useLogoutMutation();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -51,10 +53,10 @@ export function MainLayout() {
     }
   }, [theme]);
 
-  const handleLogout = async () => {
-    await api.POST('/auth/logout');
-    clearAuth();
-    navigate({ to: '/login' });
+  const handleLogout = () => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => navigate({ to: '/login' }),
+    });
   };
 
   const initials = user?.name
@@ -133,6 +135,7 @@ export function MainLayout() {
         {/* Page content */}
         <main className="flex-1 overflow-auto">
           <Outlet />
+          <UploadProgressPanel />
         </main>
       </div>
     </div>

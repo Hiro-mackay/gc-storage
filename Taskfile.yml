@@ -173,6 +173,7 @@ tasks:
     desc: Run all linters
     cmds:
       - task: _lint:backend
+      - task: _typecheck:frontend
       - task: _lint:frontend
 
   fmt:
@@ -369,6 +370,12 @@ tasks:
     dir: "{{.BACKEND_DIR}}"
     cmds:
       - golangci-lint run ./...
+
+  _typecheck:frontend:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm typecheck
 
   _lint:frontend:
     internal: true

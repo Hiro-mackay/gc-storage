@@ -8,14 +8,16 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Pencil, Trash2, Download, Share2 } from 'lucide-react';
+import { Pencil, Trash2, Download, Share2, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
+import type { FileItemRef } from '../types';
 
 interface FileContextMenuProps {
   children: React.ReactNode;
-  item: { id: string; name: string; type: 'file' | 'folder' };
+  item: FileItemRef;
   onRename: () => void;
   onShare: () => void;
+  onMove?: () => void;
 }
 
 export function FileContextMenu({
@@ -23,6 +25,7 @@ export function FileContextMenu({
   item,
   onRename,
   onShare,
+  onMove,
 }: FileContextMenuProps) {
   const queryClient = useQueryClient();
 
@@ -58,7 +61,7 @@ export function FileContextMenu({
       toast.error('Failed to get download URL');
       return;
     }
-    const url = data?.data?.url;
+    const url = data?.data?.downloadUrl;
     if (url) {
       window.open(url, '_blank');
     }
@@ -82,6 +85,12 @@ export function FileContextMenu({
           <Share2 className="mr-2 h-4 w-4" />
           Share
         </ContextMenuItem>
+        {onMove && (
+          <ContextMenuItem onClick={onMove}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            Move to...
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => trashMutation.mutate()}

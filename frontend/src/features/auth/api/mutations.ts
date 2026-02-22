@@ -127,3 +127,33 @@ export function useChangePasswordMutation() {
     },
   });
 }
+
+export function useLogoutMutation() {
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await api.POST('/auth/logout');
+      if (error) {
+        throw new Error(error.error?.message ?? 'Logout failed');
+      }
+    },
+    onSuccess: () => {
+      clearAuth();
+    },
+  });
+}
+
+export function useResendVerificationMutation() {
+  return useMutation({
+    mutationFn: async (input: { email: string }) => {
+      const { data, error } = await api.POST('/auth/email/resend', {
+        body: input,
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Resend verification failed');
+      }
+      return data!;
+    },
+  });
+}

@@ -35,6 +35,12 @@ export const groupKeys = {
   pending: () => [...groupKeys.all, 'pending'] as const,
 };
 
+export const uploadKeys = {
+  all: ['uploads'] as const,
+  status: (sessionId: string) =>
+    [...uploadKeys.all, 'status', sessionId] as const,
+};
+
 export const shareKeys = {
   all: ['shares'] as const,
   list: (resourceType: string, resourceId: string) =>
