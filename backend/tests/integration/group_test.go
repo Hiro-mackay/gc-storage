@@ -1046,6 +1046,158 @@ func (s *GroupTestSuite) TestListMyGroups_Success() {
 	s.Len(groups, 2)
 }
 
+// =============================================================================
+// GetGroup Authorization Tests - AC-23
+// =============================================================================
+
+func (s *GroupTestSuite) TestGetGroup_NonMemberForbidden() {
+	// AC-23: Non-member cannot view group details
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	nonMemberToken := s.createUser("nonmember@example.com", "Password123", "Non Member")
+	groupID, _ := s.createGroup(ownerToken, "Private Group", "Description")
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/groups/" + groupID,
+		SessionID: nonMemberToken,
+	})
+
+	resp.AssertStatus(http.StatusForbidden)
+}
+
+// =============================================================================
+// ChangeRole Self-Role Tests - AC-32
+// =============================================================================
+
+func (s *GroupTestSuite) TestChangeRole_SelfRoleForbidden() {
+	// AC-32: Owner cannot change their own role
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Get owner's user ID
+	var ownerID string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT id FROM users WHERE email = $1",
+		"owner@example.com",
+	).Scan(&ownerID)
+	s.Require().NoError(err)
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/groups/" + groupID + "/members/" + ownerID + "/role",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"role": "contributor",
+		},
+	})
+
+	// Owner cannot change their own role (owner's level >= changer's level)
+	resp.AssertStatus(http.StatusForbidden)
+}
+
+// =============================================================================
+// Transfer Ownership Edge Case Tests - AC-33, AC-34
+// =============================================================================
+
+func (s *GroupTestSuite) TestTransferOwnership_OldOwnerBecomesContributor() {
+	// AC-33: After ownership transfer, old owner's role becomes contributor
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	memberToken := s.createUser("member@example.com", "Password123", "Member User")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Invite member and accept
+	s.inviteAndAcceptMember(ownerToken, memberToken, groupID, "member@example.com", "viewer")
+
+	// Get old owner and new owner IDs
+	var oldOwnerID, newOwnerID string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT id FROM users WHERE email = $1",
+		"owner@example.com",
+	).Scan(&oldOwnerID)
+	s.Require().NoError(err)
+
+	err = s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT id FROM users WHERE email = $1",
+		"member@example.com",
+	).Scan(&newOwnerID)
+	s.Require().NoError(err)
+
+	// Transfer ownership
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/transfer",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"newOwnerId": newOwnerID,
+		},
+	}).AssertStatus(http.StatusOK)
+
+	// Verify old owner's role in DB is now contributor
+	var oldOwnerRole string
+	err = s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT role FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid",
+		groupID, oldOwnerID,
+	).Scan(&oldOwnerRole)
+	s.Require().NoError(err)
+	s.Equal("contributor", oldOwnerRole)
+}
+
+func (s *GroupTestSuite) TestTransferOwnership_NonMemberTargetForbidden() {
+	// AC-34: Cannot transfer ownership to a non-member
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	s.createUser("nonmember@example.com", "Password123", "Non Member")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Get the non-member's user ID
+	var nonMemberID string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT id FROM users WHERE email = $1",
+		"nonmember@example.com",
+	).Scan(&nonMemberID)
+	s.Require().NoError(err)
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/transfer",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"newOwnerId": nonMemberID,
+		},
+	})
+
+	resp.AssertStatus(http.StatusBadRequest)
+}
+
+// =============================================================================
+// UpdateGroup Role Authorization Tests - AC-20
+// =============================================================================
+
+func (s *GroupTestSuite) TestUpdateGroup_ContributorForbidden() {
+	// AC-20: Only owner can update group; contributor is forbidden
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	contributorToken := s.createUser("contributor@example.com", "Password123", "Contributor User")
+	groupID, _ := s.createGroup(ownerToken, "Original Name", "Original Description")
+
+	// Add contributor to group
+	s.inviteAndAcceptMember(ownerToken, contributorToken, groupID, "contributor@example.com", "contributor")
+
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/groups/" + groupID,
+		SessionID: contributorToken,
+		Body: map[string]string{
+			"name": "Hacked Name",
+		},
+	})
+
+	resp.AssertStatus(http.StatusForbidden)
+}
+
 func (s *GroupTestSuite) TestListPendingInvitations_Success() {
 	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
 	memberToken := s.createUser("member@example.com", "Password123", "Member User")

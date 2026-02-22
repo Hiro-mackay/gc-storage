@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { api } from '@/lib/api/client';
-import { groupKeys } from '@/lib/api/queries';
 import { useAuthStore } from '@/stores/auth-store';
 import {
   Card,
@@ -14,22 +11,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UserPlus, Trash2, LogOut } from 'lucide-react';
+import { useGroupDetail, useGroupMembers } from '../api/queries';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { UserPlus, MoreHorizontal, Trash2, LogOut } from 'lucide-react';
-import { toast } from 'sonner';
+  useDeleteGroupMutation,
+  useLeaveGroupMutation,
+} from '../api/mutations';
+import { MemberListPanel } from '../components/member-list';
 import { InviteMemberDialog } from '../components/invite-member-dialog';
 import { InvitationListPanel } from '../components/invitation-list';
 
@@ -37,81 +25,13 @@ export function GroupDetailPage() {
   const params = useParams({ strict: false }) as { groupId: string };
   const groupId = params.groupId;
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  const { data: groupData, isLoading } = useQuery({
-    queryKey: groupKeys.detail(groupId),
-    queryFn: async () => {
-      const { data, error } = await api.GET('/groups/{id}', {
-        params: { path: { id: groupId } },
-      });
-      if (error) throw error;
-      return data?.data;
-    },
-  });
-
-  const { data: members } = useQuery({
-    queryKey: groupKeys.members(groupId),
-    queryFn: async () => {
-      const { data, error } = await api.GET('/groups/{id}/members', {
-        params: { path: { id: groupId } },
-      });
-      if (error) throw error;
-      return data?.data ?? [];
-    },
-  });
-
-  const removeMemberMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await api.DELETE('/groups/{id}/members/{userId}', {
-        params: { path: { id: groupId, userId } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.members(groupId) });
-      toast.success('Member removed');
-    },
-    onError: () => {
-      toast.error('Failed to remove member');
-    },
-  });
-
-  const leaveMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await api.POST('/groups/{id}/leave', {
-        params: { path: { id: groupId } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all });
-      toast.success('Left group');
-      navigate({ to: '/groups' });
-    },
-    onError: () => {
-      toast.error('Failed to leave group');
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await api.DELETE('/groups/{id}', {
-        params: { path: { id: groupId } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all });
-      toast.success('Group deleted');
-      navigate({ to: '/groups' });
-    },
-    onError: () => {
-      toast.error('Failed to delete group');
-    },
-  });
+  const { data: groupData, isLoading } = useGroupDetail(groupId);
+  const { data: members } = useGroupMembers(groupId);
+  const deleteMutation = useDeleteGroupMutation();
+  const leaveMutation = useLeaveGroupMutation();
 
   if (isLoading) {
     return (
@@ -142,7 +62,11 @@ export function GroupDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => leaveMutation.mutate()}
+              onClick={() =>
+                leaveMutation.mutate(groupId, {
+                  onSuccess: () => navigate({ to: '/groups' }),
+                })
+              }
               disabled={leaveMutation.isPending}
             >
               <LogOut className="h-4 w-4 mr-1" />
@@ -155,7 +79,9 @@ export function GroupDetailPage() {
               size="sm"
               onClick={() => {
                 if (confirm('Delete this group? This cannot be undone.')) {
-                  deleteMutation.mutate();
+                  deleteMutation.mutate(groupId, {
+                    onSuccess: () => navigate({ to: '/groups' }),
+                  });
                 }
               }}
               disabled={deleteMutation.isPending}
@@ -184,63 +110,12 @@ export function GroupDetailPage() {
           )}
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Joined</TableHead>
-                {isOwner && <TableHead className="w-[50px]" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(members ?? []).map((member) => (
-                <TableRow key={member.id}>
-                  <TableCell className="font-medium">{member.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {member.email}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{member.role}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {member.joinedAt
-                      ? new Date(member.joinedAt).toLocaleDateString()
-                      : '\u2014'}
-                  </TableCell>
-                  {isOwner && (
-                    <TableCell>
-                      {member.userId !== user?.id && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() =>
-                                member.userId &&
-                                removeMemberMutation.mutate(member.userId)
-                              }
-                            >
-                              Remove
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <MemberListPanel
+            groupId={groupId}
+            members={members ?? []}
+            isOwner={isOwner}
+            currentUserId={user?.id}
+          />
         </CardContent>
       </Card>
 

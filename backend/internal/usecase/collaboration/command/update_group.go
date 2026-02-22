@@ -49,12 +49,12 @@ func (c *UpdateGroupCommand) Execute(ctx context.Context, input UpdateGroupInput
 		return nil, apperror.NewNotFoundError("group")
 	}
 
-	// 2. 操作者のメンバーシップ確認（contributor以上）
+	// 2. 操作者のメンバーシップ確認（ownerのみ）
 	membership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.UpdatedBy)
 	if err != nil {
 		return nil, apperror.NewForbiddenError("not a member of this group")
 	}
-	if !membership.CanInvite() { // Contributor以上
+	if !membership.IsOwner() { // ownerのみ
 		return nil, apperror.NewForbiddenError("insufficient permission to update group")
 	}
 

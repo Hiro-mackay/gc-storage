@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { api } from '@/lib/api/client';
-import { groupKeys } from '@/lib/api/queries';
 import {
   Card,
   CardContent,
@@ -13,92 +10,21 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Users, Plus, Check, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { useMyGroups, usePendingInvitations } from '../api/queries';
+import {
+  useAcceptInvitationMutation,
+  useDeclineInvitationMutation,
+} from '../api/mutations';
+import { CreateGroupDialog } from '../components/create-group-dialog';
 
 export function GroupsPage() {
-  const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
-  const [groupName, setGroupName] = useState('');
-  const [groupDesc, setGroupDesc] = useState('');
 
-  const { data: groups, isLoading } = useQuery({
-    queryKey: groupKeys.lists(),
-    queryFn: async () => {
-      const { data, error } = await api.GET('/groups');
-      if (error) throw error;
-      return data?.data ?? [];
-    },
-  });
-
-  const { data: pendingInvitations } = useQuery({
-    queryKey: groupKeys.pending(),
-    queryFn: async () => {
-      const { data, error } = await api.GET('/invitations/pending');
-      if (error) throw error;
-      return data?.data ?? [];
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await api.POST('/groups', {
-        body: { name: groupName, description: groupDesc || undefined },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all });
-      toast.success('Group created');
-      setGroupName('');
-      setGroupDesc('');
-      setCreateOpen(false);
-    },
-    onError: () => {
-      toast.error('Failed to create group');
-    },
-  });
-
-  const acceptMutation = useMutation({
-    mutationFn: async (token: string) => {
-      const { error } = await api.POST('/invitations/{token}/accept', {
-        params: { path: { token } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all });
-      toast.success('Invitation accepted');
-    },
-    onError: () => {
-      toast.error('Failed to accept invitation');
-    },
-  });
-
-  const declineMutation = useMutation({
-    mutationFn: async (token: string) => {
-      const { error } = await api.POST('/invitations/{token}/decline', {
-        params: { path: { token } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.pending() });
-      toast.success('Invitation declined');
-    },
-    onError: () => {
-      toast.error('Failed to decline invitation');
-    },
-  });
+  const { data: groups, isLoading } = useMyGroups();
+  const { data: pendingInvitations } = usePendingInvitations();
+  const acceptMutation = useAcceptInvitationMutation();
+  const declineMutation = useDeclineInvitationMutation();
 
   if (isLoading) {
     return (
@@ -205,56 +131,7 @@ export function GroupsPage() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Group</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (groupName.trim()) createMutation.mutate();
-            }}
-          >
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="group-name">Name</Label>
-                <Input
-                  id="group-name"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="My Team"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="group-desc">Description (optional)</Label>
-                <Input
-                  id="group-desc"
-                  value={groupDesc}
-                  onChange={(e) => setGroupDesc(e.target.value)}
-                  placeholder="A brief description"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!groupName.trim() || createMutation.isPending}
-              >
-                {createMutation.isPending ? 'Creating...' : 'Create'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <CreateGroupDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

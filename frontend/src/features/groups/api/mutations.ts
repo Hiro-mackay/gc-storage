@@ -103,3 +103,170 @@ export function useCancelInvitationMutation(groupId: string) {
     },
   });
 }
+
+export function useCreateGroupMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { name: string; description?: string }) => {
+      const { data, error } = await api.POST('/groups', {
+        body: { name: input.name, description: input.description },
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Failed to create group');
+      }
+      return data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Group created');
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useUpdateGroupMutation(groupId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { name?: string; description?: string }) => {
+      const { data, error } = await api.PATCH('/groups/{id}', {
+        params: { path: { id: groupId } },
+        body: { name: input.name, description: input.description },
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Failed to update group');
+      }
+      return data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.detail(groupId) });
+      queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useDeleteGroupMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      const { error } = await api.DELETE('/groups/{id}', {
+        params: { path: { id: groupId } },
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Failed to delete group');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Group deleted');
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useRemoveMemberMutation(groupId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await api.DELETE('/groups/{id}/members/{userId}', {
+        params: { path: { id: groupId, userId } },
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Failed to remove member');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.members(groupId) });
+      toast.success('Member removed');
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useChangeRoleMutation(groupId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      userId: string;
+      role: 'viewer' | 'contributor';
+    }) => {
+      const { data, error } = await api.PATCH(
+        '/groups/{id}/members/{userId}/role',
+        {
+          params: { path: { id: groupId, userId: input.userId } },
+          body: { role: input.role },
+        },
+      );
+      if (error) {
+        throw new Error(error.error?.message ?? 'Failed to change role');
+      }
+      return data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.members(groupId) });
+      queryClient.invalidateQueries({ queryKey: groupKeys.detail(groupId) });
+      toast.success('Role updated');
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useTransferOwnershipMutation(groupId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (newOwnerId: string) => {
+      const { data, error } = await api.POST('/groups/{id}/transfer', {
+        params: { path: { id: groupId } },
+        body: { newOwnerId },
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Failed to transfer ownership');
+      }
+      return data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useLeaveGroupMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      const { error } = await api.POST('/groups/{id}/leave', {
+        params: { path: { id: groupId } },
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Failed to leave group');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Left group');
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+}
