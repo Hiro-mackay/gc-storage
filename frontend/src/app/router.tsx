@@ -11,6 +11,8 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { LoginPage } from '@/features/auth/pages/login-page';
 import { RegisterPage } from '@/features/auth/pages/register-page';
 import { VerifyEmailPage } from '@/features/auth/pages/verify-email-page';
+import { ForgotPasswordPage } from '@/features/auth/pages/forgot-password-page';
+import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { OAuthCallbackPage } from '@/features/auth/pages/oauth-callback-page';
 import { FileBrowserPage } from '@/features/files/pages/file-browser-page';
 import { TrashPage } from '@/features/trash/pages/trash-page';
@@ -62,6 +64,21 @@ const verifyEmailRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: '/auth/verify-email',
   component: VerifyEmailPage,
+});
+
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: '/forgot-password',
+  component: ForgotPasswordPage,
+});
+
+const resetPasswordRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: '/auth/reset-password',
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: typeof search.token === 'string' ? search.token : undefined,
+  }),
+  component: ResetPasswordPage,
 });
 
 // OAuth callback route - directly under root (no auth guard)
@@ -142,7 +159,13 @@ const indexRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   oauthCallbackRoute,
-  authLayoutRoute.addChildren([loginRoute, registerRoute, verifyEmailRoute]),
+  authLayoutRoute.addChildren([
+    loginRoute,
+    registerRoute,
+    verifyEmailRoute,
+    forgotPasswordRoute,
+    resetPasswordRoute,
+  ]),
   authenticatedLayoutRoute.addChildren([
     filesRoute,
     folderRoute,

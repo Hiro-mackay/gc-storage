@@ -82,3 +82,48 @@ export function useVerifyEmailMutation() {
     },
   });
 }
+
+export function useForgotPasswordMutation() {
+  return useMutation({
+    mutationFn: async (input: { email: string }) => {
+      const { data, error } = await api.POST('/auth/password/forgot', {
+        body: input,
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Request failed');
+      }
+      return data!;
+    },
+  });
+}
+
+export function useResetPasswordMutation() {
+  return useMutation({
+    mutationFn: async (input: { token: string; password: string }) => {
+      const { data, error } = await api.POST('/auth/password/reset', {
+        body: input,
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Reset failed');
+      }
+      return data!;
+    },
+  });
+}
+
+export function useChangePasswordMutation() {
+  return useMutation({
+    mutationFn: async (input: {
+      current_password: string;
+      new_password: string;
+    }) => {
+      const { data, error } = await api.POST('/auth/password/change', {
+        body: input,
+      });
+      if (error) {
+        throw new Error(error.error?.message ?? 'Password change failed');
+      }
+      return data!;
+    },
+  });
+}

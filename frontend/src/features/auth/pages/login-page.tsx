@@ -69,10 +69,12 @@ export function LoginPage() {
           >
             {loginMutation.isPending ? 'Logging in...' : 'Log in'}
           </Button>
-          {/* TODO: implement forgot password page */}
-          <span className="block cursor-not-allowed text-center text-sm text-muted-foreground/50">
+          <Link
+            to="/forgot-password"
+            className="block text-center text-sm text-muted-foreground hover:text-primary"
+          >
             Forgot password?
-          </span>
+          </Link>
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
