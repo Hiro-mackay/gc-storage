@@ -7,10 +7,17 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
+// contextKey is a custom type for context.WithValue keys to avoid collisions
+type contextKey string
+
 const (
 	ContextKeyUserID    = "user_id"
 	ContextKeySessionID = "session_id"
 	ContextKeyUser      = "user"
+
+	// Typed keys for context.WithValue (prevents SA1029)
+	ctxKeyUserID    contextKey = ContextKeyUserID
+	ctxKeySessionID contextKey = ContextKeySessionID
 )
 
 // GetUserID はコンテキストからユーザーIDを取得します

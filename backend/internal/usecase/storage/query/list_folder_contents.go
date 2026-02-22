@@ -19,7 +19,7 @@ type ListFolderContentsInput struct {
 
 // ListFolderContentsOutput はフォルダ内容一覧の出力を定義します
 type ListFolderContentsOutput struct {
-	Folder  *entity.Folder   // ルートの場合はnil
+	Folder  *entity.Folder // ルートの場合はnil
 	Folders []*entity.Folder
 	Files   []*entity.File
 }

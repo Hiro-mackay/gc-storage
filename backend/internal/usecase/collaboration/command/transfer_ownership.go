@@ -13,14 +13,14 @@ import (
 
 // TransferOwnershipInput は所有権譲渡の入力を定義します
 type TransferOwnershipInput struct {
-	GroupID      uuid.UUID
-	NewOwnerID   uuid.UUID
+	GroupID        uuid.UUID
+	NewOwnerID     uuid.UUID
 	CurrentOwnerID uuid.UUID
 }
 
 // TransferOwnershipOutput は所有権譲渡の出力を定義します
 type TransferOwnershipOutput struct {
-	Group            *entity.Group
+	Group              *entity.Group
 	NewOwnerMembership *entity.Membership
 	OldOwnerMembership *entity.Membership
 }

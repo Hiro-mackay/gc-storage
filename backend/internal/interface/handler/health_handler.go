@@ -37,7 +37,7 @@ type HealthResponse struct {
 
 // ReadyResponse はレディネスチェックレスポンスを定義します
 type ReadyResponse struct {
-	Status   string                 `json:"status"`
+	Status   string                   `json:"status"`
 	Services map[string]ServiceStatus `json:"services,omitempty"`
 }
 

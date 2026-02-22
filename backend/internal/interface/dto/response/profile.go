@@ -8,16 +8,16 @@ import (
 
 // ProfileResponse はプロファイル情報レスポンス
 type ProfileResponse struct {
-	UserID                  string                    `json:"user_id"`
-	Email                   string                    `json:"email"`
-	Name                    string                    `json:"name"`
-	AvatarURL               string                    `json:"avatar_url,omitempty"`
-	Bio                     string                    `json:"bio,omitempty"`
-	Locale                  string                    `json:"locale"`
-	Timezone                string                    `json:"timezone"`
-	Theme                   string                    `json:"theme"`
+	UserID                  string                     `json:"user_id"`
+	Email                   string                     `json:"email"`
+	Name                    string                     `json:"name"`
+	AvatarURL               string                     `json:"avatar_url,omitempty"`
+	Bio                     string                     `json:"bio,omitempty"`
+	Locale                  string                     `json:"locale"`
+	Timezone                string                     `json:"timezone"`
+	Theme                   string                     `json:"theme"`
 	NotificationPreferences *NotificationPrefsResponse `json:"notification_preferences"`
-	UpdatedAt               time.Time                 `json:"updated_at"`
+	UpdatedAt               time.Time                  `json:"updated_at"`
 }
 
 // NotificationPrefsResponse は通知設定レスポンス

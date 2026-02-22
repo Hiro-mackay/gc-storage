@@ -22,11 +22,11 @@ const (
 
 // アップロード関連定数
 const (
-	UploadSessionTTL     = 24 * time.Hour
-	MultipartThreshold   = 5 * 1024 * 1024  // 5MB
-	MinPartSize          = 5 * 1024 * 1024  // 5MB
-	MaxPartSize          = 5 * 1024 * 1024 * 1024 // 5GB
-	MaxMultipartParts    = 10000
+	UploadSessionTTL   = 24 * time.Hour
+	MultipartThreshold = 5 * 1024 * 1024        // 5MB
+	MinPartSize        = 5 * 1024 * 1024        // 5MB
+	MaxPartSize        = 5 * 1024 * 1024 * 1024 // 5GB
+	MaxMultipartParts  = 10000
 )
 
 // アップロードセッション関連エラー
@@ -41,10 +41,10 @@ var (
 // Note: owner_typeは削除。セッションは常にユーザーが所有者。グループはPermissionGrantでアクセス。
 type UploadSession struct {
 	ID            uuid.UUID
-	FileID        uuid.UUID              // 作成予定のファイルID（事前生成）
-	OwnerID       uuid.UUID              // 現在の所有者ID
-	CreatedBy     uuid.UUID              // 作成者ID（アップロード者）
-	FolderID      uuid.UUID              // 必須 - アップロード先フォルダID
+	FileID        uuid.UUID // 作成予定のファイルID（事前生成）
+	OwnerID       uuid.UUID // 現在の所有者ID
+	CreatedBy     uuid.UUID // 作成者ID（アップロード者）
+	FolderID      uuid.UUID // 必須 - アップロード先フォルダID
 	FileName      valueobject.FileName
 	MimeType      valueobject.MimeType
 	TotalSize     int64

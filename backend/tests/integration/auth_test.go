@@ -1529,11 +1529,6 @@ func (s *AuthTestSuite) loginAndGetSessionID(email, password string) string {
 	return cookie.Value
 }
 
-// loginAndGetToken is deprecated, use loginAndGetSessionID instead
-func (s *AuthTestSuite) loginAndGetToken(email, password string) string {
-	return s.loginAndGetSessionID(email, password)
-}
-
 // =============================================================================
 // OAuth Login Tests
 // =============================================================================
@@ -2006,11 +2001,6 @@ func (s *AuthTestSuite) createOAuthUserAndGetSessionID(email, name string) strin
 	cookie := resp.GetCookie("session_id")
 	s.Require().NotNil(cookie, "session_id cookie should be set")
 	return cookie.Value
-}
-
-// createOAuthUserAndGetToken is deprecated, use createOAuthUserAndGetSessionID instead
-func (s *AuthTestSuite) createOAuthUserAndGetToken(email, name string) string {
-	return s.createOAuthUserAndGetSessionID(email, name)
 }
 
 // =============================================================================

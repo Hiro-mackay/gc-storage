@@ -200,6 +200,8 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 // generateSecureToken はセキュアなトークンを生成します
 func generateSecureToken() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand: failed to read random bytes: " + err.Error())
+	}
 	return base64.URLEncoding.EncodeToString(b)
 }

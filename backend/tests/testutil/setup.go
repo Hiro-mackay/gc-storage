@@ -18,10 +18,10 @@ import (
 )
 
 var (
-	testDBPool     *pgxpool.Pool
-	testRedis      *redis.Client
-	setupOnce      sync.Once
-	teardownOnce   sync.Once
+	testDBPool   *pgxpool.Pool
+	testRedis    *redis.Client
+	setupOnce    sync.Once
+	teardownOnce sync.Once
 )
 
 // TestConfig holds test environment configuration

@@ -2,8 +2,8 @@ package di
 
 import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 	infraAuthz "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/authz"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 	authzcmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/authz/command"
 	authzqry "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/authz/query"
 )

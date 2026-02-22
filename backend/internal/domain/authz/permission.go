@@ -37,20 +37,20 @@ const (
 
 // allPermissions は全ての有効な権限
 var allPermissions = map[Permission]bool{
-	PermFileRead:     true,
-	PermFileWrite:    true,
-	PermFileDelete:   true,
-	PermFileShare:    true,
-	PermFileMove:     true,
-	PermFileDownload: true,
-	PermFolderRead:   true,
-	PermFolderWrite:  true,
-	PermFolderCreate: true,
-	PermFolderDelete: true,
-	PermFolderShare:  true,
-	PermFolderMoveIn: true,
+	PermFileRead:      true,
+	PermFileWrite:     true,
+	PermFileDelete:    true,
+	PermFileShare:     true,
+	PermFileMove:      true,
+	PermFileDownload:  true,
+	PermFolderRead:    true,
+	PermFolderWrite:   true,
+	PermFolderCreate:  true,
+	PermFolderDelete:  true,
+	PermFolderShare:   true,
+	PermFolderMoveIn:  true,
 	PermFolderMoveOut: true,
-	PermManageAccess: true,
+	PermManageAccess:  true,
 }
 
 // NewPermission は文字列からPermissionを生成します

@@ -158,9 +158,8 @@ func (h *AuthHandler) Login(c echo.Context) error {
 func (h *AuthHandler) Logout(c echo.Context) error {
 	sessionID := middleware.GetSessionID(c)
 
-	if err := h.logoutCommand.Execute(c.Request().Context(), sessionID); err != nil {
-		// エラーでも成功扱い
-	}
+	// Logout error is intentionally ignored - always succeed for the user
+	_ = h.logoutCommand.Execute(c.Request().Context(), sessionID)
 
 	// Cookieを削除
 	h.clearSessionCookie(c)

@@ -10,11 +10,11 @@ import (
 
 // MockOAuthClient はテスト用のモックOAuthクライアントです
 type MockOAuthClient struct {
-	provider     valueobject.OAuthProvider
-	tokens       *service.OAuthTokens
-	userInfo     *service.OAuthUserInfo
-	exchangeErr  error
-	userInfoErr  error
+	provider    valueobject.OAuthProvider
+	tokens      *service.OAuthTokens
+	userInfo    *service.OAuthUserInfo
+	exchangeErr error
+	userInfoErr error
 }
 
 // MockOAuthClientOption はMockOAuthClientの設定オプションです

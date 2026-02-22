@@ -173,7 +173,7 @@ type SwaggerRestoreFileResponse struct {
 
 // SwaggerDeletedResponse は削除成功レスポンス (data=null)
 type SwaggerDeletedResponse struct {
-	Data *struct{} `json:"data"`
+	Data *struct{}       `json:"data"`
 	Meta *presenter.Meta `json:"meta"`
 }
 

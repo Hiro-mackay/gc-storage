@@ -11,9 +11,9 @@ import (
 
 // RemoveMemberInput はメンバー削除の入力を定義します
 type RemoveMemberInput struct {
-	GroupID     uuid.UUID
+	GroupID      uuid.UUID
 	TargetUserID uuid.UUID
-	RemovedBy   uuid.UUID
+	RemovedBy    uuid.UUID
 }
 
 // RemoveMemberOutput はメンバー削除の出力を定義します

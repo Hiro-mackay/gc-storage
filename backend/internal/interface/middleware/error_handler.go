@@ -19,8 +19,8 @@ type ErrorResponse struct {
 
 // ErrorBody はエラー本体を定義します
 type ErrorBody struct {
-	Code    string                 `json:"code"`
-	Message string                 `json:"message"`
+	Code    string                `json:"code"`
+	Message string                `json:"message"`
 	Details []apperror.FieldError `json:"details,omitempty"`
 }
 
@@ -49,7 +49,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 			)
 		}
 
-		c.JSON(appErr.HTTPStatus, response)
+		_ = c.JSON(appErr.HTTPStatus, response)
 		return
 	}
 
@@ -63,7 +63,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 			},
 		}
 
-		c.JSON(he.Code, response)
+		_ = c.JSON(he.Code, response)
 		return
 	}
 
@@ -80,5 +80,5 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 		},
 	}
 
-	c.JSON(http.StatusInternalServerError, response)
+	_ = c.JSON(http.StatusInternalServerError, response)
 }

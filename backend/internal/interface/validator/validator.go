@@ -19,9 +19,9 @@ func NewCustomValidator() *CustomValidator {
 	v := validator.New()
 
 	// カスタムバリデーション登録
-	v.RegisterValidation("filename", validateFileName)
-	v.RegisterValidation("foldername", validateFolderName)
-	v.RegisterValidation("password", validatePassword)
+	_ = v.RegisterValidation("filename", validateFileName)
+	_ = v.RegisterValidation("foldername", validateFolderName)
+	_ = v.RegisterValidation("password", validatePassword)
 
 	return &CustomValidator{validator: v}
 }

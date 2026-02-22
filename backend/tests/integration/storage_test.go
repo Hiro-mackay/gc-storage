@@ -55,8 +55,8 @@ func (s *StorageTestSuite) TestCreateFolder_Success_RootLevel() {
 	sessionID := s.registerAndGetToken("folder-user@example.com", "Password123", "Folder User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "My Documents",
@@ -74,8 +74,8 @@ func (s *StorageTestSuite) TestCreateFolder_Success_Nested() {
 
 	// Create parent folder
 	parentResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Parent",
@@ -87,8 +87,8 @@ func (s *StorageTestSuite) TestCreateFolder_Success_Nested() {
 
 	// Create child folder
 	childResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name":     "Child",
@@ -108,8 +108,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FD001_DuplicateNameInSameParent() 
 
 	// Create parent folder
 	parentResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Parent",
@@ -121,8 +121,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FD001_DuplicateNameInSameParent() 
 
 	// Create first child
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name":     "UniqueChild",
@@ -132,8 +132,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FD001_DuplicateNameInSameParent() 
 
 	// Try to create another child with same name - should fail
 	dupResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name":     "UniqueChild",
@@ -151,8 +151,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FD002_DuplicateNameAtRootLevel() {
 
 	// Create first root folder
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "RootFolder",
@@ -161,8 +161,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FD002_DuplicateNameAtRootLevel() {
 
 	// Try to create another root folder with same name - should fail
 	dupResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "RootFolder",
@@ -179,8 +179,8 @@ func (s *StorageTestSuite) TestCreateFolder_SameNameDifferentParents_OK() {
 
 	// Create two parent folders
 	parent1Resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Parent1",
@@ -190,8 +190,8 @@ func (s *StorageTestSuite) TestCreateFolder_SameNameDifferentParents_OK() {
 	parent1ID := parent1Resp.GetJSONData()["id"].(string)
 
 	parent2Resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Parent2",
@@ -202,8 +202,8 @@ func (s *StorageTestSuite) TestCreateFolder_SameNameDifferentParents_OK() {
 
 	// Create folder with same name in both parents - should succeed
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name":     "SharedName",
@@ -212,8 +212,8 @@ func (s *StorageTestSuite) TestCreateFolder_SameNameDifferentParents_OK() {
 	}).AssertStatus(http.StatusCreated)
 
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name":     "SharedName",
@@ -231,8 +231,8 @@ func (s *StorageTestSuite) TestMoveFolder_R_FD003_CannotMoveToSelf() {
 
 	// Create folder
 	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "TestFolder",
@@ -243,8 +243,8 @@ func (s *StorageTestSuite) TestMoveFolder_R_FD003_CannotMoveToSelf() {
 
 	// Try to move folder to itself - should fail
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + folderID + "/move",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + folderID + "/move",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"newParentId": folderID,
@@ -260,8 +260,8 @@ func (s *StorageTestSuite) TestMoveFolder_R_FD003_CannotMoveToDescendant() {
 
 	// Create parent folder
 	parentResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Parent",
@@ -272,11 +272,11 @@ func (s *StorageTestSuite) TestMoveFolder_R_FD003_CannotMoveToDescendant() {
 
 	// Create child folder
 	childResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "Child",
+			"name":     "Child",
 			"parentId": parentID,
 		},
 	})
@@ -285,11 +285,11 @@ func (s *StorageTestSuite) TestMoveFolder_R_FD003_CannotMoveToDescendant() {
 
 	// Create grandchild folder
 	grandchildResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "Grandchild",
+			"name":     "Grandchild",
 			"parentId": childID,
 		},
 	})
@@ -298,8 +298,8 @@ func (s *StorageTestSuite) TestMoveFolder_R_FD003_CannotMoveToDescendant() {
 
 	// Try to move parent to grandchild - should fail
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + parentID + "/move",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + parentID + "/move",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"newParentId": grandchildID,
@@ -332,10 +332,10 @@ func (s *StorageTestSuite) TestCreateFolder_R_FD004_MaxDepth20() {
 		}
 
 		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-			Method:      http.MethodPost,
-			Path:        "/api/v1/folders",
+			Method:    http.MethodPost,
+			Path:      "/api/v1/folders",
 			SessionID: sessionID,
-			Body:        body,
+			Body:      body,
 		})
 		resp.AssertStatus(http.StatusCreated)
 		id := resp.GetJSONData()["id"].(string)
@@ -344,8 +344,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FD004_MaxDepth20() {
 
 	// Try to create one more at depth 21 (exceeds max depth of 20) - should fail
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name":     "TooDeep",
@@ -367,8 +367,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN001_NameLength() {
 
 	// Empty name - should fail (R-FN004)
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "",
@@ -377,8 +377,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN001_NameLength() {
 
 	// Valid short name
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "A",
@@ -397,8 +397,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN001_NameLength255Bytes() {
 	}
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": name255,
@@ -420,8 +420,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN001_NameLength256Bytes() {
 	}
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": name256,
@@ -438,8 +438,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN004_WhitespaceOnlyName() {
 
 	// Spaces only
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "   ",
@@ -448,8 +448,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN004_WhitespaceOnlyName() {
 
 	// Tabs only
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "\t\t\t",
@@ -458,8 +458,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN004_WhitespaceOnlyName() {
 
 	// Mixed whitespace
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": " \t \n ",
@@ -475,8 +475,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN002_ForbiddenChars() {
 
 	for _, char := range forbiddenChars {
 		resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-			Method:      http.MethodPost,
-			Path:        "/api/v1/folders",
+			Method:    http.MethodPost,
+			Path:      "/api/v1/folders",
 			SessionID: sessionID,
 			Body: map[string]interface{}{
 				"name": "test" + char + "folder",
@@ -491,8 +491,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN005_DotNotAllowed() {
 	sessionID := s.registerAndGetToken("dot-names@example.com", "Password123", "Dot Names User")
 
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": ".",
@@ -500,8 +500,8 @@ func (s *StorageTestSuite) TestCreateFolder_R_FN005_DotNotAllowed() {
 	}).AssertStatus(http.StatusBadRequest)
 
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "..",
@@ -518,8 +518,8 @@ func (s *StorageTestSuite) TestRenameFolder_Success() {
 
 	// Create folder
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "OldName",
@@ -530,8 +530,8 @@ func (s *StorageTestSuite) TestRenameFolder_Success() {
 
 	// Rename folder
 	renameResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + folderID + "/rename",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + folderID + "/rename",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "NewName",
@@ -547,8 +547,8 @@ func (s *StorageTestSuite) TestRenameFolder_DuplicateName() {
 
 	// Create two folders
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Folder1",
@@ -556,8 +556,8 @@ func (s *StorageTestSuite) TestRenameFolder_DuplicateName() {
 	}).AssertStatus(http.StatusCreated)
 
 	folder2Resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Folder2",
@@ -568,8 +568,8 @@ func (s *StorageTestSuite) TestRenameFolder_DuplicateName() {
 
 	// Try to rename Folder2 to Folder1 - should fail
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + folder2ID + "/rename",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + folder2ID + "/rename",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Folder1",
@@ -589,8 +589,8 @@ func (s *StorageTestSuite) TestMoveFolder_Success() {
 
 	// Create destination folder
 	destResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Destination",
@@ -601,8 +601,8 @@ func (s *StorageTestSuite) TestMoveFolder_Success() {
 
 	// Create folder to move
 	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "ToMove",
@@ -613,8 +613,8 @@ func (s *StorageTestSuite) TestMoveFolder_Success() {
 
 	// Move folder
 	moveResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + folderID + "/move",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + folderID + "/move",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"newParentId": destID,
@@ -631,8 +631,8 @@ func (s *StorageTestSuite) TestMoveFolder_ToRoot() {
 
 	// Create parent folder
 	parentResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Parent",
@@ -643,11 +643,11 @@ func (s *StorageTestSuite) TestMoveFolder_ToRoot() {
 
 	// Create child folder
 	childResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "Child",
+			"name":     "Child",
 			"parentId": parentID,
 		},
 	})
@@ -656,10 +656,10 @@ func (s *StorageTestSuite) TestMoveFolder_ToRoot() {
 
 	// Move child to root (null parent)
 	moveResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + childID + "/move",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + childID + "/move",
 		SessionID: sessionID,
-		Body:        map[string]interface{}{},
+		Body:      map[string]interface{}{},
 	})
 
 	moveResp.AssertStatus(http.StatusOK).
@@ -676,8 +676,8 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD006_CascadeDelete() {
 
 	// Create parent folder
 	parentResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Parent",
@@ -688,11 +688,11 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD006_CascadeDelete() {
 
 	// Create child folder
 	childResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "Child",
+			"name":     "Child",
 			"parentId": parentID,
 		},
 	})
@@ -701,15 +701,15 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD006_CascadeDelete() {
 
 	// Delete parent folder
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/folders/" + parentID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/folders/" + parentID,
 		SessionID: sessionID,
 	}).AssertStatus(http.StatusNoContent)
 
 	// Verify child folder is also deleted
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/folders/" + childID,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/folders/" + childID,
 		SessionID: sessionID,
 	}).AssertStatus(http.StatusNotFound)
 }
@@ -727,8 +727,8 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeDelete
 
 	// Try to delete personal folder - should fail with 403
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/folders/" + personalFolderID.String(),
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/folders/" + personalFolderID.String(),
 		SessionID: sessionID,
 	})
 
@@ -745,8 +745,8 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeMoved(
 
 	// Create a destination folder
 	destResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Destination",
@@ -757,8 +757,8 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeMoved(
 
 	// Try to move personal folder - should fail with 403
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + personalFolderID.String() + "/move",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + personalFolderID.String() + "/move",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"newParentId": destID,
@@ -778,8 +778,8 @@ func (s *StorageTestSuite) TestDeleteFolder_R_FD009_PersonalFolderCannotBeRename
 
 	// Try to rename personal folder - should fail with 403
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/folders/" + personalFolderID.String() + "/rename",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + personalFolderID.String() + "/rename",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "New Personal Name",
@@ -799,8 +799,8 @@ func (s *StorageTestSuite) TestListFolderContents_RootLevel() {
 
 	// Create folders at root
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Folder1",
@@ -808,8 +808,8 @@ func (s *StorageTestSuite) TestListFolderContents_RootLevel() {
 	}).AssertStatus(http.StatusCreated)
 
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Folder2",
@@ -818,8 +818,8 @@ func (s *StorageTestSuite) TestListFolderContents_RootLevel() {
 
 	// List root contents
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/folders/root/contents",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/folders/root/contents",
 		SessionID: sessionID,
 	})
 
@@ -832,8 +832,8 @@ func (s *StorageTestSuite) TestGetAncestors_Breadcrumb() {
 
 	// Create hierarchy: A -> B -> C
 	aResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "FolderA",
@@ -843,11 +843,11 @@ func (s *StorageTestSuite) TestGetAncestors_Breadcrumb() {
 	aID := aResp.GetJSONData()["id"].(string)
 
 	bResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "FolderB",
+			"name":     "FolderB",
 			"parentId": aID,
 		},
 	})
@@ -855,11 +855,11 @@ func (s *StorageTestSuite) TestGetAncestors_Breadcrumb() {
 	bID := bResp.GetJSONData()["id"].(string)
 
 	cResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "FolderC",
+			"name":     "FolderC",
 			"parentId": bID,
 		},
 	})
@@ -868,8 +868,8 @@ func (s *StorageTestSuite) TestGetAncestors_Breadcrumb() {
 
 	// Get ancestors of C (should return [A, B])
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/folders/" + cID + "/ancestors",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/folders/" + cID + "/ancestors",
 		SessionID: sessionID,
 	})
 
@@ -889,8 +889,8 @@ func (s *StorageTestSuite) TestFolder_UnauthorizedAccess() {
 	// Create folder as user1
 	sessionID1 := s.registerAndGetToken("user1@example.com", "Password123", "User1")
 	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID1,
 		Body: map[string]interface{}{
 			"name": "User1Folder",
@@ -902,8 +902,8 @@ func (s *StorageTestSuite) TestFolder_UnauthorizedAccess() {
 	// Try to access as user2
 	sessionID2 := s.registerAndGetToken("user2@example.com", "Password123", "User2")
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/folders/" + folderID,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/folders/" + folderID,
 		SessionID: sessionID2,
 	})
 
@@ -924,8 +924,8 @@ func (s *StorageTestSuite) TestInitiateUpload_Success() {
 
 	// Create a folder first (folderId is required)
 	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "UploadFolder",
@@ -935,8 +935,8 @@ func (s *StorageTestSuite) TestInitiateUpload_Success() {
 	folderID := folderResp.GetJSONData()["id"].(string)
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/files/upload",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/files/upload",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"folderId": folderID,
@@ -959,8 +959,8 @@ func (s *StorageTestSuite) TestInitiateUpload_R_FL002_DuplicateName() {
 
 	// Create a folder
 	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "TestFolder",
@@ -971,27 +971,27 @@ func (s *StorageTestSuite) TestInitiateUpload_R_FL002_DuplicateName() {
 
 	// Initiate first upload
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/files/upload",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/files/upload",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"folderId": folderID,
 			"fileName": "duplicate.txt",
 			"mimeType": "text/plain",
-			"size":      int64(1024),
+			"size":     int64(1024),
 		},
 	}).AssertStatus(http.StatusCreated)
 
 	// Try to initiate second upload with same name in same folder - should fail
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/files/upload",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/files/upload",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"folderId": folderID,
 			"fileName": "duplicate.txt",
 			"mimeType": "text/plain",
-			"size":      int64(2048),
+			"size":     int64(2048),
 		},
 	})
 
@@ -1004,8 +1004,8 @@ func (s *StorageTestSuite) TestInitiateUpload_SameNameDifferentFolders_OK() {
 
 	// Create two folders
 	folder1Resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Folder1",
@@ -1015,8 +1015,8 @@ func (s *StorageTestSuite) TestInitiateUpload_SameNameDifferentFolders_OK() {
 	folder1ID := folder1Resp.GetJSONData()["id"].(string)
 
 	folder2Resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "Folder2",
@@ -1027,26 +1027,26 @@ func (s *StorageTestSuite) TestInitiateUpload_SameNameDifferentFolders_OK() {
 
 	// Upload same name to different folders - should succeed
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/files/upload",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/files/upload",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"folderId": folder1ID,
 			"fileName": "samename.txt",
 			"mimeType": "text/plain",
-			"size":      int64(1024),
+			"size":     int64(1024),
 		},
 	}).AssertStatus(http.StatusCreated)
 
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/files/upload",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/files/upload",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"folderId": folder2ID,
 			"fileName": "samename.txt",
 			"mimeType": "text/plain",
-			"size":      int64(1024),
+			"size":     int64(1024),
 		},
 	}).AssertStatus(http.StatusCreated)
 }
@@ -1060,8 +1060,8 @@ func (s *StorageTestSuite) TestGetUploadStatus_SessionExpiry() {
 
 	// Create a folder first (folderId is required)
 	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "ExpiryFolder",
@@ -1072,8 +1072,8 @@ func (s *StorageTestSuite) TestGetUploadStatus_SessionExpiry() {
 
 	// Initiate upload
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/files/upload",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/files/upload",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"folderId": folderID,
@@ -1106,8 +1106,8 @@ func (s *StorageTestSuite) TestFile_UnauthorizedAccess() {
 
 	// Create a folder first (folderId is required)
 	folderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID1,
 		Body: map[string]interface{}{
 			"name": "PrivateFolder",
@@ -1117,8 +1117,8 @@ func (s *StorageTestSuite) TestFile_UnauthorizedAccess() {
 	folderID := folderResp.GetJSONData()["id"].(string)
 
 	uploadResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/files/upload",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/files/upload",
 		SessionID: sessionID1,
 		Body: map[string]interface{}{
 			"folderId": folderID,
@@ -1133,8 +1133,8 @@ func (s *StorageTestSuite) TestFile_UnauthorizedAccess() {
 	// Try to access upload status as user2
 	sessionID2 := s.registerAndGetToken("fileuser2@example.com", "Password123", "FileUser2")
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/files/upload/" + sessionID,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/files/upload/" + sessionID,
 		SessionID: sessionID2,
 	})
 
@@ -1151,8 +1151,8 @@ func (s *StorageTestSuite) TestClosureTable_R_FC001_SelfReference() {
 
 	// Create folder
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "TestFolder",
@@ -1163,8 +1163,8 @@ func (s *StorageTestSuite) TestClosureTable_R_FC001_SelfReference() {
 
 	// Verify self-reference by checking ancestors of folder (should be empty)
 	ancestorsResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/folders/" + folderID + "/ancestors",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/folders/" + folderID + "/ancestors",
 		SessionID: sessionID,
 	})
 
@@ -1181,8 +1181,8 @@ func (s *StorageTestSuite) TestClosureTable_R_FC002_AncestorPaths() {
 
 	// Create hierarchy: A -> B -> C -> D
 	aResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
 			"name": "A",
@@ -1192,11 +1192,11 @@ func (s *StorageTestSuite) TestClosureTable_R_FC002_AncestorPaths() {
 	aID := aResp.GetJSONData()["id"].(string)
 
 	bResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "B",
+			"name":     "B",
 			"parentId": aID,
 		},
 	})
@@ -1204,11 +1204,11 @@ func (s *StorageTestSuite) TestClosureTable_R_FC002_AncestorPaths() {
 	bID := bResp.GetJSONData()["id"].(string)
 
 	cResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "C",
+			"name":     "C",
 			"parentId": bID,
 		},
 	})
@@ -1216,11 +1216,11 @@ func (s *StorageTestSuite) TestClosureTable_R_FC002_AncestorPaths() {
 	cID := cResp.GetJSONData()["id"].(string)
 
 	dResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"name":      "D",
+			"name":     "D",
 			"parentId": cID,
 		},
 	})
@@ -1229,8 +1229,8 @@ func (s *StorageTestSuite) TestClosureTable_R_FC002_AncestorPaths() {
 
 	// Get ancestors of D (should return [A, B, C] in root-to-leaf order)
 	ancestorsResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/folders/" + dID + "/ancestors",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/folders/" + dID + "/ancestors",
 		SessionID: sessionID,
 	})
 
@@ -1300,28 +1300,4 @@ func (s *StorageTestSuite) getPersonalFolderID(email string) uuid.UUID {
 	).Scan(&personalFolderID)
 	s.Require().NoError(err, "failed to get personal folder ID")
 	return personalFolderID
-}
-
-// createFileInFolder is a helper to create a file in a folder and complete the upload
-func (s *StorageTestSuite) createFileInFolder(sessionID string, folderID *uuid.UUID, fileName string) uuid.UUID {
-	body := map[string]interface{}{
-		"fileName": fileName,
-		"mimeType": "text/plain",
-		"size":     int64(1024),
-	}
-	if folderID != nil {
-		body["folderId"] = folderID.String()
-	}
-
-	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:    http.MethodPost,
-		Path:      "/api/v1/files/upload",
-		SessionID: sessionID,
-		Body:      body,
-	})
-	resp.AssertStatus(http.StatusCreated)
-
-	data := resp.GetJSONData()
-	fileID, _ := uuid.Parse(data["fileId"].(string))
-	return fileID
 }

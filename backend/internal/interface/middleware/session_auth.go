@@ -46,7 +46,7 @@ func (m *SessionAuthMiddleware) Authenticate() echo.MiddlewareFunc {
 
 			// 3. セッションの有効期限をチェック
 			if session.IsExpired() {
-				m.sessionRepo.Delete(c.Request().Context(), session.ID)
+				_ = m.sessionRepo.Delete(c.Request().Context(), session.ID)
 				return apperror.NewUnauthorizedError("session expired")
 			}
 
@@ -73,8 +73,8 @@ func (m *SessionAuthMiddleware) Authenticate() echo.MiddlewareFunc {
 
 			// リクエストコンテキストにも設定（UseCase層で使用）
 			ctx := c.Request().Context()
-			ctx = context.WithValue(ctx, ContextKeyUserID, user.ID.String())
-			ctx = context.WithValue(ctx, ContextKeySessionID, session.ID)
+			ctx = context.WithValue(ctx, ctxKeyUserID, user.ID.String())
+			ctx = context.WithValue(ctx, ctxKeySessionID, session.ID)
 			c.SetRequest(c.Request().WithContext(ctx))
 
 			return next(c)
@@ -121,8 +121,8 @@ func (m *SessionAuthMiddleware) OptionalAuth() echo.MiddlewareFunc {
 			c.Set(ContextKeyUser, user)
 
 			ctx := c.Request().Context()
-			ctx = context.WithValue(ctx, ContextKeyUserID, user.ID.String())
-			ctx = context.WithValue(ctx, ContextKeySessionID, session.ID)
+			ctx = context.WithValue(ctx, ctxKeyUserID, user.ID.String())
+			ctx = context.WithValue(ctx, ctxKeySessionID, session.ID)
 			c.SetRequest(c.Request().WithContext(ctx))
 
 			return next(c)

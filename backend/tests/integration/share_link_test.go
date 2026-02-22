@@ -111,8 +111,8 @@ func (s *ShareLinkTestSuite) TestCreateShareLink_Success() {
 	folderID := s.createFolder(token, "Shared Folder")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -131,8 +131,8 @@ func (s *ShareLinkTestSuite) TestCreateShareLink_WithPassword() {
 	folderID := s.createFolder(token, "Shared Folder")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -152,8 +152,8 @@ func (s *ShareLinkTestSuite) TestCreateShareLink_WithExpiry() {
 	expiresAt := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]interface{}{
 			"permission": "read",
@@ -170,8 +170,8 @@ func (s *ShareLinkTestSuite) TestCreateShareLink_WithMaxAccessCount() {
 	folderID := s.createFolder(token, "Shared Folder")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]interface{}{
 			"permission":     "read",
@@ -192,8 +192,8 @@ func (s *ShareLinkTestSuite) TestCreateShareLink_Unauthorized() {
 
 	// Other user tries to create share link
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: otherToken,
 		Body: map[string]string{
 			"permission": "read",
@@ -213,8 +213,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_Success() {
 
 	// Create share link
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -241,8 +241,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_RequiresPassword() {
 
 	// Create share link with password
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -268,8 +268,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_WrongPassword() {
 
 	// Create share link with password
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -298,8 +298,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_CorrectPassword() {
 
 	// Create share link with password
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -328,8 +328,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_Expired() {
 
 	// Create share link with past expiry
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -364,8 +364,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_Revoked() {
 
 	// Create share link
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -378,8 +378,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_Revoked() {
 
 	// Revoke share link
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/share-links/" + shareLinkID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/share-links/" + shareLinkID,
 		SessionID: token,
 	}).AssertStatus(http.StatusNoContent)
 
@@ -403,8 +403,8 @@ func (s *ShareLinkTestSuite) TestRevokeShareLink_Success() {
 
 	// Create share link
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -416,8 +416,8 @@ func (s *ShareLinkTestSuite) TestRevokeShareLink_Success() {
 
 	// Revoke share link
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/share-links/" + shareLinkID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/share-links/" + shareLinkID,
 		SessionID: token,
 	})
 
@@ -432,8 +432,8 @@ func (s *ShareLinkTestSuite) TestRevokeShareLink_NotCreator() {
 
 	// Create share link
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"permission": "read",
@@ -445,8 +445,8 @@ func (s *ShareLinkTestSuite) TestRevokeShareLink_NotCreator() {
 
 	// Other user tries to revoke (should fail)
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/share-links/" + shareLinkID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/share-links/" + shareLinkID,
 		SessionID: otherToken,
 	})
 
@@ -463,8 +463,8 @@ func (s *ShareLinkTestSuite) TestListShareLinks_Success() {
 
 	// Create multiple share links
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -472,8 +472,8 @@ func (s *ShareLinkTestSuite) TestListShareLinks_Success() {
 	}).AssertStatus(http.StatusCreated)
 
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "write",
@@ -482,8 +482,8 @@ func (s *ShareLinkTestSuite) TestListShareLinks_Success() {
 
 	// List share links
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 	})
 
@@ -499,8 +499,8 @@ func (s *ShareLinkTestSuite) TestGetShareLinkInfo_Success() {
 
 	// Create share link
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -533,8 +533,8 @@ func (s *ShareLinkTestSuite) TestCreateShareLink_R_ST001_TokenIsURLSafeAndLongEn
 
 	// Create share link
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -564,8 +564,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_MaxAccessCountReached() {
 
 	// Create share link with max access count of 2
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]interface{}{
 			"permission":     "read",
@@ -604,8 +604,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_AccessCountIncrement() {
 
 	// Create share link with max access count
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]interface{}{
 			"permission":     "read",
@@ -659,8 +659,8 @@ func (s *ShareLinkTestSuite) TestCreateShareLink_WritePermission() {
 
 	// Create share link with write permission
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "write",
@@ -677,8 +677,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_WritePermissionCanCreateSubfold
 
 	// Create share link with write permission
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "write",
@@ -718,8 +718,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_ReadPermissionCannotCreateSubfo
 
 	// Create share link with read permission
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",
@@ -763,8 +763,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_LogsAccess() {
 
 	// Create share link
 	createResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/folders/" + folderID + "/share",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + folderID + "/share",
 		SessionID: token,
 		Body: map[string]string{
 			"permission": "read",

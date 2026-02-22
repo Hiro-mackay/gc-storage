@@ -11,14 +11,14 @@ import (
 // MockStorageService はテスト用のStorageService実装です
 type MockStorageService struct {
 	// エラーを返すように設定できる
-	PutURLError           error
-	GetURLError           error
-	CreateMultipartError  error
-	GeneratePartURLError  error
+	PutURLError            error
+	GetURLError            error
+	CreateMultipartError   error
+	GeneratePartURLError   error
 	CompleteMultipartError error
-	AbortMultipartError   error
-	DeleteObjectError     error
-	DeleteObjectsError    error
+	AbortMultipartError    error
+	DeleteObjectError      error
+	DeleteObjectsError     error
 }
 
 // NewMockStorageService は新しいMockStorageServiceを作成します

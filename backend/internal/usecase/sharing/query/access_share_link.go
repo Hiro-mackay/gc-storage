@@ -119,9 +119,8 @@ func (q *AccessShareLinkQuery) Execute(ctx context.Context, input AccessShareLin
 	if err != nil {
 		return nil, apperror.NewInternalError(err)
 	}
-	if err := q.shareLinkAccessRepo.Create(ctx, access); err != nil {
-		// ログの記録失敗は無視
-	}
+	// Access log creation failure is intentionally ignored
+	_ = q.shareLinkAccessRepo.Create(ctx, access)
 
 	return &AccessShareLinkOutput{
 		ShareLink:    shareLink,

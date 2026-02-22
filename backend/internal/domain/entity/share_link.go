@@ -11,11 +11,11 @@ import (
 )
 
 var (
-	ErrShareLinkExpired       = errors.New("share link has expired")
-	ErrShareLinkRevoked       = errors.New("share link has been revoked")
+	ErrShareLinkExpired          = errors.New("share link has expired")
+	ErrShareLinkRevoked          = errors.New("share link has been revoked")
 	ErrShareLinkMaxAccessReached = errors.New("share link has reached maximum access count")
-	ErrShareLinkInvalidPassword = errors.New("invalid share link password")
-	ErrShareLinkNotActive     = errors.New("share link is not active")
+	ErrShareLinkInvalidPassword  = errors.New("invalid share link password")
+	ErrShareLinkNotActive        = errors.New("share link is not active")
 )
 
 // ShareLink は共有リンクエンティティ

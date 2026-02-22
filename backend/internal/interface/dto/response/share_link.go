@@ -8,18 +8,18 @@ import (
 
 // ShareLinkResponse は共有リンクレスポンスです
 type ShareLinkResponse struct {
-	ID               string     `json:"id"`
-	Token            string     `json:"token"`
-	URL              string     `json:"url"`
-	ResourceType     string     `json:"resourceType"`
-	ResourceID       string     `json:"resourceId"`
-	Permission       string     `json:"permission"`
-	HasPassword      bool       `json:"hasPassword"`
-	ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
-	MaxAccessCount   *int       `json:"maxAccessCount,omitempty"`
-	AccessCount      int        `json:"accessCount"`
-	Status           string     `json:"status"`
-	CreatedAt        time.Time  `json:"createdAt"`
+	ID             string     `json:"id"`
+	Token          string     `json:"token"`
+	URL            string     `json:"url"`
+	ResourceType   string     `json:"resourceType"`
+	ResourceID     string     `json:"resourceId"`
+	Permission     string     `json:"permission"`
+	HasPassword    bool       `json:"hasPassword"`
+	ExpiresAt      *time.Time `json:"expiresAt,omitempty"`
+	MaxAccessCount *int       `json:"maxAccessCount,omitempty"`
+	AccessCount    int        `json:"accessCount"`
+	Status         string     `json:"status"`
+	CreatedAt      time.Time  `json:"createdAt"`
 }
 
 // ShareLinkInfoResponse は共有リンク情報レスポンス（アクセス前）です

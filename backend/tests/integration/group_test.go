@@ -90,8 +90,8 @@ func (s *GroupTestSuite) createUser(email, password, name string) string {
 // createGroup creates a group and returns the group data (nested inside data.group)
 func (s *GroupTestSuite) createGroup(token, name, description string) (string, map[string]interface{}) {
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 		Body: map[string]string{
 			"name":        name,
@@ -112,8 +112,8 @@ func (s *GroupTestSuite) TestCreateGroup_Success() {
 	token := s.createUser("owner@example.com", "Password123", "Owner User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 		Body: map[string]string{
 			"name":        "Test Group",
@@ -145,8 +145,8 @@ func (s *GroupTestSuite) TestCreateGroup_InvalidName_TooShort() {
 	token := s.createUser("owner@example.com", "Password123", "Owner User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 		Body: map[string]string{
 			"name":        "",
@@ -172,8 +172,8 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN001_NameTooLong() {
 	}
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 		Body: map[string]string{
 			"name":        longName,
@@ -196,8 +196,8 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN001_NameBoundary100() {
 	}
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 		Body: map[string]string{
 			"name":        name100,
@@ -214,8 +214,8 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN002_NameTrimmed() {
 	token := s.createUser("owner@example.com", "Password123", "Owner User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 		Body: map[string]string{
 			"name":        "  Test Group  ",
@@ -232,8 +232,8 @@ func (s *GroupTestSuite) TestCreateGroup_R_GN003_WhitespaceOnlyForbidden() {
 	token := s.createUser("owner@example.com", "Password123", "Owner User")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 		Body: map[string]string{
 			"name":        "   ",
@@ -252,8 +252,8 @@ func (s *GroupTestSuite) TestCreateGroup_OwnerIsMember() {
 
 	// Get members
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/groups/" + groupID + "/members",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/groups/" + groupID + "/members",
 		SessionID: token,
 	})
 
@@ -274,8 +274,8 @@ func (s *GroupTestSuite) TestUpdateGroup_Success() {
 	groupID, _ := s.createGroup(token, "Original Name", "Original Description")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/groups/" + groupID,
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/groups/" + groupID,
 		SessionID: token,
 		Body: map[string]string{
 			"name":        "Updated Name",
@@ -295,8 +295,8 @@ func (s *GroupTestSuite) TestUpdateGroup_NonMemberForbidden() {
 	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/groups/" + groupID,
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/groups/" + groupID,
 		SessionID: otherToken,
 		Body: map[string]string{
 			"name": "Hacked Name",
@@ -315,8 +315,8 @@ func (s *GroupTestSuite) TestDeleteGroup_Success() {
 	groupID, _ := s.createGroup(token, "Test Group", "Description")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/groups/" + groupID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/groups/" + groupID,
 		SessionID: token,
 	})
 
@@ -324,8 +324,8 @@ func (s *GroupTestSuite) TestDeleteGroup_Success() {
 
 	// Verify group is deleted
 	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/groups/" + groupID,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/groups/" + groupID,
 		SessionID: token,
 	})
 	getResp.AssertStatus(http.StatusNotFound)
@@ -341,8 +341,8 @@ func (s *GroupTestSuite) TestDeleteGroup_NonOwnerForbidden() {
 
 	// Member tries to delete
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/groups/" + groupID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/groups/" + groupID,
 		SessionID: memberToken,
 	})
 
@@ -356,8 +356,8 @@ func (s *GroupTestSuite) TestDeleteGroup_NonOwnerForbidden() {
 func (s *GroupTestSuite) inviteAndAcceptMember(ownerToken, memberToken, groupID, email, role string) {
 	// Owner invites member
 	inviteResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": email,
@@ -377,8 +377,8 @@ func (s *GroupTestSuite) inviteAndAcceptMember(ownerToken, memberToken, groupID,
 
 	// Member accepts invitation
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/invitations/" + token + "/accept",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/invitations/" + token + "/accept",
 		SessionID: memberToken,
 	}).AssertStatus(http.StatusOK)
 }
@@ -389,8 +389,8 @@ func (s *GroupTestSuite) TestInviteMember_Success() {
 	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
@@ -414,8 +414,8 @@ func (s *GroupTestSuite) TestInviteMember_AlreadyMember() {
 
 	// Try to invite again
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
@@ -433,8 +433,8 @@ func (s *GroupTestSuite) TestAcceptInvitation_Success() {
 
 	// Owner invites member
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
@@ -453,8 +453,8 @@ func (s *GroupTestSuite) TestAcceptInvitation_Success() {
 
 	// Accept invitation
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/invitations/" + token + "/accept",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/invitations/" + token + "/accept",
 		SessionID: memberToken,
 	})
 
@@ -462,8 +462,8 @@ func (s *GroupTestSuite) TestAcceptInvitation_Success() {
 
 	// Verify member was added
 	membersResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/groups/" + groupID + "/members",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/groups/" + groupID + "/members",
 		SessionID: ownerToken,
 	})
 	membersResp.AssertStatus(http.StatusOK)
@@ -478,8 +478,8 @@ func (s *GroupTestSuite) TestDeclineInvitation_Success() {
 
 	// Owner invites member
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
@@ -498,8 +498,8 @@ func (s *GroupTestSuite) TestDeclineInvitation_Success() {
 
 	// Decline invitation
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/invitations/" + token + "/decline",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/invitations/" + token + "/decline",
 		SessionID: memberToken,
 	})
 
@@ -517,8 +517,8 @@ func (s *GroupTestSuite) TestInviteMember_R_I005_OwnerRoleForbidden() {
 	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
@@ -543,8 +543,8 @@ func (s *GroupTestSuite) TestInviteMember_R_I007_ContributorCannotInviteWithHigh
 	// Contributor tries to invite with higher role (contributor cannot invite as contributor since invitation can only be viewer)
 	// Actually, based on the spec, contributor can only invite with viewer role
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: contributorToken,
 		Body: map[string]string{
 			"email": "invitee@example.com",
@@ -568,8 +568,8 @@ func (s *GroupTestSuite) TestInviteMember_R_I007_ViewerCannotInvite() {
 
 	// Viewer tries to invite someone
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: viewerToken,
 		Body: map[string]string{
 			"email": "invitee@example.com",
@@ -609,8 +609,8 @@ func (s *GroupTestSuite) TestRemoveMember_Success() {
 
 	// Remove member
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/groups/" + groupID + "/members/" + userID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/groups/" + groupID + "/members/" + userID,
 		SessionID: ownerToken,
 	})
 
@@ -632,8 +632,8 @@ func (s *GroupTestSuite) TestRemoveMember_CannotRemoveOwner() {
 
 	// Try to remove owner
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodDelete,
-		Path:        "/api/v1/groups/" + groupID + "/members/" + userID,
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/groups/" + groupID + "/members/" + userID,
 		SessionID: ownerToken,
 	})
 
@@ -654,8 +654,8 @@ func (s *GroupTestSuite) TestLeaveGroup_Success() {
 
 	// Member leaves
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/leave",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/leave",
 		SessionID: memberToken,
 	})
 
@@ -668,8 +668,8 @@ func (s *GroupTestSuite) TestLeaveGroup_OwnerCannotLeave() {
 
 	// Owner tries to leave
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/leave",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/leave",
 		SessionID: ownerToken,
 	})
 
@@ -699,8 +699,8 @@ func (s *GroupTestSuite) TestChangeRole_Success() {
 
 	// Change role to contributor
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/groups/" + groupID + "/members/" + userID + "/role",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/groups/" + groupID + "/members/" + userID + "/role",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"role": "contributor",
@@ -732,8 +732,8 @@ func (s *GroupTestSuite) TestChangeRole_NonOwnerForbidden() {
 
 	// Member1 tries to change own role (should fail - not owner)
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPatch,
-		Path:        "/api/v1/groups/" + groupID + "/members/" + userID + "/role",
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/groups/" + groupID + "/members/" + userID + "/role",
 		SessionID: member1Token,
 		Body: map[string]string{
 			"role": "viewer",
@@ -766,8 +766,8 @@ func (s *GroupTestSuite) TestTransferOwnership_Success() {
 
 	// Transfer ownership
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/transfer",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/transfer",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"newOwnerId": newOwnerID,
@@ -778,8 +778,8 @@ func (s *GroupTestSuite) TestTransferOwnership_Success() {
 
 	// Verify new owner (TransferOwnership returns GroupResponse, ownerId in camelCase)
 	groupResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/groups/" + groupID,
+		Method:    http.MethodGet,
+		Path:      "/api/v1/groups/" + groupID,
 		SessionID: memberToken,
 	})
 	groupResp.AssertStatus(http.StatusOK)
@@ -790,8 +790,8 @@ func (s *GroupTestSuite) TestTransferOwnership_Success() {
 
 	// Old owner should now be able to leave (as contributor)
 	leaveResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/leave",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/leave",
 		SessionID: ownerToken,
 	})
 	leaveResp.AssertStatus(http.StatusNoContent)
@@ -817,8 +817,8 @@ func (s *GroupTestSuite) TestTransferOwnership_NonOwnerForbidden() {
 
 	// Member tries to transfer ownership (should fail)
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/transfer",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/transfer",
 		SessionID: memberToken,
 		Body: map[string]string{
 			"newOwnerId": otherID,
@@ -841,8 +841,8 @@ func (s *GroupTestSuite) TestListMyGroups_Success() {
 
 	// List groups
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/groups",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/groups",
 		SessionID: token,
 	})
 
@@ -859,8 +859,8 @@ func (s *GroupTestSuite) TestListPendingInvitations_Success() {
 
 	// Send invitation
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodPost,
-		Path:        "/api/v1/groups/" + groupID + "/invitations",
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
 		SessionID: ownerToken,
 		Body: map[string]string{
 			"email": "member@example.com",
@@ -870,8 +870,8 @@ func (s *GroupTestSuite) TestListPendingInvitations_Success() {
 
 	// Member checks pending invitations
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:      http.MethodGet,
-		Path:        "/api/v1/invitations/pending",
+		Method:    http.MethodGet,
+		Path:      "/api/v1/invitations/pending",
 		SessionID: memberToken,
 	})
 

@@ -16,17 +16,17 @@ import (
 // GroupHandler はグループ関連のHTTPハンドラーです
 type GroupHandler struct {
 	// Commands
-	createGroupCmd           *collabcmd.CreateGroupCommand
-	updateGroupCmd           *collabcmd.UpdateGroupCommand
-	deleteGroupCmd           *collabcmd.DeleteGroupCommand
-	inviteMemberCmd          *collabcmd.InviteMemberCommand
-	acceptInvitationCmd      *collabcmd.AcceptInvitationCommand
-	declineInvitationCmd     *collabcmd.DeclineInvitationCommand
-	cancelInvitationCmd      *collabcmd.CancelInvitationCommand
-	removeMemberCmd          *collabcmd.RemoveMemberCommand
-	leaveGroupCmd            *collabcmd.LeaveGroupCommand
-	changeRoleCmd            *collabcmd.ChangeRoleCommand
-	transferOwnershipCmd     *collabcmd.TransferOwnershipCommand
+	createGroupCmd       *collabcmd.CreateGroupCommand
+	updateGroupCmd       *collabcmd.UpdateGroupCommand
+	deleteGroupCmd       *collabcmd.DeleteGroupCommand
+	inviteMemberCmd      *collabcmd.InviteMemberCommand
+	acceptInvitationCmd  *collabcmd.AcceptInvitationCommand
+	declineInvitationCmd *collabcmd.DeclineInvitationCommand
+	cancelInvitationCmd  *collabcmd.CancelInvitationCommand
+	removeMemberCmd      *collabcmd.RemoveMemberCommand
+	leaveGroupCmd        *collabcmd.LeaveGroupCommand
+	changeRoleCmd        *collabcmd.ChangeRoleCommand
+	transferOwnershipCmd *collabcmd.TransferOwnershipCommand
 
 	// Queries
 	getGroupQuery               *collabqry.GetGroupQuery
