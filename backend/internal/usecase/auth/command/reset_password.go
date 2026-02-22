@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
@@ -56,13 +57,9 @@ func (c *ResetPasswordCommand) Execute(ctx context.Context, input ResetPasswordI
 		return nil, apperror.NewValidationError("invalid or expired token", nil)
 	}
 
-	// 3. トークンの有効性チェック
-	if token.IsUsed() {
+	// 3. トークンの有効性チェック（同じエラーメッセージで情報漏洩を防止）
+	if token.IsUsed() || token.IsExpired() {
 		return nil, apperror.NewValidationError("invalid or expired token", nil)
-	}
-
-	if token.IsExpired() {
-		return nil, apperror.NewValidationError("token has expired", nil)
 	}
 
 	// 4. ユーザーを取得
@@ -100,7 +97,9 @@ func (c *ResetPasswordCommand) Execute(ctx context.Context, input ResetPasswordI
 	}
 
 	// 全セッションを無効化（セキュリティ: パスワードリセット後は再ログインが必要）
-	_ = c.sessionRepo.DeleteByUserID(ctx, token.UserID)
+	if err := c.sessionRepo.DeleteByUserID(ctx, token.UserID); err != nil {
+		slog.Error("failed to invalidate sessions after password reset", "error", err, "user_id", token.UserID)
+	}
 
 	return &ResetPasswordOutput{
 		Message: "password reset successfully",

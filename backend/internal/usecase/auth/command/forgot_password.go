@@ -69,7 +69,9 @@ func (c *ForgotPasswordCommand) Execute(ctx context.Context, input ForgotPasswor
 	}
 
 	// 3. 既存のトークンを削除
-	_ = c.passwordResetTokenRepo.DeleteByUserID(ctx, user.ID)
+	if err := c.passwordResetTokenRepo.DeleteByUserID(ctx, user.ID); err != nil {
+		slog.Warn("failed to delete existing password reset tokens", "error", err, "user_id", user.ID)
+	}
 
 	// 4. 新しいトークンを作成（1時間有効）
 	now := time.Now()
