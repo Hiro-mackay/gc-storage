@@ -80,7 +80,7 @@ func (c *CreateShareLinkCommand) Execute(ctx context.Context, input CreateShareL
 	// 4. パスワードのハッシュ化（設定されている場合）
 	var passwordHash string
 	if input.Password != "" {
-		hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 		if err != nil {
 			return nil, apperror.NewInternalError(err)
 		}

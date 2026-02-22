@@ -45,6 +45,8 @@ export const shareKeys = {
   all: ['shares'] as const,
   list: (resourceType: string, resourceId: string) =>
     [...shareKeys.all, resourceType, resourceId] as const,
+  history: (shareLinkId: string) =>
+    [...shareKeys.all, 'history', shareLinkId] as const,
 };
 
 export const profileKeys = {

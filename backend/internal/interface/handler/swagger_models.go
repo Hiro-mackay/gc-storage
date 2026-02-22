@@ -285,6 +285,18 @@ type SwaggerShareLinkAccessResponse struct {
 	Meta *presenter.Meta                  `json:"meta"`
 }
 
+// SwaggerShareLinkAccessListResponse は ShareLinkAccessListResponse のラッパー
+type SwaggerShareLinkAccessListResponse struct {
+	Data response.ShareLinkAccessListResponse `json:"data"`
+	Meta *presenter.Meta                      `json:"meta"`
+}
+
+// SwaggerShareDownloadResponse は ShareDownloadResponse のラッパー
+type SwaggerShareDownloadResponse struct {
+	Data response.ShareDownloadResponse `json:"data"`
+	Meta *presenter.Meta                `json:"meta"`
+}
+
 // ---- Error ----
 
 // SwaggerErrorResponse はエラーレスポンス

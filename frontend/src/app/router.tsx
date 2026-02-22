@@ -21,6 +21,7 @@ import { GroupsPage } from '@/features/groups/pages/groups-page';
 import { GroupDetailPage } from '@/features/groups/pages/group-detail-page';
 import { PendingInvitationsPage } from '@/features/groups/pages/pending-invitations-page';
 import { InvitationAcceptPage } from '@/features/groups/pages/invitation-accept-page';
+import { PublicAccessPage } from '@/features/sharing/pages/public-access-page';
 import { useAuthStore } from '@/stores/auth-store';
 
 export const queryClient = new QueryClient({
@@ -81,6 +82,13 @@ const resetPasswordRoute = createRoute({
     token: typeof search.token === 'string' ? search.token : undefined,
   }),
   component: ResetPasswordPage,
+});
+
+// Public share route - directly under root (no auth guard)
+const publicShareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/share/$token',
+  component: PublicAccessPage,
 });
 
 // OAuth callback route - directly under root (no auth guard)
@@ -172,6 +180,7 @@ const indexRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  publicShareRoute,
   oauthCallbackRoute,
   authLayoutRoute.addChildren([
     loginRoute,

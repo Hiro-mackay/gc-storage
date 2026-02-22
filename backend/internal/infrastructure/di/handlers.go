@@ -117,8 +117,11 @@ func NewHandlers(c *Container) *Handlers {
 		shareLinkHandler = handler.NewShareLinkHandler(
 			c.Sharing.CreateShareLink,
 			c.Sharing.RevokeShareLink,
+			c.Sharing.UpdateShareLink,
 			c.Sharing.AccessShareLink,
 			c.Sharing.ListShareLinks,
+			c.Sharing.GetShareLinkHistory,
+			c.Sharing.GetDownloadViaShare,
 			c.config.App.URL,
 		)
 	}
@@ -225,8 +228,11 @@ func NewHandlersForTest(c *Container) *Handlers {
 		shareLinkHandler = handler.NewShareLinkHandler(
 			c.Sharing.CreateShareLink,
 			c.Sharing.RevokeShareLink,
+			c.Sharing.UpdateShareLink,
 			c.Sharing.AccessShareLink,
 			c.Sharing.ListShareLinks,
+			c.Sharing.GetShareLinkHistory,
+			c.Sharing.GetDownloadViaShare,
 			c.config.App.URL,
 		)
 	}

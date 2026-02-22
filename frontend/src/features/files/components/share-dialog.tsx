@@ -1,7 +1,11 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { shareKeys } from '@/lib/api/queries';
+import {
+  useCreateShareLinkMutation,
+  useRevokeShareLinkMutation,
+} from '@/features/sharing/api/mutations';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +27,9 @@ interface ShareDialogProps {
 
 export function ShareDialog({ open, onOpenChange, item }: ShareDialogProps) {
   const [permission, setPermission] = useState<'read' | 'write'>('read');
-  const queryClient = useQueryClient();
+  const [password, setPassword] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [maxAccessCount, setMaxAccessCount] = useState('');
 
   const sharesQuery = useQuery({
     queryKey: shareKeys.list(item?.type ?? '', item?.id ?? ''),
@@ -46,53 +52,34 @@ export function ShareDialog({ open, onOpenChange, item }: ShareDialogProps) {
     enabled: !!item && open,
   });
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!item) return;
-      if (item.type === 'file') {
-        const { data, error } = await api.POST('/files/{id}/share', {
-          params: { path: { id: item.id } },
-          body: { permission },
-        });
-        if (error) throw error;
-        return data?.data;
-      } else {
-        const { data, error } = await api.POST('/folders/{id}/share', {
-          params: { path: { id: item.id } },
-          body: { permission },
-        });
-        if (error) throw error;
-        return data?.data;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: shareKeys.list(item?.type ?? '', item?.id ?? ''),
-      });
-      toast.success('Share link created');
-    },
-    onError: () => {
-      toast.error('Failed to create share link');
-    },
-  });
+  const createMutation = useCreateShareLinkMutation(
+    item?.type ?? 'file',
+    item?.id ?? '',
+  );
 
-  const revokeMutation = useMutation({
-    mutationFn: async (linkId: string) => {
-      const { error } = await api.DELETE('/share-links/{id}', {
-        params: { path: { id: linkId } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: shareKeys.list(item?.type ?? '', item?.id ?? ''),
-      });
-      toast.success('Share link revoked');
-    },
-    onError: () => {
-      toast.error('Failed to revoke share link');
-    },
-  });
+  const revokeMutation = useRevokeShareLinkMutation(item?.type, item?.id);
+
+  const handleCreate = () => {
+    createMutation.mutate(
+      {
+        permission,
+        password: password || undefined,
+        expiresAt: expiresAt
+          ? new Date(expiresAt + 'T23:59:59Z').toISOString()
+          : undefined,
+        maxAccessCount: maxAccessCount
+          ? parseInt(maxAccessCount, 10)
+          : undefined,
+      },
+      {
+        onSuccess: () => {
+          setPassword('');
+          setExpiresAt('');
+          setMaxAccessCount('');
+        },
+      },
+    );
+  };
 
   const copyLink = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -108,34 +95,70 @@ export function ShareDialog({ open, onOpenChange, item }: ShareDialogProps) {
           <DialogTitle>Share "{item?.name}"</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-2">
-              <Label>Permission</Label>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={permission === 'read' ? 'default' : 'outline'}
-                  onClick={() => setPermission('read')}
-                >
-                  View only
-                </Button>
-                <Button
-                  size="sm"
-                  variant={permission === 'write' ? 'default' : 'outline'}
-                  onClick={() => setPermission('write')}
-                >
-                  Can edit
-                </Button>
-              </div>
+          <div className="space-y-2">
+            <Label>Permission</Label>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={permission === 'read' ? 'default' : 'outline'}
+                onClick={() => setPermission('read')}
+              >
+                View only
+              </Button>
+              <Button
+                size="sm"
+                variant={permission === 'write' ? 'default' : 'outline'}
+                onClick={() => setPermission('write')}
+              >
+                Can edit
+              </Button>
             </div>
-            <Button
-              onClick={() => createMutation.mutate()}
-              disabled={createMutation.isPending}
-            >
-              <Link2 className="h-4 w-4 mr-2" />
-              {createMutation.isPending ? 'Creating...' : 'Create Link'}
-            </Button>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="share-password">Password (optional)</Label>
+            <Input
+              id="share-password"
+              type="password"
+              placeholder="Optional password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={4}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="share-expires">Expires (optional)</Label>
+            <Input
+              id="share-expires"
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="share-max-access">
+              Max access count (optional)
+            </Label>
+            <Input
+              id="share-max-access"
+              type="number"
+              min="1"
+              placeholder="Unlimited"
+              value={maxAccessCount}
+              onChange={(e) => setMaxAccessCount(e.target.value)}
+            />
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={handleCreate}
+            disabled={createMutation.isPending}
+          >
+            <Link2 className="h-4 w-4 mr-2" />
+            {createMutation.isPending ? 'Creating...' : 'Create Link'}
+          </Button>
 
           {shares.length > 0 && (
             <div className="space-y-2">

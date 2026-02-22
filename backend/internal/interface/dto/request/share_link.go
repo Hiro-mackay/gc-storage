@@ -3,14 +3,14 @@ package request
 // CreateShareLinkRequest は共有リンク作成リクエストです
 type CreateShareLinkRequest struct {
 	Permission     string  `json:"permission" validate:"required,oneof=read write"`
-	Password       *string `json:"password"`
+	Password       *string `json:"password" validate:"omitempty,min=4"`
 	ExpiresAt      *string `json:"expiresAt"` // RFC3339 format
 	MaxAccessCount *int    `json:"maxAccessCount" validate:"omitempty,min=1"`
 }
 
 // UpdateShareLinkRequest は共有リンク更新リクエストです
 type UpdateShareLinkRequest struct {
-	Password       *string `json:"password"`
+	Password       *string `json:"password" validate:"omitempty,min=4"`
 	ExpiresAt      *string `json:"expiresAt"` // RFC3339 format
 	MaxAccessCount *int    `json:"maxAccessCount" validate:"omitempty,min=1"`
 }

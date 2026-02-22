@@ -83,7 +83,7 @@ func main() {
 	container.InitCollaborationUseCases()
 	container.InitAuthzUseCases()
 	container.InitStorageUseCases(storageService)
-	container.InitSharingUseCases()
+	container.InitSharingUseCases(storageService)
 	container.InitAuditService()
 	handlers := di.NewHandlers(container)
 	middlewares := di.NewMiddlewares(container)

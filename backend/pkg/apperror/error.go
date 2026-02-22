@@ -14,6 +14,7 @@ const (
 	CodeUnauthorized       ErrorCode = "UNAUTHORIZED"
 	CodeTokenExpired       ErrorCode = "TOKEN_EXPIRED"
 	CodeForbidden          ErrorCode = "FORBIDDEN"
+	CodeGone               ErrorCode = "GONE"
 	CodeQuotaExceeded      ErrorCode = "QUOTA_EXCEEDED"
 	CodeNotFound           ErrorCode = "NOT_FOUND"
 	CodeConflict           ErrorCode = "CONFLICT"
@@ -84,6 +85,15 @@ func NewTokenExpiredError() *AppError {
 		Code:       CodeTokenExpired,
 		Message:    "token has expired",
 		HTTPStatus: http.StatusUnauthorized,
+	}
+}
+
+// NewGoneError はリソースが無効・期限切れ・失効したエラーを作成します
+func NewGoneError(message string) *AppError {
+	return &AppError{
+		Code:       CodeGone,
+		Message:    message,
+		HTTPStatus: http.StatusGone,
 	}
 }
 

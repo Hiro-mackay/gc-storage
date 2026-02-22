@@ -20,10 +20,13 @@ type ShareLinkHandler struct {
 	// Commands
 	createShareLinkCmd *sharingcmd.CreateShareLinkCommand
 	revokeShareLinkCmd *sharingcmd.RevokeShareLinkCommand
+	updateShareLinkCmd *sharingcmd.UpdateShareLinkCommand
 
 	// Queries
-	accessShareLinkQuery *sharingqry.AccessShareLinkQuery
-	listShareLinksQuery  *sharingqry.ListShareLinksQuery
+	accessShareLinkQuery     *sharingqry.AccessShareLinkQuery
+	listShareLinksQuery      *sharingqry.ListShareLinksQuery
+	getShareLinkHistoryQuery *sharingqry.GetShareLinkHistoryQuery
+	getDownloadViaShareQuery *sharingqry.GetDownloadViaShareQuery
 
 	// Config
 	baseURL string
@@ -33,16 +36,22 @@ type ShareLinkHandler struct {
 func NewShareLinkHandler(
 	createShareLinkCmd *sharingcmd.CreateShareLinkCommand,
 	revokeShareLinkCmd *sharingcmd.RevokeShareLinkCommand,
+	updateShareLinkCmd *sharingcmd.UpdateShareLinkCommand,
 	accessShareLinkQuery *sharingqry.AccessShareLinkQuery,
 	listShareLinksQuery *sharingqry.ListShareLinksQuery,
+	getShareLinkHistoryQuery *sharingqry.GetShareLinkHistoryQuery,
+	getDownloadViaShareQuery *sharingqry.GetDownloadViaShareQuery,
 	baseURL string,
 ) *ShareLinkHandler {
 	return &ShareLinkHandler{
-		createShareLinkCmd:   createShareLinkCmd,
-		revokeShareLinkCmd:   revokeShareLinkCmd,
-		accessShareLinkQuery: accessShareLinkQuery,
-		listShareLinksQuery:  listShareLinksQuery,
-		baseURL:              baseURL,
+		createShareLinkCmd:       createShareLinkCmd,
+		revokeShareLinkCmd:       revokeShareLinkCmd,
+		updateShareLinkCmd:       updateShareLinkCmd,
+		accessShareLinkQuery:     accessShareLinkQuery,
+		listShareLinksQuery:      listShareLinksQuery,
+		getShareLinkHistoryQuery: getShareLinkHistoryQuery,
+		getDownloadViaShareQuery: getDownloadViaShareQuery,
+		baseURL:                  baseURL,
 	}
 }
 
@@ -215,84 +224,101 @@ func (h *ShareLinkHandler) RevokeShareLink(c echo.Context) error {
 	return presenter.NoContent(c)
 }
 
-// GetShareLinkInfo は共有リンク情報を取得します（認証不要）
-// @Summary 共有リンク情報取得
-// @Description トークンを使用して共有リンクの情報を取得します（認証不要）
-// @Tags ShareLinks
-// @Produce json
-// @Param token path string true "共有リンクトークン"
-// @Success 200 {object} handler.SwaggerShareLinkInfoResponse
-// @Failure 400 {object} handler.SwaggerErrorResponse
-// @Failure 404 {object} handler.SwaggerErrorResponse
-// @Router /share/{token} [get]
-func (h *ShareLinkHandler) GetShareLinkInfo(c echo.Context) error {
-	token := c.Param("token")
-	if token == "" {
-		return apperror.NewValidationError("invalid share link token", nil)
-	}
-
-	// 情報取得のみなのでアクセスカウントは増やさない
-	output, err := h.accessShareLinkQuery.Execute(c.Request().Context(), sharingqry.AccessShareLinkInput{
-		Token:     token,
-		Action:    "view",
-		IPAddress: c.RealIP(),
-		UserAgent: c.Request().UserAgent(),
-	})
-	if err != nil {
-		return err
-	}
-
-	return presenter.OK(c, response.ToShareLinkInfoResponse(output.ShareLink))
-}
-
-// AccessShareLink は共有リンクにアクセスします
-// @Summary 共有リンクアクセス
-// @Description 共有リンクにアクセスしてリソース情報を取得します（認証不要）
+// UpdateShareLink は共有リンクを更新します
+// @Summary 共有リンク更新
+// @Description 指定した共有リンクを更新します
 // @Tags ShareLinks
 // @Accept json
 // @Produce json
-// @Param token path string true "共有リンクトークン"
-// @Param action query string false "アクション (view, download)" default(download)
-// @Param body body request.AccessShareLinkRequest false "パスワード（パスワード保護されている場合）"
-// @Success 200 {object} handler.SwaggerShareLinkAccessResponse
+// @Security SessionCookie
+// @Param id path string true "共有リンクID"
+// @Param body body request.UpdateShareLinkRequest true "共有リンク更新情報"
+// @Success 200 {object} handler.SwaggerShareLinkResponse
 // @Failure 400 {object} handler.SwaggerErrorResponse
-// @Failure 403 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
 // @Failure 404 {object} handler.SwaggerErrorResponse
-// @Router /share/{token}/access [post]
-func (h *ShareLinkHandler) AccessShareLink(c echo.Context) error {
-	token := c.Param("token")
-	if token == "" {
-		return apperror.NewValidationError("invalid share link token", nil)
+// @Router /share-links/{id} [patch]
+func (h *ShareLinkHandler) UpdateShareLink(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
 	}
 
-	var req request.AccessShareLinkRequest
+	shareLinkID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return apperror.NewValidationError("invalid share link ID", nil)
+	}
+
+	var req request.UpdateShareLinkRequest
 	if err := c.Bind(&req); err != nil {
 		return apperror.NewValidationError("invalid request body", nil)
 	}
-
-	action := c.QueryParam("action")
-	if action == "" {
-		// デフォルトはdownload（view以外でパスワードチェックを行う）
-		action = "download"
+	if err := c.Validate(&req); err != nil {
+		return err
 	}
 
-	var userID *uuid.UUID
-	claims := middleware.GetAccessClaims(c)
-	if claims != nil {
-		userID = &claims.UserID
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err != nil {
+			return apperror.NewValidationError("invalid expiration date format", nil)
+		}
+		expiresAt = &t
 	}
 
-	output, err := h.accessShareLinkQuery.Execute(c.Request().Context(), sharingqry.AccessShareLinkInput{
-		Token:     token,
-		Password:  req.Password,
-		UserID:    userID,
-		IPAddress: c.RealIP(),
-		UserAgent: c.Request().UserAgent(),
-		Action:    action,
+	output, err := h.updateShareLinkCmd.Execute(c.Request().Context(), sharingcmd.UpdateShareLinkInput{
+		ShareLinkID:    shareLinkID,
+		UpdatedBy:      claims.UserID,
+		Password:       req.Password,
+		ExpiresAt:      expiresAt,
+		MaxAccessCount: req.MaxAccessCount,
 	})
 	if err != nil {
 		return err
 	}
 
-	return presenter.OK(c, response.ToShareLinkAccessResponse(output.ShareLink))
+	return presenter.OK(c, response.ToShareLinkResponse(output.ShareLink, h.baseURL))
+}
+
+// GetShareLinkHistory は共有リンクのアクセス履歴を取得します
+// @Summary 共有リンクアクセス履歴取得
+// @Description 指定した共有リンクのアクセス履歴を取得します
+// @Tags ShareLinks
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "共有リンクID"
+// @Param limit query int false "取得件数" default(20)
+// @Param offset query int false "オフセット" default(0)
+// @Success 200 {object} handler.SwaggerShareLinkAccessListResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Failure 404 {object} handler.SwaggerErrorResponse
+// @Router /share-links/{id}/history [get]
+func (h *ShareLinkHandler) GetShareLinkHistory(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
+	}
+
+	shareLinkID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return apperror.NewValidationError("invalid share link ID", nil)
+	}
+
+	var limit, offset int
+	if err := echo.QueryParamsBinder(c).Int("limit", &limit).Int("offset", &offset).BindError(); err != nil {
+		return apperror.NewValidationError("invalid query parameters", nil)
+	}
+
+	output, err := h.getShareLinkHistoryQuery.Execute(c.Request().Context(), sharingqry.GetShareLinkHistoryInput{
+		ShareLinkID: shareLinkID,
+		UserID:      claims.UserID,
+		Limit:       limit,
+		Offset:      offset,
+	})
+	if err != nil {
+		return err
+	}
+
+	return presenter.OK(c, response.ToShareLinkAccessListResponse(output.Accesses, output.Total))
 }

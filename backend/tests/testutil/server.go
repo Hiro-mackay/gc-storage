@@ -97,7 +97,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	container.InitStorageUseCases(mockStorageService)
 	container.InitCollaborationUseCases()
 	container.InitAuthzUseCases()
-	container.InitSharingUseCases()
+	container.InitSharingUseCases(mockStorageService)
 	handlers := di.NewHandlersForTest(container)
 	middlewares := di.NewMiddlewares(container)
 

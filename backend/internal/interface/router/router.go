@@ -222,9 +222,12 @@ func (r *Router) setupShareLinkRoutes(api *echo.Group) {
 	// Share link management routes (authenticated)
 	shareLinksGroup := api.Group("/share-links", r.middlewares.SessionAuth.Authenticate())
 	shareLinksGroup.DELETE("/:id", r.handlers.ShareLink.RevokeShareLink)
+	shareLinksGroup.PATCH("/:id", r.handlers.ShareLink.UpdateShareLink)
+	shareLinksGroup.GET("/:id/history", r.handlers.ShareLink.GetShareLinkHistory)
 
 	// Public share link access routes (no authentication required)
 	shareGroup := api.Group("/share")
 	shareGroup.GET("/:token", r.handlers.ShareLink.GetShareLinkInfo)
 	shareGroup.POST("/:token/access", r.handlers.ShareLink.AccessShareLink)
+	shareGroup.GET("/:token/download", r.handlers.ShareLink.GetDownloadViaShare)
 }

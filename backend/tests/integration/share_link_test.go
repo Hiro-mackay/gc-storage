@@ -354,8 +354,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_Expired() {
 		Path:   "/api/v1/share/" + shareToken + "/access",
 	})
 
-	// API returns 403 Forbidden for expired links
-	resp.AssertStatus(http.StatusForbidden)
+	// API returns 410 Gone for expired links
+	resp.AssertStatus(http.StatusGone)
 }
 
 func (s *ShareLinkTestSuite) TestAccessShareLink_Revoked() {
@@ -389,8 +389,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_Revoked() {
 		Path:   "/api/v1/share/" + shareToken + "/access",
 	})
 
-	// API returns 403 Forbidden for revoked links
-	resp.AssertStatus(http.StatusForbidden)
+	// API returns 410 Gone for revoked links
+	resp.AssertStatus(http.StatusGone)
 }
 
 // =============================================================================
@@ -594,8 +594,8 @@ func (s *ShareLinkTestSuite) TestAccessShareLink_MaxAccessCountReached() {
 		Path:   "/api/v1/share/" + shareToken + "/access",
 	})
 
-	resp.AssertStatus(http.StatusForbidden).
-		AssertJSONError("FORBIDDEN", "share link has reached maximum access count")
+	resp.AssertStatus(http.StatusGone).
+		AssertJSONError("GONE", "share link has reached maximum access count")
 }
 
 func (s *ShareLinkTestSuite) TestAccessShareLink_AccessCountIncrement() {

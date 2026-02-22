@@ -222,9 +222,23 @@ func (c *Container) InitAuditService() {
 }
 
 // InitSharingUseCases はSharing UseCasesを初期化します
-func (c *Container) InitSharingUseCases() {
+func (c *Container) InitSharingUseCases(storageService service.StorageService) {
 	c.SharingRepos = NewSharingRepositories(c.TxManager)
-	c.Sharing = NewSharingUseCases(c.SharingRepos, c.PermissionResolver)
+	// StorageRepos must be initialized before SharingUseCases for file/folder repos
+	if c.StorageRepos == nil {
+		c.StorageRepos = NewStorageRepositories(c.TxManager)
+	}
+	// PermissionResolver must be initialized before SharingUseCases
+	if c.PermissionResolver == nil {
+		if c.AuthzRepos == nil {
+			c.AuthzRepos = NewAuthzRepositories(c.TxManager)
+		}
+		if c.CollabRepos == nil {
+			c.CollabRepos = NewCollaborationRepositories(c.TxManager)
+		}
+		c.PermissionResolver = NewPermissionResolver(c.AuthzRepos, c.CollabRepos)
+	}
+	c.Sharing = NewSharingUseCases(c.SharingRepos, c.PermissionResolver, c.StorageRepos, storageService)
 }
 
 // Close はリソースをクリーンアップします

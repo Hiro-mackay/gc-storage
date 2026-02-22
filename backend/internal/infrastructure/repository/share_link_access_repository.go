@@ -126,6 +126,19 @@ func (r *ShareLinkAccessRepository) DeleteByShareLinkID(ctx context.Context, sha
 	return r.HandleError(err)
 }
 
+// AnonymizeOldAccesses は90日以上前のアクセスログのIPアドレスをNULLにします
+func (r *ShareLinkAccessRepository) AnonymizeOldAccesses(ctx context.Context) (int64, error) {
+	querier := r.Querier(ctx)
+
+	tag, err := querier.Exec(ctx,
+		`UPDATE share_link_accesses SET ip_address = NULL WHERE accessed_at < NOW() - INTERVAL '90 days' AND ip_address IS NOT NULL`,
+	)
+	if err != nil {
+		return 0, r.HandleError(err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // toEntity はsqlcgen.ShareLinkAccessをentity.ShareLinkAccessに変換します
 func (r *ShareLinkAccessRepository) toEntity(row sqlcgen.ShareLinkAccess) (*entity.ShareLinkAccess, error) {
 	var userID *uuid.UUID

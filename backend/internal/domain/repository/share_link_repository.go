@@ -46,4 +46,7 @@ type ShareLinkAccessRepository interface {
 
 	// 一括削除
 	DeleteByShareLinkID(ctx context.Context, shareLinkID uuid.UUID) error
+
+	// 古いアクセスログの匿名化
+	AnonymizeOldAccesses(ctx context.Context) (int64, error)
 }
