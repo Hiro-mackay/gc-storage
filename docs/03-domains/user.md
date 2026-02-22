@@ -27,8 +27,8 @@ Identity Contextの中核となるドメインで、他のすべてのコンテ�
 - R-U001: emailは全ユーザーで一意でなければならない
 - R-U002: password_hashはOAuth専用ユーザーの場合のみNULL許容
 - R-U003: nameは空文字不可、1-100文字
-- R-U004: statusがsuspendedまたはdeactivatedの場合、ログイン不可
-- R-U005: email_verifiedがfalseの場合、一部機能制限
+- R-U004: statusがsuspendedまたはdeactivatedの場合、ログイン不可。pendingはログイン可能（即座にアプリ利用開始できるようにする）
+- R-U005: email_verifiedがfalseの場合、重要操作（共有、チーム招待等）に制限。基本操作（ファイル閲覧・アップロード等）は許可
 - R-U006: personal_folder_idはユーザー登録処理完了後に設定（登録時に自動作成）
 - R-U007: UserとPersonal Folderは1対1の関係
 

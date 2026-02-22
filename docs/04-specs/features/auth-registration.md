@@ -21,7 +21,7 @@
 > As a newly registered user, I want to verify my email address so that my account becomes active.
 
 ### Context
-ユーザーはGC Storageを利用するためにアカウントを作成する必要がある。登録時にPersonal Folderが自動作成され、メール確認完了後にログイン可能になる。
+ユーザーはGC Storageを利用するためにアカウントを作成する必要がある。登録時にPersonal Folderが自動作成され、セッションが発行されて即座にアプリ利用可能になる。メール確認は非ブロッキングで、重要操作時にのみ要求される。
 
 ---
 
@@ -50,8 +50,10 @@
 
 ### State Transitions
 ```
-[Registration]       [Email Verification]
-Guest --register--> User(pending) --verify--> User(active)
+[Registration]                       [Email Verification]
+Guest --register--> User(pending)    --verify--> User(active)
+                    + Session(Redis)
+                    (即座にアプリ利用可能)
 ```
 
 ---
@@ -88,10 +90,23 @@ Guest --register--> User(pending) --verify--> User(active)
 **Success Response (201):**
 ```json
 {
-  "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "message": "Registration successful. Please check your email to verify your account."
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "taro@example.com",
+    "name": "Taro Yamada",
+    "status": "pending",
+    "email_verified": false,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
 }
 ```
+
+**Response Headers:**
+```
+Set-Cookie: session_id=xxx; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800
+```
+
+> Note: 登録成功時にセッションを自動発行し、即座にアプリ利用可能にする。メール確認はアプリ内で促進する。
 
 **Error Responses:**
 
@@ -163,13 +178,9 @@ Guest --register--> User(pending) --verify--> User(active)
 |  +-------------------------------------+  |
 +-------------------------------------------+
 
-[Registration Success]
-+-------------------------------------------+
-|  Check your email                         |
-|  We've sent a verification link to        |
-|  {email}. Please check your inbox.        |
-|  [Back to login]                          |
-+-------------------------------------------+
+[Registration Success -> Auto redirect to /files]
+(セッション自動発行、/files に即座に遷移)
+(メール確認はアプリ内バナーで促進)
 
 [Email Verification - Processing]
 +-------------------------------------------+
@@ -214,9 +225,10 @@ Guest --register--> User(pending) --verify--> User(active)
 ### User Interactions
 1. ユーザーがフォームに入力 -> パスワード強度がリアルタイム更新
 2. 「Create account」クリック -> ボタン無効化、API呼び出し
-3. 登録成功 -> 確認メッセージ画面表示
-4. 確認メールのリンクをクリック -> VerifyEmailPage表示、自動確認処理
-5. 確認成功 -> ログインページへ遷移可能
+3. 登録成功 -> セッション自動発行、`/files` へ即座に遷移
+4. アプリ内でメール確認バナーが表示される（非ブロッキング）
+5. 確認メールのリンクをクリック -> VerifyEmailPage表示、自動確認処理
+6. 確認成功 -> status=active に更新
 
 ---
 
@@ -224,18 +236,21 @@ Guest --register--> User(pending) --verify--> User(active)
 
 ### Registration Sequence
 ```
-Client          Frontend        API             DB              Email
-  |                |              |               |               |
-  |-- submit ----->|              |               |               |
-  |                |-- POST ----->|               |               |
-  |                |  /register   |-- check dup ->|               |
-  |                |              |<-- ok --------|               |
-  |                |              |-- create folder->|            |
-  |                |              |-- create user -->|            |
-  |                |              |-- create token ->|            |
-  |                |              |-- send email ----|---------->|
-  |                |<-- 201 ------|               |               |
-  |<-- success ----|              |               |               |
+Client          Frontend        API             DB         Redis    Email
+  |                |              |               |          |        |
+  |-- submit ----->|              |               |          |        |
+  |                |-- POST ----->|               |          |        |
+  |                |  /register   |-- check dup ->|          |        |
+  |                |              |<-- ok --------|          |        |
+  |                |              |-- create folder->|       |        |
+  |                |              |-- create user -->|       |        |
+  |                |              |-- save session --|------->|       |
+  |                |              |-- create token ->|       |        |
+  |                |              |-- send email ----|--------|------>|
+  |                |<-- 201 ------|               |          |        |
+  |                |  Set-Cookie  |               |          |        |
+  |<-- redirect -->|              |               |          |        |
+  |   to /files    |              |               |          |        |
 ```
 
 ### Email Verification Sequence
@@ -262,9 +277,9 @@ Client          Frontend        API             DB
 ## 6. Acceptance Criteria
 
 ### Happy Path
-- [ ] AC-01: Given 有効なname/email/password, when 登録フォーム送信, then 201が返りPersonal Folderが自動作成される
-- [ ] AC-02: Given 登録成功, when 確認メールのリンクをクリック, then ステータスがactiveに更新される
-- [ ] AC-03: Given 確認完了, when ログインページへ遷移, then ログインが可能
+- [ ] AC-01: Given 有効なname/email/password, when 登録フォーム送信, then 201が返りPersonal Folder自動作成+セッション発行+ユーザー情報返却
+- [ ] AC-02: Given 登録成功, when フロントエンドがレスポンス受信, then /filesへ自動遷移しアプリ利用可能
+- [ ] AC-03: Given 登録済み(pending), when 確認メールのリンクをクリック, then ステータスがactiveに更新される
 
 ### Validation Errors
 - [ ] AC-10: Given パスワードが8文字未満, when 登録送信, then バリデーションエラーが表示される
@@ -285,7 +300,7 @@ Client          Frontend        API             DB
 
 | Test | UseCase/Service | Key Assertions |
 |------|----------------|----------------|
-| 正常な登録 | RegisterCommand | User(pending)作成、Personal Folder作成、トークン作成 |
+| 正常な登録 | RegisterCommand | User(pending)作成、Personal Folder作成、セッション発行、トークン作成 |
 | メール重複 | RegisterCommand | ConflictError返却 |
 | パスワードバリデーション | Password VO | 8文字未満、大文字なし、数字なしで拒否 |
 | 正常なメール確認 | VerifyEmailCommand | status=active、email_verified=true |
@@ -296,7 +311,7 @@ Client          Frontend        API             DB
 
 | Test | Endpoint | Setup | Assertions |
 |------|----------|-------|------------|
-| 登録成功 | POST /register | - | 201, user作成、folder作成 |
+| 登録成功 | POST /register | - | 201, user作成、folder作成、Set-Cookie |
 | 重複メール | POST /register | 既存user | 409 |
 | メール確認成功 | POST /verify | pending user + token | 200, status=active |
 | 無効トークン | POST /verify | - | 400 |
@@ -307,14 +322,14 @@ Client          Frontend        API             DB
 |------|-----------|------|------------|
 | フォーム入力バリデーション | RegisterForm | Unit | 各フィールドのエラー表示 |
 | パスワード強度表示 | PasswordStrengthIndicator | Unit | リアルタイム更新 |
-| 登録成功フロー | RegisterPage | Integration | 成功画面遷移 |
+| 登録成功フロー | RegisterPage | Integration | /files へ遷移 |
 | 確認成功フロー | VerifyEmailPage | Integration | 成功メッセージ表示 |
 
 ### E2E Tests (future)
 
 | Test | Flow | Assertions |
 |------|------|------------|
-| 登録->メール確認->ログイン | フルフロー | アカウント作成から利用開始まで |
+| 登録->ファイル一覧->メール確認 | フルフロー | アカウント作成から即座に利用開始、メール確認はバックグラウンド |
 
 ---
 

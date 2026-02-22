@@ -33,8 +33,8 @@
 
 | Rule ID | Summary | Domain File |
 |---------|---------|-------------|
-| R-U004 | status=suspended/deactivatedの場合ログイン不可 | `03-domains/user.md` |
-| R-U005 | email_verified=falseの場合、一部機能制限 | `03-domains/user.md` |
+| R-U004 | status=suspended/deactivatedの場合ログイン不可。pendingはログイン可能 | `03-domains/user.md` |
+| R-U005 | email_verified=falseの場合、重要操作に制限（基本操作は許可） | `03-domains/user.md` |
 | R-S001 | expires_atを過ぎたセッションは無効 | `03-domains/user.md` |
 | R-S002 | 同一ユーザーの有効セッションは最大10個 | `03-domains/user.md` |
 | R-S003 | 新規セッション作成時、最古のセッションを自動失効 | `03-domains/user.md` |
@@ -45,8 +45,8 @@
 
 | Rule ID | Description |
 |---------|-------------|
-| FS-LOGIN-001 | status=pendingの場合「メール確認を完了してください」エラーを返す |
-| FS-LOGIN-002 | OAuth専用ユーザーがパスワードログインを試みた場合「OAuthでログインしてください」エラー |
+| FS-LOGIN-001 | status=pendingの場合もログインを許可する（メール確認は重要操作時にのみ要求） |
+| FS-LOGIN-002 | OAuth専用ユーザーがパスワードログインを試みた場合「invalid credentials」汎用エラー（認証方式を漏洩しない） |
 | FS-LOGIN-003 | ログイン成功時、Session IDをHttpOnly Cookieに設定 |
 | FS-LOGIN-004 | セッション有効期限は7日、スライディングウィンドウで延長 |
 | FS-LOGIN-005 | ログアウト時、Redisからセッション削除 + Cookie削除 |
@@ -56,11 +56,11 @@
 ### State Transitions
 ```
 [Login]
-Guest --login(email/pwd)--> User(active) + Session(Redis)
+Guest --login(email/pwd)--> User(active|pending) + Session(Redis)
 Guest --oauth--> User(active) + Session(Redis)
 
 [Logout]
-User(active) --logout--> Guest (Session deleted)
+User(active|pending) --logout--> Guest (Session deleted)
 ```
 
 ---
@@ -116,9 +116,10 @@ Set-Cookie: session_id=xxx; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=6048
 
 | Code | Condition | Error Code |
 |------|-----------|------------|
-| 401 | 認証情報不正 | `UNAUTHORIZED` |
-| 401 | メール未確認 (pending) | `UNAUTHORIZED` |
+| 401 | 認証情報不正（ユーザー未存在、パスワード不一致、OAuth専用ユーザー） | `UNAUTHORIZED` |
 | 401 | アカウント停止/無効化 | `UNAUTHORIZED` |
+
+> Note: セキュリティ上、認証失敗時はすべて汎用的な「invalid credentials」エラーを返す。OAuth専用ユーザーかどうかも漏洩しない。pendingユーザーはログイン可能。
 
 #### `POST /api/v1/auth/oauth/:provider` - OAuthログイン
 
@@ -313,8 +314,8 @@ Client          Frontend        API             Redis           DB
 ```
 
 ### Error Handling Flow
-- 認証失敗: 401 -> 「Invalid email or password」表示
-- メール未確認: 401 -> 「Please verify your email first」表示
+- 認証失敗: 401 -> 「Invalid email or password」表示（汎用エラー、OAuth専用も同じ）
+- アカウント停止: 401 -> 「account suspended」表示
 - OAuth拒否: コールバックでエラーパラメータ検出 -> エラー画面表示
 - セッション期限切れ: 401 -> ログインページへリダイレクト
 
@@ -331,9 +332,9 @@ Client          Frontend        API             Redis           DB
 - [ ] AC-06: Given ログイン状態, when GET /me, then 現在のユーザー情報が返る
 
 ### Validation Errors
-- [ ] AC-10: Given 不正なメール/パスワード, when ログイン送信, then 401エラーが返る
-- [ ] AC-11: Given 未確認メール(pending), when ログイン送信, then 「メール確認してください」エラーが返る
-- [ ] AC-12: Given OAuth専用ユーザー, when パスワードログイン, then 「OAuthでログインしてください」エラーが返る
+- [ ] AC-10: Given 不正なメール/パスワード, when ログイン送信, then 401「invalid credentials」が返る
+- [ ] AC-11: Given 未確認メール(pending), when ログイン送信, then ログイン成功しアプリ利用可能
+- [ ] AC-12: Given OAuth専用ユーザー, when パスワードログイン, then 401「invalid credentials」が返る（認証方式を漏洩しない）
 
 ### Authorization
 - [ ] AC-20: Given セッションなし, when 認証必須API呼び出し, then 401が返る
@@ -353,10 +354,10 @@ Client          Frontend        API             Redis           DB
 
 | Test | UseCase/Service | Key Assertions |
 |------|----------------|----------------|
-| 正常ログイン | LoginCommand | セッション作成、SessionID返却 |
-| パスワード不正 | LoginCommand | UnauthorizedError |
-| pending状態 | LoginCommand | 「メール確認」エラー |
-| OAuth専用ユーザー | LoginCommand | 「OAuthでログイン」エラー |
+| 正常ログイン(active) | LoginCommand | セッション作成、SessionID返却 |
+| 正常ログイン(pending) | LoginCommand | セッション作成、SessionID返却（pending許可） |
+| パスワード不正 | LoginCommand | UnauthorizedError「invalid credentials」 |
+| OAuth専用ユーザー | LoginCommand | UnauthorizedError「invalid credentials」（汎用エラー） |
 | セッション上限 | LoginCommand | 最古セッション削除後に新規作成 |
 | OAuth新規ユーザー | OAuthLoginCommand | User + Folder + Profile作成 |
 | OAuth既存ユーザー紐付け | OAuthLoginCommand | OAuthAccount作成 |
