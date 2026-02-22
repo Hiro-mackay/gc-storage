@@ -16,6 +16,7 @@ backend/api
 backend/bin/
 backend/tmp/
 backend/docs/
+backend/internal/infrastructure/database/sqlcgen/
 backend/coverage.out
 backend/coverage.html
 backend/*.log
@@ -26,6 +27,8 @@ backend/*.log
 frontend/node_modules/
 frontend/dist/
 frontend/coverage/
+frontend/src/lib/api/openapi.json
+frontend/src/lib/api/schema.d.ts
 frontend/*.log
 frontend/.pnpm-debug.log*
 

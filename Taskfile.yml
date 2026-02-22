@@ -22,7 +22,7 @@ tasks:
       - task: infra:up
       - task: db:migrate
       - defer: { task: infra:down }
-      - task: generate:api
+      - task: generate
       - task: _dev:services
 
   dev:backend:
@@ -30,6 +30,7 @@ tasks:
     cmds:
       - task: infra:up
       - task: db:migrate
+      - task: generate:sqlc
       - task: _backend:dev
 
   dev:frontend:
@@ -164,6 +165,7 @@ tasks:
   check:
     desc: Lint + test (quick validation before commit)
     cmds:
+      - task: generate:sqlc
       - task: lint
       - task: test
 
@@ -185,6 +187,7 @@ tasks:
   build:
     desc: Build backend + frontend for production
     cmds:
+      - task: generate
       - task: _build:backend
       - task: _build:frontend
 
@@ -192,8 +195,9 @@ tasks:
   # CI
   # =============================================================================
   ci:
-    desc: Full CI pipeline (lint + test + integration + build)
+    desc: Full CI pipeline (generate + lint + test + integration + build)
     cmds:
+      - task: generate
       - task: lint
       - task: test
       - task: test:integration
