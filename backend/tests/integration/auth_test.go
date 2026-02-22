@@ -59,8 +59,16 @@ func (s *AuthTestSuite) TestRegister_Success() {
 	})
 
 	resp.AssertStatus(http.StatusCreated).
-		AssertJSONPathExists("data.user_id").
-		AssertJSONPath("data.message", "Registration successful. Please check your email to verify your account.")
+		AssertJSONPathExists("data.user.id").
+		AssertJSONPath("data.user.email", "test@example.com").
+		AssertJSONPath("data.user.name", "Test User").
+		AssertJSONPath("data.user.status", "pending").
+		AssertJSONPath("data.user.email_verified", false)
+
+	// Verify session cookie is set (auto-login)
+	cookie := resp.GetCookie("session_id")
+	s.NotNil(cookie, "session_id cookie should be set on registration")
+	s.True(cookie.HttpOnly, "session_id cookie should be HttpOnly")
 }
 
 func (s *AuthTestSuite) TestRegister_InvalidEmail() {
