@@ -1,0 +1,24 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt-backend:
+      glob: "backend/**/*.go"
+      root: "backend/"
+      run: go fmt {staged_files} && goimports -w {staged_files}
+      stage_fixed: true
+
+    lint-backend:
+      glob: "backend/**/*.go"
+      root: "backend/"
+      run: golangci-lint run ./...
+
+    fmt-frontend:
+      glob: "frontend/src/**/*.{ts,tsx,css}"
+      root: "frontend/"
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
+
+    lint-frontend:
+      glob: "frontend/src/**/*.{ts,tsx}"
+      root: "frontend/"
+      run: pnpm lint

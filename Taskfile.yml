@@ -208,6 +208,7 @@ tasks:
       - task: setup:tools
       - cd {{.BACKEND_DIR}} && go mod tidy
       - cd {{.FRONTEND_DIR}} && pnpm install
+      - task: setup:hooks
 
   setup:tools:
     desc: Install required Go development tools
@@ -220,7 +221,14 @@ tasks:
         go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
         go install golang.org/x/tools/cmd/goimports@latest
         go install github.com/swaggo/swag/cmd/swag@latest
+        go install github.com/evilmartians/lefthook@latest
         echo "All tools installed!"
+      - task: setup:hooks
+
+  setup:hooks:
+    desc: Install git pre-commit hooks (lefthook)
+    cmds:
+      - lefthook install
 
   doctor:
     desc: Check if all required tools are installed
@@ -246,6 +254,7 @@ tasks:
         check migrate
         check golangci-lint
         check swag
+        check lefthook
         echo ""
         if [ -z "$MISSING" ]; then
           echo "All tools are installed!"
