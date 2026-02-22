@@ -67,8 +67,8 @@ func (c *MoveFileCommand) Execute(ctx context.Context, input MoveFileInput) (*Mo
 		return nil, err
 	}
 
-	// 所有者チェック
-	if !folder.IsOwnedBy(file.OwnerID) {
+	// 移動先フォルダの所有者チェック（リクエストユーザーが所有者であること）
+	if !folder.IsOwnedBy(input.UserID) {
 		return nil, apperror.NewForbiddenError("not authorized to move to this folder")
 	}
 

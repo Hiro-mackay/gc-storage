@@ -54,13 +54,15 @@ func (c *RenameFileCommand) Execute(ctx context.Context, input RenameFileInput) 
 		return nil, apperror.NewForbiddenError("not authorized to rename this file")
 	}
 
-	// 4. 同名ファイルの存在チェック
-	exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, newName, file.FolderID)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, apperror.NewConflictError("file with same name already exists")
+	// 4. 同名ファイルの存在チェック（自身を除く）
+	if !file.Name.Equals(newName) {
+		exists, err := c.fileRepo.ExistsByNameAndFolder(ctx, newName, file.FolderID)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return nil, apperror.NewConflictError("file with same name already exists")
+		}
 	}
 
 	// 5. ファイル名を変更（エンティティメソッド使用）
