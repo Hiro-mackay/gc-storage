@@ -46,7 +46,7 @@ frontend/
 │   │   ├── ui/                   # shadcn/ui コンポーネント
 │   │   ├── layout/               # レイアウトコンポーネント
 │   │   └── common/               # 共通コンポーネント
-│   ├── features/                 # 機能別モジュール
+│   ├── features/                 # 機能別モジュール（下記標準構造に従う）
 │   │   ├── auth/
 │   │   ├── files/
 │   │   ├── groups/
@@ -64,6 +64,81 @@ frontend/
 │   ├── types/                    # 型定義
 │   └── styles/                   # グローバルスタイル
 ```
+
+### features/ 標準構造
+
+各feature モジュールは以下のサブディレクトリ構成に従う:
+
+```
+features/{feature}/
+  api/
+    queries.ts       -- useQuery / useSuspenseQuery フック
+    mutations.ts     -- useMutation フック
+  hooks/
+    use-{name}.ts    -- 複合ロジックフック（query + mutation + UI状態の合成）
+  components/
+    {name}.tsx       -- 機能固有UIコンポーネント
+  pages/
+    {name}-page.tsx  -- ルートエントリーポイント（合成のみ）
+  types.ts           -- 機能ローカル型エイリアス（任意）
+```
+
+- `api/`, `pages/` は必須。`hooks/`, `components/`, `types.ts` は必要に応じて作成
+- 各サブディレクトリの責務ルールは「Features モジュール設計」セクションを参照
+
+---
+
+## Features モジュール設計
+
+### サブディレクトリの責務ルール
+
+| サブディレクトリ | 責務 | 許可 | 禁止 |
+|---|---|---|---|
+| `api/queries.ts` | useQuery/useSuspenseQueryラッパー | query key参照、client参照 | UI操作、toast、navigation、useMutation |
+| `api/mutations.ts` | useMutationラッパー + キャッシュ無効化 | invalidateQueries、toast通知、onSuccessコールバック | useState、JSX |
+| `hooks/` | query + mutation + UI状態の合成 | useState、useMemo、store参照 | JSX、UIコンポーネントimport |
+| `components/` | 機能固有UIコンポーネント | props受け取り、自己完結ダイアログ（mutation内包） | ページレベルのデータ取得 |
+| `pages/` | ルートエントリーポイント | フック呼び出し、コンポーネント合成、loading/error表示 | インラインuseQuery/useMutation、ビジネスロジック |
+
+### pages/ の厳格ルール
+
+ページコンポーネントは**合成のみ**を責務とする。以下を厳守:
+
+- インラインの `useQuery` / `useMutation` 禁止 → `api/` に抽出
+- ビジネスロジック（ソート、フィルタ、権限計算）禁止 → `hooks/` に抽出
+- ユーティリティ関数（formatBytes等）禁止 → `@/lib/utils` に配置
+- **目標: 150行以下、上限: 200行**
+
+### 抽出判断マトリクス
+
+| シナリオ | 対応 |
+|---|---|
+| ページでのみ使うQueryでも | `api/queries.ts` に抽出（一貫性・テスタビリティ） |
+| ダイアログ内のMutation | ダイアログコンポーネント内に保持（自己完結ダイアログパターン） |
+| ページが直接使うMutation | `api/mutations.ts` に抽出 |
+| ソート/フィルタ > 10行 | `hooks/` に抽出 |
+| ユーティリティ関数 | `@/lib/utils` に移動 |
+| ページが200行超 | コンポーネントまたはフックの抽出が必須 |
+
+### `lib/` と `features/` の境界
+
+| 配置先 | 内容 |
+|---|---|
+| `lib/api/queries.ts` | Query Key Factory（全feature共有） |
+| `lib/api/client.ts` | openapi-fetch クライアント |
+| `stores/` | グローバルZustand Store |
+| `features/{feature}/api/` | 機能固有のquery/mutationフック |
+| `features/{feature}/hooks/` | 機能固有の合成ロジック |
+
+### ファイル命名規則
+
+| 種別 | パターン | 例 |
+|---|---|---|
+| Queryフック | `queries.ts`（feature毎に1つ） | `features/files/api/queries.ts` |
+| Mutationフック | `mutations.ts`（feature毎に1つ） | `features/files/api/mutations.ts` |
+| ロジックフック | `use-{name}.ts` | `features/files/hooks/use-sorted-contents.ts` |
+| コンポーネント | `{name}.tsx` | `features/files/components/file-table.tsx` |
+| ページ | `{feature}-page.tsx` | `features/files/pages/file-browser-page.tsx` |
 
 ---
 
@@ -303,24 +378,22 @@ export const Route = createFileRoute('/_authenticated/files/$folderId')({
 
 ### 4.4 ページコンポーネントでの取得
 
+ページコンポーネントでは、`api/queries.ts` に定義したカスタムフックを呼び出す。インラインで `queryFn` を書かない。
+
 ```typescript
-// ページコンポーネント: useSuspenseQueryでSuspense対応
+// features/files/api/queries.ts にフックを定義
+// （queryKey, queryFn をカプセル化）
+
+// features/files/pages/file-browser-page.tsx
 function FolderPage() {
   const { folderId } = Route.useParams();
-
-  const { data } = useSuspenseQuery({
-    queryKey: fileKeys.list(folderId, defaultOptions),
-    queryFn: async () => {
-      const { data } = await api.GET("/folders/{id}/contents", {
-        params: { path: { id: folderId } },
-      });
-      return data;
-    },
-  });
+  const { data } = useFolderContents(folderId);
 
   return <FileList files={data.files} folders={data.folders} />;
 }
 ```
+
+ページは `useFolderContents` を呼ぶだけで、query key やAPI呼び出しの詳細を知らない。
 
 ### 4.5 子コンポーネントでの取得
 
@@ -470,12 +543,35 @@ export function LoginForm({ onSubmit }: { onSubmit: (values: LoginFormValues) =>
 
 ## 6. コンポーネント設計原則
 
-### 6.1 Presentational / Container パターン
+### 6.1 コンポーネントの責務分離
 
-| 種別 | 責務 | 例 |
-|------|------|-----|
-| Presentational | UI表示のみ、propsで受け取る | FileItem, Button |
-| Container | データ取得・ロジック、子に渡す | FileListContainer |
+features構造における責務分離:
+
+| 種別 | 責務 | 配置先 |
+|------|------|--------|
+| ページ | フック呼び出しとコンポーネント合成のみ | `features/{feature}/pages/` |
+| 機能コンポーネント | 機能固有UI、自己完結ダイアログ | `features/{feature}/components/` |
+| 共通コンポーネント | 汎用UI、props駆動 | `components/` |
+
+**自己完結ダイアログパターン:**
+
+ダイアログコンポーネントは、mutation呼び出し・バリデーション・成功/失敗処理を内包する。ページからはopen/close制御のみ行う。
+
+```typescript
+// features/files/components/create-folder-dialog.tsx
+// open, onOpenChange をpropsで受け取り、内部でmutationを実行
+// ページ側ではダイアログの開閉状態だけを管理
+
+// features/files/pages/file-browser-page.tsx
+// ページはダイアログの表示/非表示を制御するだけ
+```
+
+**ページコンポーネントの責務:**
+- フック（`api/queries.ts`, `hooks/`）の呼び出し
+- 機能コンポーネントの合成（レイアウト配置）
+- loading / error 状態の表示
+- ダイアログの open/close 制御
+- **禁止:** インラインuseQuery/useMutation、ビジネスロジック、ユーティリティ関数
 
 ### 6.2 Composition パターン
 
