@@ -11,7 +11,6 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
-	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
 
@@ -39,7 +38,7 @@ type OAuthLoginCommand struct {
 	folderClosureRepo repository.FolderClosureRepository
 	relationshipRepo  authz.RelationshipRepository
 	oauthFactory      service.OAuthClientFactory
-	txManager         *database.TxManager
+	txManager         repository.TransactionManager
 	sessionRepo       repository.SessionRepository
 }
 
@@ -52,7 +51,7 @@ func NewOAuthLoginCommand(
 	folderClosureRepo repository.FolderClosureRepository,
 	relationshipRepo authz.RelationshipRepository,
 	oauthFactory service.OAuthClientFactory,
-	txManager *database.TxManager,
+	txManager repository.TransactionManager,
 	sessionRepo repository.SessionRepository,
 ) *OAuthLoginCommand {
 	return &OAuthLoginCommand{
@@ -111,15 +110,17 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 				return txErr
 			}
 
-			// トークンを更新
-			oauthAccount.AccessToken = tokens.AccessToken
-			oauthAccount.RefreshToken = tokens.RefreshToken
-			if tokens.ExpiresIn > 0 {
-				oauthAccount.TokenExpiresAt = time.Now().Add(time.Duration(tokens.ExpiresIn) * time.Second)
-			}
-			oauthAccount.UpdatedAt = time.Now()
-			if txErr = c.oauthAccountRepo.Update(ctx, oauthAccount); txErr != nil {
-				return txErr
+			// アクティブユーザーのみトークンを更新（停止/無効化ユーザーのトークンは更新しない）
+			if user.Status == entity.UserStatusActive {
+				oauthAccount.AccessToken = tokens.AccessToken
+				oauthAccount.RefreshToken = tokens.RefreshToken
+				if tokens.ExpiresIn > 0 {
+					oauthAccount.TokenExpiresAt = time.Now().Add(time.Duration(tokens.ExpiresIn) * time.Second)
+				}
+				oauthAccount.UpdatedAt = time.Now()
+				if txErr = c.oauthAccountRepo.Update(ctx, oauthAccount); txErr != nil {
+					return txErr
+				}
 			}
 
 			isNewUser = false

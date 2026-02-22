@@ -6,13 +6,7 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
-// RegisterResponse はユーザー登録レスポンス
-type RegisterResponse struct {
-	UserID  string `json:"user_id"`
-	Message string `json:"message"`
-}
-
-// LoginResponse はログインレスポンス
+// LoginResponse はログイン・登録共通レスポンス
 type LoginResponse struct {
 	User *UserResponse `json:"user"`
 }

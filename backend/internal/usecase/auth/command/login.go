@@ -56,10 +56,9 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
 		return nil, apperror.NewUnauthorizedError("invalid credentials")
 	}
 
-	// 2. パスワード検証
+	// 2. パスワード検証 (FS-LOGIN-002: OAuth専用ユーザーも同じエラーを返す)
 	if user.PasswordHash == "" {
-		// OAuth専用ユーザー
-		return nil, apperror.NewUnauthorizedError("please use OAuth to login")
+		return nil, apperror.NewUnauthorizedError("invalid credentials")
 	}
 
 	password := valueobject.PasswordFromHash(user.PasswordHash)

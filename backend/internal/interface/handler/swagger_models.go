@@ -9,10 +9,10 @@ import (
 
 // ---- Auth ----
 
-// SwaggerRegisterResponse は RegisterResponse のラッパー
+// SwaggerRegisterResponse は登録レスポンスのラッパー（実態はLoginResponseと同じ）
 type SwaggerRegisterResponse struct {
-	Data response.RegisterResponse `json:"data"`
-	Meta *presenter.Meta           `json:"meta"`
+	Data response.LoginResponse `json:"data"`
+	Meta *presenter.Meta        `json:"meta"`
 }
 
 // SwaggerLoginResponse は LoginResponse のラッパー
