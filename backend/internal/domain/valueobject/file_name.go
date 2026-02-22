@@ -4,7 +4,6 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
-	"unicode/utf8"
 )
 
 const (
@@ -42,7 +41,7 @@ func NewFileName(name string) (FileName, error) {
 	}
 
 	// 長さチェック（UTF-8バイト数）
-	if utf8.RuneCountInString(trimmed) > FileNameMaxBytes {
+	if len(trimmed) > FileNameMaxBytes {
 		return FileName{}, ErrFileNameTooLong
 	}
 
