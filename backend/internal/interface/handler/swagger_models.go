@@ -77,10 +77,10 @@ type SwaggerOAuthLoginResponse struct {
 
 // ---- Profile ----
 
-// SwaggerProfileResponse は ProfileResponse のラッパー
+// SwaggerProfileResponse は GetProfileResponse のラッパー
 type SwaggerProfileResponse struct {
-	Data response.ProfileResponse `json:"data"`
-	Meta *presenter.Meta          `json:"meta"`
+	Data response.GetProfileResponse `json:"data"`
+	Meta *presenter.Meta             `json:"meta"`
 }
 
 // SwaggerUpdateProfileResponse は UpdateProfileResponse のラッパー

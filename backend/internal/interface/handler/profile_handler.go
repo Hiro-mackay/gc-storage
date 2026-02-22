@@ -20,16 +20,19 @@ type ProfileHandler struct {
 
 	// Commands
 	updateProfileCommand *profilecmd.UpdateProfileCommand
+	updateUserCommand    *profilecmd.UpdateUserCommand
 }
 
 // NewProfileHandler は新しいProfileHandlerを作成します
 func NewProfileHandler(
 	getProfileQuery *profileqry.GetProfileQuery,
 	updateProfileCommand *profilecmd.UpdateProfileCommand,
+	updateUserCommand *profilecmd.UpdateUserCommand,
 ) *ProfileHandler {
 	return &ProfileHandler{
 		getProfileQuery:      getProfileQuery,
 		updateProfileCommand: updateProfileCommand,
+		updateUserCommand:    updateUserCommand,
 	}
 }
 
@@ -55,7 +58,7 @@ func (h *ProfileHandler) GetProfile(c echo.Context) error {
 		return err
 	}
 
-	return presenter.OK(c, response.ToProfileResponse(output.User, output.Profile))
+	return presenter.OK(c, response.ToGetProfileResponse(output.User, output.Profile))
 }
 
 // UpdateProfile は現在のユーザーのプロファイルを更新します
@@ -84,18 +87,15 @@ func (h *ProfileHandler) UpdateProfile(c echo.Context) error {
 		return err
 	}
 
-	// リクエストからコマンド入力への変換
 	input := profilecmd.UpdateProfileInput{
-		UserID:      claims.UserID,
-		DisplayName: req.DisplayName,
-		AvatarURL:   req.AvatarURL,
-		Bio:         req.Bio,
-		Locale:      req.Locale,
-		Timezone:    req.Timezone,
-		Theme:       req.Theme,
+		UserID:    claims.UserID,
+		AvatarURL: req.AvatarURL,
+		Bio:       req.Bio,
+		Locale:    req.Locale,
+		Timezone:  req.Timezone,
+		Theme:     req.Theme,
 	}
 
-	// NotificationPreferences の変換
 	if req.NotificationPreferences != nil {
 		notifPrefs := &entity.NotificationPreferences{}
 		if req.NotificationPreferences.EmailEnabled != nil {
@@ -112,16 +112,42 @@ func (h *ProfileHandler) UpdateProfile(c echo.Context) error {
 		return err
 	}
 
-	// GetProfileを再度呼び出してUserも含めたレスポンスを返す
-	profileOutput, err := h.getProfileQuery.Execute(c.Request().Context(), profileqry.GetProfileInput{
+	return presenter.OK(c, response.ToUpdateProfileResponse(output.Profile))
+}
+
+// UpdateMe は現在のユーザーの基本情報を更新します
+// @Summary ユーザー情報更新
+// @Description 現在のユーザーの名前などの基本情報を更新します
+// @Tags Profile
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param body body request.UpdateUserRequest true "ユーザー情報更新"
+// @Success 200 {object} handler.SwaggerUserResponse
+// @Failure 400 {object} handler.SwaggerErrorResponse
+// @Failure 401 {object} handler.SwaggerErrorResponse
+// @Router /me [put]
+func (h *ProfileHandler) UpdateMe(c echo.Context) error {
+	claims := middleware.GetAccessClaims(c)
+	if claims == nil {
+		return apperror.NewUnauthorizedError("invalid token")
+	}
+
+	var req request.UpdateUserRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.NewValidationError("invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	output, err := h.updateUserCommand.Execute(c.Request().Context(), profilecmd.UpdateUserInput{
 		UserID: claims.UserID,
+		Name:   req.Name,
 	})
 	if err != nil {
 		return err
 	}
 
-	return presenter.OK(c, response.UpdateProfileResponse{
-		Profile: response.ToProfileResponse(profileOutput.User, output.Profile),
-		Message: "profile updated successfully",
-	})
+	return presenter.OK(c, response.ToUserResponse(output.User))
 }

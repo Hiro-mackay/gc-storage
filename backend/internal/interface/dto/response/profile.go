@@ -6,11 +6,10 @@ import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 )
 
-// ProfileResponse はプロファイル情報レスポンス
-type ProfileResponse struct {
+// ProfileDataResponse はプロファイルデータのみのレスポンス
+type ProfileDataResponse struct {
+	ID                      string                     `json:"id"`
 	UserID                  string                     `json:"user_id"`
-	Email                   string                     `json:"email"`
-	Name                    string                     `json:"name"`
 	AvatarURL               string                     `json:"avatar_url,omitempty"`
 	Bio                     string                     `json:"bio,omitempty"`
 	Locale                  string                     `json:"locale"`
@@ -26,15 +25,25 @@ type NotificationPrefsResponse struct {
 	PushEnabled  bool `json:"push_enabled"`
 }
 
-// ToProfileResponse はエンティティをレスポンスに変換します
-func ToProfileResponse(user *entity.User, profile *entity.UserProfile) *ProfileResponse {
-	if user == nil || profile == nil {
+// GetProfileResponse はプロファイル取得レスポンス（profile + user の入れ子構造）
+type GetProfileResponse struct {
+	Profile *ProfileDataResponse `json:"profile"`
+	User    *UserResponse        `json:"user"`
+}
+
+// UpdateProfileResponse はプロファイル更新レスポンス（profile のみ）
+type UpdateProfileResponse struct {
+	Profile *ProfileDataResponse `json:"profile"`
+}
+
+// ToProfileDataResponse はエンティティをProfileDataResponseに変換します
+func ToProfileDataResponse(profile *entity.UserProfile) *ProfileDataResponse {
+	if profile == nil {
 		return nil
 	}
-	return &ProfileResponse{
-		UserID:    user.ID.String(),
-		Email:     user.Email.String(),
-		Name:      user.Name,
+	return &ProfileDataResponse{
+		ID:        profile.ID.String(),
+		UserID:    profile.UserID.String(),
 		AvatarURL: profile.AvatarURL,
 		Bio:       profile.Bio,
 		Locale:    profile.Locale,
@@ -48,8 +57,23 @@ func ToProfileResponse(user *entity.User, profile *entity.UserProfile) *ProfileR
 	}
 }
 
-// UpdateProfileResponse はプロファイル更新レスポンス
-type UpdateProfileResponse struct {
-	Profile *ProfileResponse `json:"profile"`
-	Message string           `json:"message"`
+// ToGetProfileResponse はエンティティをGetProfileResponseに変換します
+func ToGetProfileResponse(user *entity.User, profile *entity.UserProfile) *GetProfileResponse {
+	if user == nil || profile == nil {
+		return nil
+	}
+	return &GetProfileResponse{
+		Profile: ToProfileDataResponse(profile),
+		User:    ToUserResponse(user),
+	}
+}
+
+// ToUpdateProfileResponse はエンティティをUpdateProfileResponseに変換します
+func ToUpdateProfileResponse(profile *entity.UserProfile) *UpdateProfileResponse {
+	if profile == nil {
+		return nil
+	}
+	return &UpdateProfileResponse{
+		Profile: ToProfileDataResponse(profile),
+	}
 }

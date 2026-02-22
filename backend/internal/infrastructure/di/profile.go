@@ -12,6 +12,7 @@ type ProfileUseCases struct {
 
 	// Commands
 	UpdateProfile *profilecmd.UpdateProfileCommand
+	UpdateUser    *profilecmd.UpdateUserCommand
 }
 
 // NewProfileUseCases は新しいProfileUseCasesを作成します
@@ -26,6 +27,9 @@ func NewProfileUseCases(c *Container) *ProfileUseCases {
 		// Commands
 		UpdateProfile: profilecmd.NewUpdateProfileCommand(
 			c.UserProfileRepo,
+			c.UserRepo,
+		),
+		UpdateUser: profilecmd.NewUpdateUserCommand(
 			c.UserRepo,
 		),
 	}

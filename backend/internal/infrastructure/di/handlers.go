@@ -47,6 +47,7 @@ func NewHandlers(c *Container) *Handlers {
 	profileHandler := handler.NewProfileHandler(
 		c.Profile.GetProfile,
 		c.Profile.UpdateProfile,
+		c.Profile.UpdateUser,
 	)
 
 	// Folder Handler (if Storage is initialized)
@@ -166,6 +167,7 @@ func NewHandlersForTest(c *Container) *Handlers {
 	profileHandler := handler.NewProfileHandler(
 		c.Profile.GetProfile,
 		c.Profile.UpdateProfile,
+		c.Profile.UpdateUser,
 	)
 
 	// Storage Handlers (if Storage is initialized)

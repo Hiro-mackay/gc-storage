@@ -105,6 +105,7 @@ func (r *Router) setupUserRoutes(api *echo.Group) {
 
 	// Profile routes (authenticated)
 	meGroup := api.Group("/me", r.middlewares.SessionAuth.Authenticate())
+	meGroup.PUT("", r.handlers.Profile.UpdateMe)
 	meGroup.GET("/profile", r.handlers.Profile.GetProfile)
 	meGroup.PUT("/profile", r.handlers.Profile.UpdateProfile)
 }
