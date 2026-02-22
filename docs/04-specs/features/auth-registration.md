@@ -359,11 +359,10 @@ Client          Frontend        API             DB
 
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/auth/register.tsx` | 登録ページ |
-| Route | `src/app/routes/auth/verify-email.tsx` | メール確認ページ |
-| Component | `src/components/auth/register-form.tsx` | 登録フォーム |
-| Component | `src/components/auth/password-strength.tsx` | パスワード強度表示 |
-| API | `src/lib/api/auth.ts` | register, verifyEmail API calls |
+| Page | `src/features/auth/pages/register-page.tsx` | 登録ページ |
+| Page | `src/features/auth/pages/verify-email-page.tsx` | メール確認ページ |
+| Component | `src/components/auth/password-strength.tsx` | パスワード強度表示（共通） |
+| Mutation | `src/features/auth/api/mutations.ts` | register, verifyEmail, resendVerification |
 
 ### Migration
 ```sql

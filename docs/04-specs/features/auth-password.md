@@ -379,11 +379,11 @@ Client          Frontend        API             DB
 
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/auth/forgot-password.tsx` | リセット要求ページ |
-| Route | `src/app/routes/auth/reset-password.tsx` | リセット実行ページ |
-| Component | `src/features/settings/change-password-form.tsx` | パスワード変更フォーム |
-| Component | `src/components/auth/password-strength.tsx` | パスワード強度表示（共有） |
-| API | `src/lib/api/auth.ts` | forgotPassword, resetPassword, changePassword |
+| Page | `src/features/auth/pages/forgot-password-page.tsx` | リセット要求ページ |
+| Page | `src/features/auth/pages/reset-password-page.tsx` | リセット実行ページ |
+| Component | `src/features/settings/components/change-password-form.tsx` | パスワード変更フォーム |
+| Component | `src/components/auth/password-strength.tsx` | パスワード強度表示（共通） |
+| Mutation | `src/features/auth/api/mutations.ts` | forgotPassword, resetPassword, changePassword |
 
 ### Migration
 ```sql

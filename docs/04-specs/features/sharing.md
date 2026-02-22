@@ -364,13 +364,13 @@ Guest           Frontend        API             DB          MinIO
 ### Changed Files (Frontend)
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/share/$token.tsx` | Public access page |
-| Component | `src/components/sharing/share-dialog.tsx` | Share dialog |
-| Component | `src/components/sharing/share-link-list.tsx` | Link list |
-| Component | `src/components/sharing/password-prompt.tsx` | Password form |
-| Component | `src/components/sharing/shared-folder-browser.tsx` | Folder browser |
-| Feature | `src/features/sharing/api.ts` | API client functions |
-| Feature | `src/features/sharing/hooks.ts` | TanStack Query hooks |
+| Page | `src/features/sharing/pages/public-access-page.tsx` | パブリックアクセスページ |
+| Component | `src/features/files/components/share-dialog.tsx` | 共有ダイアログ（ファイル/フォルダ） |
+| Component | `src/features/sharing/components/share-link-list.tsx` | 共有リンク一覧 |
+| Component | `src/features/sharing/components/password-prompt.tsx` | パスワード入力 |
+| Component | `src/features/sharing/components/shared-folder-browser.tsx` | 共有フォルダ閲覧 |
+| Query | `src/features/sharing/api/queries.ts` | shareLinks, sharedResource |
+| Mutation | `src/features/sharing/api/mutations.ts` | createShareLink, revokeShareLink, updateShareLink, accessShareLink |
 
 ### Migration
 ```sql

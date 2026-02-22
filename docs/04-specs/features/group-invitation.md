@@ -283,12 +283,12 @@ Client          Frontend        API             DB
 ### Changed Files (Frontend)
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/invitations/index.tsx` | Pending invitations page |
-| Route | `src/app/routes/invite/$token.tsx` | Invitation accept/decline page |
-| Component | `src/components/groups/invite-member-dialog.tsx` | Invite form |
-| Component | `src/components/groups/invitation-list.tsx` | Invitation list |
-| Feature | `src/features/invitations/api.ts` | API client functions |
-| Feature | `src/features/invitations/hooks.ts` | TanStack Query hooks |
+| Page | `src/features/groups/pages/pending-invitations-page.tsx` | 自分への招待一覧 |
+| Page | `src/features/groups/pages/invitation-accept-page.tsx` | 招待承諾/辞退ページ |
+| Component | `src/features/groups/components/invite-member-dialog.tsx` | 招待フォーム |
+| Component | `src/features/groups/components/invitation-list.tsx` | 招待一覧（owner用） |
+| Query | `src/features/groups/api/queries.ts` | groupInvitations, pendingInvitations |
+| Mutation | `src/features/groups/api/mutations.ts` | inviteMember, acceptInvitation, declineInvitation, cancelInvitation |
 
 ### Considerations
 - **Security**: Invitation token is 32 bytes, cryptographically random

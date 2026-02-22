@@ -397,14 +397,14 @@ Client          Frontend        API             DB
 
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/settings.tsx` | 設定ページ |
-| Component | `src/features/settings/profile-tab.tsx` | プロファイル設定タブ |
-| Component | `src/features/settings/appearance-tab.tsx` | テーマ設定タブ |
-| Component | `src/features/settings/notifications-tab.tsx` | 通知設定タブ |
-| Component | `src/components/ui/avatar-upload.tsx` | アバターアップロード |
-| Store | `src/stores/theme-store.ts` | テーマ状態管理 (Zustand) |
-| API | `src/lib/api/profile.ts` | getProfile, updateProfile API calls |
-| API | `src/lib/api/user.ts` | updateMe API call |
+| Page | `src/features/settings/pages/settings-page.tsx` | 設定ページ |
+| Component | `src/features/settings/components/profile-tab.tsx` | プロファイル設定タブ |
+| Component | `src/features/settings/components/appearance-tab.tsx` | テーマ設定タブ |
+| Component | `src/features/settings/components/notifications-tab.tsx` | 通知設定タブ |
+| Component | `src/components/ui/avatar-upload.tsx` | アバターアップロード（共通） |
+| Store | `src/stores/ui-store.ts` | テーマ状態管理 (Zustand) |
+| Query | `src/features/settings/api/queries.ts` | profile |
+| Mutation | `src/features/settings/api/mutations.ts` | updateProfile, updateUser |
 
 ### Migration
 ```sql

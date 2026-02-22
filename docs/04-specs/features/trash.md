@@ -391,12 +391,13 @@ Client          Frontend        API             DB              MinIO
 
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/trash.tsx` | ゴミ箱画面 |
-| Component | `src/components/trash/trash-list.tsx` | ゴミ箱一覧表示 |
-| Component | `src/components/trash/trash-toolbar.tsx` | 復元/削除アクション |
-| Component | `src/components/dialogs/permanent-delete-dialog.tsx` | 完全削除確認 |
-| Component | `src/components/dialogs/empty-trash-dialog.tsx` | 全削除確認 |
-| API | `src/lib/api/trash.ts` | Trash API client |
+| Page | `src/features/trash/pages/trash-page.tsx` | ゴミ箱画面 |
+| Component | `src/features/trash/components/trash-list.tsx` | ゴミ箱一覧表示 |
+| Component | `src/features/trash/components/trash-toolbar.tsx` | 復元/削除アクション |
+| Component | `src/features/trash/components/permanent-delete-dialog.tsx` | 完全削除確認 |
+| Component | `src/features/trash/components/empty-trash-dialog.tsx` | 全削除確認 |
+| Query | `src/features/trash/api/queries.ts` | trashItems |
+| Mutation | `src/features/trash/api/mutations.ts` | trashFile, restoreFile, permanentDelete, emptyTrash |
 
 ### Migration
 

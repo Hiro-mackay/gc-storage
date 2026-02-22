@@ -365,11 +365,12 @@ Client          Frontend        API             DB
 
 | Category | File | Change |
 |----------|------|--------|
-| Component | `src/components/file-browser/context-menu.tsx` | コンテキストメニュー |
-| Component | `src/components/dialogs/rename-dialog.tsx` | リネームダイアログ |
-| Component | `src/components/dialogs/move-dialog.tsx` | 移動ダイアログ |
-| Component | `src/components/file-browser/file-preview.tsx` | プレビューモーダル |
-| API | `src/lib/api/files.ts` | File API client |
+| Component | `src/features/files/components/file-context-menu.tsx` | コンテキストメニュー |
+| Component | `src/features/files/components/rename-dialog.tsx` | リネームダイアログ（共有） |
+| Component | `src/features/files/components/move-dialog.tsx` | 移動ダイアログ |
+| Component | `src/features/files/components/file-preview.tsx` | プレビューモーダル |
+| Query | `src/features/files/api/queries.ts` | downloadUrl, fileVersions |
+| Mutation | `src/features/files/api/mutations.ts` | renameFile, moveFile |
 
 ### Considerations
 

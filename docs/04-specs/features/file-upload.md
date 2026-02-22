@@ -362,11 +362,12 @@ Client          Frontend        API             MinIO           DB
 
 | Category | File | Change |
 |----------|------|--------|
-| Component | `src/components/file-browser/drop-zone.tsx` | ドラッグ&ドロップ UI |
-| Component | `src/components/upload/upload-progress-panel.tsx` | 進捗パネル |
-| Component | `src/components/upload/upload-progress-item.tsx` | 個別進捗 |
+| Component | `src/features/files/components/upload-area.tsx` | ドラッグ&ドロップ + アップロード UI |
+| Component | `src/features/files/components/upload-progress-panel.tsx` | 進捗パネル |
+| Component | `src/features/files/components/upload-progress-item.tsx` | 個別進捗 |
 | Store | `src/stores/upload-store.ts` | アップロードキュー管理 |
-| API | `src/lib/api/upload.ts` | Upload API client |
+| Query | `src/features/files/api/queries.ts` | uploadStatus ポーリング |
+| Mutation | `src/features/files/api/mutations.ts` | initiateUpload, abortUpload |
 
 ### Considerations
 

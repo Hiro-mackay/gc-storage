@@ -303,12 +303,14 @@ Client          Frontend        API             DB
 ### Changed Files (Frontend)
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/groups/index.tsx` | Groups list page |
-| Route | `src/app/routes/groups/$groupId.tsx` | Group detail page |
-| Component | `src/components/groups/create-group-dialog.tsx` | Create dialog |
-| Component | `src/components/groups/member-list.tsx` | Member list panel |
-| Feature | `src/features/groups/api.ts` | API client functions |
-| Feature | `src/features/groups/hooks.ts` | TanStack Query hooks |
+| Page | `src/features/groups/pages/groups-page.tsx` | グループ一覧ページ |
+| Page | `src/features/groups/pages/group-detail-page.tsx` | グループ詳細 + メンバー管理 |
+| Component | `src/features/groups/components/create-group-dialog.tsx` | グループ作成 |
+| Component | `src/features/groups/components/member-list.tsx` | メンバー一覧 |
+| Component | `src/features/groups/components/role-change-dropdown.tsx` | ロール変更 |
+| Component | `src/features/groups/components/transfer-ownership-dialog.tsx` | 所有権譲渡確認 |
+| Query | `src/features/groups/api/queries.ts` | groups, groupDetail, members |
+| Mutation | `src/features/groups/api/mutations.ts` | createGroup, updateGroup, deleteGroup, removeMember, changeRole, transferOwnership, leaveGroup |
 
 ### Considerations
 - **Performance**: ListMyGroups does N+1 queries; optimize with JOIN query

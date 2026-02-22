@@ -314,11 +314,11 @@ CollectPermissions(userID, resourceType, resourceID):
 ### Changed Files (Frontend)
 | Category | File | Change |
 |----------|------|--------|
-| Component | `src/components/permissions/settings-panel.tsx` | Permission panel |
-| Component | `src/components/permissions/grant-dialog.tsx` | Grant dialog |
-| Component | `src/components/permissions/grantee-list.tsx` | Grantee list |
-| Feature | `src/features/permissions/api.ts` | API client functions |
-| Feature | `src/features/permissions/hooks.ts` | TanStack Query hooks |
+| Component | `src/features/permissions/components/settings-panel.tsx` | 権限設定パネル |
+| Component | `src/features/permissions/components/grant-dialog.tsx` | ロール付与ダイアログ |
+| Component | `src/features/permissions/components/grantee-list.tsx` | 権限付与先一覧 |
+| Query | `src/features/permissions/api/queries.ts` | resourcePermissions, effectiveRole |
+| Mutation | `src/features/permissions/api/mutations.ts` | grantRole, revokeGrant |
 
 ### Migration
 ```sql

@@ -416,12 +416,13 @@ Client          Frontend        API             Redis           DB
 
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/auth/login.tsx` | ログインページ |
-| Route | `src/app/routes/auth/callback.$provider.tsx` | OAuthコールバック |
-| Component | `src/components/auth/login-form.tsx` | ログインフォーム |
-| Component | `src/components/auth/oauth-buttons.tsx` | OAuthボタン |
+| Page | `src/features/auth/pages/login-page.tsx` | ログインページ |
+| Page | `src/features/auth/pages/oauth-callback-page.tsx` | OAuthコールバック |
+| Component | `src/features/auth/components/oauth-buttons.tsx` | OAuthボタン |
+| Hook | `src/features/auth/hooks/use-oauth-callback.ts` | OAuthコールバック処理 |
+| Query | `src/features/auth/api/queries.ts` | meQuery |
+| Mutation | `src/features/auth/api/mutations.ts` | login, oauthLogin, logout |
 | Store | `src/stores/auth-store.ts` | 認証状態管理 (Zustand) |
-| API | `src/lib/api/auth.ts` | login, oauthLogin, logout, getMe |
 
 ### Considerations
 - **Security**: Cookie設定 (HttpOnly, Secure, SameSite=Lax)、レート制限 10 req/min/IP

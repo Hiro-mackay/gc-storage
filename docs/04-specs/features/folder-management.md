@@ -367,15 +367,16 @@ Client          Frontend        API             DB
 
 | Category | File | Change |
 |----------|------|--------|
-| Route | `src/app/routes/files.tsx` | マイファイル画面 |
-| Route | `src/app/routes/files.$folderId.tsx` | フォルダ詳細画面 |
-| Component | `src/components/file-browser/breadcrumb-nav.tsx` | パンくずリスト |
-| Component | `src/components/file-browser/file-toolbar.tsx` | ツールバー |
-| Component | `src/components/file-browser/folder-grid.tsx` | グリッド表示 |
-| Component | `src/components/file-browser/folder-list.tsx` | リスト表示 |
-| Component | `src/components/dialogs/create-folder-dialog.tsx` | 新規フォルダ |
-| Component | `src/components/dialogs/rename-dialog.tsx` | 名前変更 |
-| Component | `src/components/dialogs/move-dialog.tsx` | 移動先選択 |
+| Page | `src/features/files/pages/file-browser-page.tsx` | ファイルブラウザ画面 |
+| Component | `src/features/files/components/file-breadcrumb.tsx` | パンくずリスト |
+| Component | `src/features/files/components/file-toolbar.tsx` | ツールバー |
+| Component | `src/features/files/components/folder-grid.tsx` | グリッド表示 |
+| Component | `src/features/files/components/folder-list.tsx` | リスト表示 |
+| Component | `src/features/files/components/create-folder-dialog.tsx` | 新規フォルダ |
+| Component | `src/features/files/components/rename-dialog.tsx` | 名前変更 |
+| Component | `src/features/files/components/move-dialog.tsx` | 移動先選択 |
+| Query | `src/features/files/api/queries.ts` | folderContents, ancestors |
+| Mutation | `src/features/files/api/mutations.ts` | createFolder, renameFolder, moveFolder, deleteFolder |
 
 ### Migration
 
