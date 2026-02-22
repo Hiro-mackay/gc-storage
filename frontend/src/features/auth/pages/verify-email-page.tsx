@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link, useSearch } from '@tanstack/react-router'
 import {
   Card,
@@ -8,43 +8,29 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { api } from '@/lib/api/client'
+import { useVerifyEmailMutation } from '@/features/auth/api/mutations'
 
 export function VerifyEmailPage() {
   const search = useSearch({ strict: false }) as { token?: string }
-  const [status, setStatus] = useState<'verifying' | 'success' | 'error'>(
-    'verifying'
-  )
-  const [error, setError] = useState<string | null>(null)
+  const mutation = useVerifyEmailMutation()
+  const processedRef = useRef(false)
+
+  // Derive validation error synchronously (not in an effect)
+  const validationError = !search.token
+    ? 'Verification token is missing.'
+    : null
 
   useEffect(() => {
-    if (!search.token) {
-      setStatus('error')
-      setError('Verification token is missing.')
-      return
-    }
+    if (validationError || !search.token || processedRef.current) return
+    processedRef.current = true
 
-    const verify = async () => {
-      try {
-        const { error: apiError } = await api.POST('/auth/email/verify', {
-          params: { query: { token: search.token! } },
-        })
+    mutation.mutate(search.token)
+    // mutation.mutate is a stable reference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [validationError, search.token])
 
-        if (apiError) {
-          setStatus('error')
-          setError(apiError.error?.message ?? 'Verification failed.')
-          return
-        }
-
-        setStatus('success')
-      } catch {
-        setStatus('error')
-        setError('Network error. Please try again.')
-      }
-    }
-
-    verify()
-  }, [search.token])
+  const isPending = !validationError && mutation.isPending
+  const error = validationError ?? (mutation.error ? mutation.error.message : null)
 
   return (
     <Card>
@@ -52,15 +38,17 @@ export function VerifyEmailPage() {
         <CardTitle>Email Verification</CardTitle>
       </CardHeader>
       <CardContent>
-        {status === 'verifying' && (
-          <p className="text-sm text-muted-foreground">Verifying your email...</p>
+        {isPending && (
+          <p className="text-sm text-muted-foreground">
+            Verifying your email...
+          </p>
         )}
-        {status === 'success' && (
+        {mutation.isSuccess && (
           <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-700">
             Your email has been verified successfully. You can now log in.
           </div>
         )}
-        {status === 'error' && (
+        {error && (
           <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
             {error}
           </div>

@@ -4136,10 +4136,6 @@ export interface components {
             updated_at?: string;
             user_id?: string;
         };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RegisterResponse": {
-            message?: string;
-            user_id?: string;
-        };
         "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RenameFileResponse": {
             fileId?: string;
             name?: string;
@@ -4367,7 +4363,7 @@ export interface components {
             meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
         };
         "internal_interface_handler.SwaggerRegisterResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RegisterResponse"];
+            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LoginResponse"];
             meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
         };
         "internal_interface_handler.SwaggerRenameFileResponse": {

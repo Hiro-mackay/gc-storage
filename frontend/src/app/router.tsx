@@ -11,6 +11,7 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { LoginPage } from '@/features/auth/pages/login-page'
 import { RegisterPage } from '@/features/auth/pages/register-page'
 import { VerifyEmailPage } from '@/features/auth/pages/verify-email-page'
+import { OAuthCallbackPage } from '@/features/auth/pages/oauth-callback-page'
 import { FileBrowserPage } from '@/features/files/pages/file-browser-page'
 import { TrashPage } from '@/features/trash/pages/trash-page'
 import { SettingsPage } from '@/features/settings/pages/settings-page'
@@ -61,6 +62,20 @@ const verifyEmailRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: '/auth/verify-email',
   component: VerifyEmailPage,
+})
+
+// OAuth callback route - directly under root (no auth guard)
+// Must not be under authLayoutRoute to avoid redirect when already authenticated
+const oauthCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/callback/$provider',
+  validateSearch: (search: Record<string, unknown>) => ({
+    code: search.code as string | undefined,
+    state: search.state as string | undefined,
+    error: search.error as string | undefined,
+    error_description: search.error_description as string | undefined,
+  }),
+  component: OAuthCallbackPage,
 })
 
 // Authenticated layout route
@@ -126,6 +141,7 @@ const indexRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  oauthCallbackRoute,
   authLayoutRoute.addChildren([loginRoute, registerRoute, verifyEmailRoute]),
   authenticatedLayoutRoute.addChildren([
     filesRoute,

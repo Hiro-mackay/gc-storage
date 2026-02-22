@@ -8,12 +8,15 @@ type AuthStatus = 'initializing' | 'authenticated' | 'unauthenticated'
 interface AuthState {
   status: AuthStatus
   user: User | null
+}
+
+interface AuthActions {
   setUser: (user: User) => void
   clearAuth: () => void
   setInitializing: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState & AuthActions>((set) => ({
   status: 'initializing',
   user: null,
   setUser: (user) => set({ status: 'authenticated', user }),
