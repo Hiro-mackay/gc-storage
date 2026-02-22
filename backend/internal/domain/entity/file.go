@@ -57,22 +57,7 @@ func NewFile(
 	mimeType valueobject.MimeType,
 	size int64,
 ) *File {
-	fileID := uuid.New()
-	now := time.Now()
-	return &File{
-		ID:             fileID,
-		FolderID:       folderID,
-		OwnerID:        createdBy, // 新規作成時は owner_id = created_by
-		CreatedBy:      createdBy,
-		Name:           name,
-		MimeType:       mimeType,
-		Size:           size,
-		StorageKey:     valueobject.NewStorageKey(fileID),
-		CurrentVersion: 1,
-		Status:         FileStatusUploading,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
+	return NewFileWithID(uuid.New(), folderID, createdBy, name, mimeType, size)
 }
 
 // NewFileWithID は指定IDで新しいファイルを作成します（UploadSession連携用）
