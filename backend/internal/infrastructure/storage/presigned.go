@@ -25,8 +25,8 @@ const (
 
 	// 最大ファイルサイズ
 	MaxFileSize          int64 = 5 * 1024 * 1024 * 1024 // 5GB
-	MultipartThreshold   int64 = 100 * 1024 * 1024      // 100MB
-	MultipartPartSize    int64 = 64 * 1024 * 1024       // 64MB
+	MultipartThreshold   int64 = 5 * 1024 * 1024        // 5MB (matches entity.MultipartThreshold)
+	MultipartPartSize    int64 = 5 * 1024 * 1024        // 5MB (matches entity.MinPartSize)
 	MaxMultipartParts    int   = 10000
 	MaxConcurrentUploads int   = 5
 )
