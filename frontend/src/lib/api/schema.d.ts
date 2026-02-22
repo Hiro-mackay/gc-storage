@@ -4,4447 +4,4447 @@
  */
 
 export interface paths {
-    "/auth/email/resend": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 確認メール再送
-         * @description メールアドレス確認用のメールを再送信します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description 再送先メールアドレス */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResendEmailVerificationRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerResendEmailVerificationResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  '/auth/email/resend': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/email/verify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * 確認メール再送
+     * @description メールアドレス確認用のメールを再送信します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description 再送先メールアドレス */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResendEmailVerificationRequest'];
         };
-        get?: never;
-        put?: never;
-        /**
-         * メールアドレス確認
-         * @description トークンを使用してメールアドレスの確認を行います
-         */
-        post: {
-            parameters: {
-                query: {
-                    /** @description メール確認トークン */
-                    token: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerVerifyEmailResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerResendEmailVerificationResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * ログイン
-         * @description メールアドレスとパスワードでログインし、セッションCookieを発行します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description ログイン情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.LoginRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerLoginResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/email/verify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * メールアドレス確認
+     * @description トークンを使用してメールアドレスの確認を行います
+     */
+    post: {
+      parameters: {
+        query: {
+          /** @description メール確認トークン */
+          token: string;
         };
-        get?: never;
-        put?: never;
-        /**
-         * ログアウト
-         * @description 現在のセッションを無効化し、セッションCookieを削除します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerLogoutResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerVerifyEmailResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/auth/oauth/{provider}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * OAuthログイン
-         * @description OAuth認証コードを使用してログインまたは新規登録します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description OAuthプロバイダー (google, github) */
-                    provider: string;
-                };
-                cookie?: never;
-            };
-            /** @description OAuth認証コード */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.OAuthLoginRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerOAuthLoginResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/password/change": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * ログイン
+     * @description メールアドレスとパスワードでログインし、セッションCookieを発行します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description ログイン情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.LoginRequest'];
         };
-        get?: never;
-        put?: never;
-        /**
-         * パスワード変更
-         * @description 現在のパスワードを確認した上で新しいパスワードに変更します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description 現在のパスワードと新しいパスワード */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangePasswordRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerChangePasswordResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerLoginResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/auth/password/forgot": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * パスワードリセット要求
-         * @description パスワードリセット用のメールを送信します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description パスワードリセット対象のメールアドレス */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ForgotPasswordRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerForgotPasswordResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/password/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * ログアウト
+     * @description 現在のセッションを無効化し、セッションCookieを削除します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerLogoutResponse'];
+          };
         };
-        get?: never;
-        put?: never;
-        /**
-         * パスワードリセット実行
-         * @description トークンを使用してパスワードをリセットします
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description リセットトークンと新しいパスワード */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResetPasswordRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerResetPasswordResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+      };
     };
-    "/auth/password/set": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * パスワード設定（OAuth専用ユーザー向け）
-         * @description OAuthのみで登録したユーザーがパスワードを新規設定します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description 設定するパスワード */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.SetPasswordRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerSetPasswordResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/oauth/{provider}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/register": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * OAuthログイン
+     * @description OAuth認証コードを使用してログインまたは新規登録します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description OAuthプロバイダー (google, github) */
+          provider: string;
         };
-        get?: never;
-        put?: never;
-        /**
-         * ユーザー登録
-         * @description メールアドレスとパスワードで新規ユーザーを登録します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description 登録情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RegisterRequest"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerRegisterResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Conflict */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      /** @description OAuth認証コード */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.OAuthLoginRequest'];
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerOAuthLoginResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/files/upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * アップロード開始
-         * @description ファイルアップロードセッションを開始し、署名付きURLを返します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description アップロード情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InitiateUploadRequest"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerInitiateUploadResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/password/change': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/files/upload/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * パスワード変更
+     * @description 現在のパスワードを確認した上で新しいパスワードに変更します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description 現在のパスワードと新しいパスワード */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangePasswordRequest'];
         };
-        get?: never;
-        put?: never;
-        /**
-         * アップロード完了
-         * @description MinIO Webhookからの通知を受けてアップロードを完了します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description アップロード完了情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CompleteUploadRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerCompleteUploadResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerChangePasswordResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/files/upload/{sessionId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * アップロード状態取得
-         * @description 指定されたセッションIDのアップロード状態を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description セッションID */
-                    sessionId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerUploadStatusResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /**
-         * アップロード中断
-         * @description 進行中のアップロードセッションを中断します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description セッションID */
-                    sessionId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerAbortUploadResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/password/forgot': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/files/{id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * パスワードリセット要求
+     * @description パスワードリセット用のメールを送信します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description パスワードリセット対象のメールアドレス */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ForgotPasswordRequest'];
         };
-        /**
-         * ダウンロードURL取得
-         * @description ファイルのダウンロード用署名付きURLを取得します
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description バージョン番号 */
-                    version?: number;
-                };
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerDownloadURLResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerForgotPasswordResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/files/{id}/move": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * ファイル移動
-         * @description 指定されたファイルを別のフォルダに移動します
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 移動先フォルダ情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFileRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerMoveFileResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/password/reset': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/files/{id}/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * パスワードリセット実行
+     * @description トークンを使用してパスワードをリセットします
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description リセットトークンと新しいパスワード */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResetPasswordRequest'];
         };
-        /**
-         * ファイル権限一覧取得
-         * @description 指定したファイルに付与されている権限の一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerPermissionGrantListResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerResetPasswordResponse'];
+          };
         };
-        put?: never;
-        /**
-         * ファイル権限付与
-         * @description 指定したファイルにユーザーまたはグループの権限を付与します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: components["requestBodies"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest"];
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerPermissionGrantResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+      };
     };
-    "/files/{id}/rename": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * ファイル名変更
-         * @description 指定されたファイルの名前を変更します
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 新しいファイル名 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFileRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerRenameFileResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/password/set': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/files/{id}/share": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * パスワード設定（OAuth専用ユーザー向け）
+     * @description OAuthのみで登録したユーザーがパスワードを新規設定します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description 設定するパスワード */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.SetPasswordRequest'];
         };
-        /**
-         * ファイル共有リンク一覧取得
-         * @description 指定したファイルの共有リンク一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerShareLinkListResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerSetPasswordResponse'];
+          };
         };
-        put?: never;
-        /**
-         * ファイル共有リンク作成
-         * @description 指定したファイルの共有リンクを作成します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: components["requestBodies"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest"];
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerShareLinkResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/files/{id}/trash": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * ファイルをゴミ箱に移動
-         * @description 指定されたファイルをゴミ箱に移動します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerTrashFileResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/register': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/files/{id}/versions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * ユーザー登録
+     * @description メールアドレスとパスワードで新規ユーザーを登録します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description 登録情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RegisterRequest'];
         };
-        /**
-         * ファイルバージョン一覧取得
-         * @description 指定されたファイルのバージョン一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerFileVersionsResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerRegisterResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/folders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * フォルダ作成
-         * @description 新しいフォルダを作成します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description フォルダ情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateFolderRequest"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerFolderResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/upload': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/folders/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * アップロード開始
+     * @description ファイルアップロードセッションを開始し、署名付きURLを返します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description アップロード情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InitiateUploadRequest'];
         };
-        /**
-         * フォルダ取得
-         * @description 指定したフォルダの情報を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerFolderResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerInitiateUploadResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        /**
-         * フォルダ削除
-         * @description 指定したフォルダを削除します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
         };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/folders/{id}/ancestors": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * フォルダ祖先一覧取得
-         * @description 指定したフォルダの祖先一覧を取得します（パンくずリスト用）
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerBreadcrumbResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/upload/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/folders/{id}/contents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * アップロード完了
+     * @description MinIO Webhookからの通知を受けてアップロードを完了します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description アップロード完了情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CompleteUploadRequest'];
         };
-        /**
-         * フォルダ内容一覧取得
-         * @description 指定したフォルダ内のフォルダとファイルの一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerFolderContentsResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerCompleteUploadResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/folders/{id}/move": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * フォルダ移動
-         * @description 指定したフォルダを別のフォルダに移動します
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 移動先フォルダ情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFolderRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerFolderResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/upload/{sessionId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/folders/{id}/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /**
+     * アップロード状態取得
+     * @description 指定されたセッションIDのアップロード状態を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description セッションID */
+          sessionId: string;
         };
-        /**
-         * フォルダ権限一覧取得
-         * @description 指定したフォルダに付与されている権限の一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerPermissionGrantListResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerUploadStatusResponse'];
+          };
         };
-        put?: never;
-        /**
-         * フォルダ権限付与
-         * @description 指定したフォルダにユーザーまたはグループの権限を付与します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: components["requestBodies"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest"];
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerPermissionGrantResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/folders/{id}/rename": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    put?: never;
+    post?: never;
+    /**
+     * アップロード中断
+     * @description 進行中のアップロードセッションを中断します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description セッションID */
+          sessionId: string;
         };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * フォルダ名変更
-         * @description 指定したフォルダの名前を変更します
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 新しいフォルダ名 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFolderRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerFolderResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerAbortUploadResponse'];
+          };
         };
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/folders/{id}/share": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * フォルダ共有リンク一覧取得
-         * @description 指定したフォルダの共有リンク一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerShareLinkListResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /**
-         * フォルダ共有リンク作成
-         * @description 指定したフォルダの共有リンクを作成します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description フォルダID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: components["requestBodies"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest"];
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerShareLinkResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/{id}/download': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /**
+     * ダウンロードURL取得
+     * @description ファイルのダウンロード用署名付きURLを取得します
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description バージョン番号 */
+          version?: number;
         };
-        /**
-         * 所属グループ一覧取得
-         * @description 認証ユーザーが所属するグループの一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerGroupListResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        put?: never;
-        /**
-         * グループ作成
-         * @description 新しいグループを作成します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description グループ情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateGroupRequest"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerGroupWithMembershipResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerDownloadURLResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/groups/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * グループ取得
-         * @description 指定されたグループの詳細情報を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerGroupWithMembershipResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /**
-         * グループ削除
-         * @description 指定されたグループを削除します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * グループ更新
-         * @description グループの名前や説明を更新します
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 更新情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateGroupRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerGroupResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/{id}/move': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/groups/{id}/invitations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * ファイル移動
+     * @description 指定されたファイルを別のフォルダに移動します
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        /**
-         * 招待一覧取得
-         * @description グループの招待一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerInvitationListResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      /** @description 移動先フォルダ情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFileRequest'];
         };
-        put?: never;
-        /**
-         * メンバー招待
-         * @description グループにメンバーを招待します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 招待情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InviteMemberRequest"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerInvitationResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Conflict */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerMoveFileResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/groups/{id}/invitations/{invitationId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * 招待キャンセル
-         * @description グループへの招待をキャンセルします
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                    /** @description 招待ID */
-                    invitationId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    trace?: never;
+  };
+  '/files/{id}/permissions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/groups/{id}/leave": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /**
+     * ファイル権限一覧取得
+     * @description 指定したファイルに付与されている権限の一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        get?: never;
-        put?: never;
-        /**
-         * グループ退出
-         * @description 認証ユーザーがグループから退出します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerPermissionGrantListResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/groups/{id}/members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    put?: never;
+    /**
+     * ファイル権限付与
+     * @description 指定したファイルにユーザーまたはグループの権限を付与します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        /**
-         * メンバー一覧取得
-         * @description グループのメンバー一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerMemberListResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody: components['requestBodies']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest'];
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerPermissionGrantResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/groups/{id}/members/{userId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * メンバー削除
-         * @description グループからメンバーを削除します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                    /** @description ユーザーID */
-                    userId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/{id}/rename': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/groups/{id}/members/{userId}/role": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * ファイル名変更
+     * @description 指定されたファイルの名前を変更します
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * ロール変更
-         * @description グループメンバーのロールを変更します
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                    /** @description ユーザーID */
-                    userId: string;
-                };
-                cookie?: never;
-            };
-            /** @description ロール情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangeRoleRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerMembershipResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      /** @description 新しいファイル名 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFileRequest'];
         };
-        trace?: never;
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerRenameFileResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/groups/{id}/transfer": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 所有権譲渡
-         * @description グループの所有権を他のメンバーに譲渡します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description グループID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 譲渡先情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.TransferOwnershipRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerGroupResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    trace?: never;
+  };
+  '/files/{id}/share': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/invitations/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /**
+     * ファイル共有リンク一覧取得
+     * @description 指定したファイルの共有リンク一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        /**
-         * 保留中招待一覧取得
-         * @description 認証ユーザー宛の保留中招待一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerPendingInvitationListResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerShareLinkListResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/invitations/{token}/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    put?: never;
+    /**
+     * ファイル共有リンク作成
+     * @description 指定したファイルの共有リンクを作成します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        get?: never;
-        put?: never;
-        /**
-         * 招待承諾
-         * @description 招待トークンを使用して招待を承諾します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 招待トークン */
-                    token: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerGroupWithMembershipResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody: components['requestBodies']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest'];
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerShareLinkResponse'];
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/invitations/{token}/decline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 招待辞退
-         * @description 招待トークンを使用して招待を辞退します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 招待トークン */
-                    token: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/{id}/trash': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * ファイルをゴミ箱に移動
+     * @description 指定されたファイルをゴミ箱に移動します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        /**
-         * 現在のユーザー情報取得
-         * @description 認証済みユーザーの情報を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerUserResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerTrashFileResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/me/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * プロファイル取得
-         * @description 現在のユーザーのプロファイル情報を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerProfileResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        /**
-         * プロファイル更新
-         * @description 現在のユーザーのプロファイル情報を更新します
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description プロファイル更新情報 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateProfileRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerUpdateProfileResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/files/{id}/versions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/permissions/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /**
+     * ファイルバージョン一覧取得
+     * @description 指定されたファイルのバージョン一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description ファイルID */
+          id: string;
         };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * 権限取り消し
-         * @description 指定した権限付与を取り消します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 権限付与ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerFileVersionsResponse'];
+          };
         };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/share-links/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * 共有リンク無効化
-         * @description 指定した共有リンクを無効化します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 共有リンクID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/folders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/share/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    /**
+     * フォルダ作成
+     * @description 新しいフォルダを作成します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description フォルダ情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateFolderRequest'];
         };
-        /**
-         * 共有リンク情報取得
-         * @description トークンを使用して共有リンクの情報を取得します（認証不要）
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 共有リンクトークン */
-                    token: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerShareLinkInfoResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerFolderResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/share/{token}/access": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 共有リンクアクセス
-         * @description 共有リンクにアクセスしてリソース情報を取得します（認証不要）
-         */
-        post: {
-            parameters: {
-                query?: {
-                    /** @description アクション (view, download) */
-                    action?: string;
-                };
-                header?: never;
-                path: {
-                    /** @description 共有リンクトークン */
-                    token: string;
-                };
-                cookie?: never;
-            };
-            /** @description パスワード（パスワード保護されている場合） */
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.AccessShareLinkRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerShareLinkAccessResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/folders/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/trash": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /**
+     * フォルダ取得
+     * @description 指定したフォルダの情報を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
         };
-        /**
-         * ゴミ箱一覧取得
-         * @description ゴミ箱に入っているファイルの一覧を取得します
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerTrashListResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerFolderResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        /**
-         * ゴミ箱を空にする
-         * @description ゴミ箱の全ファイルを完全に削除します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerEmptyTrashResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
         };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/trash/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    put?: never;
+    post?: never;
+    /**
+     * フォルダ削除
+     * @description 指定したフォルダを削除します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
         };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * ファイル完全削除
-         * @description ゴミ箱のファイルを完全に削除します
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description アーカイブファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerDeletedResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
         };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
-    "/trash/{id}/restore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * ファイル復元
-         * @description ゴミ箱からファイルを復元します
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description アーカイブファイルID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 復元先フォルダ情報 */
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RestoreFileRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerRestoreFileResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/folders/{id}/ancestors': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/{resourceType}/{id}/permissions/check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /**
+     * フォルダ祖先一覧取得
+     * @description 指定したフォルダの祖先一覧を取得します（パンくずリスト用）
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
         };
-        /**
-         * 権限チェック
-         * @description 指定したリソースに対する権限を確認します
-         */
-        get: {
-            parameters: {
-                query: {
-                    /** @description 確認する権限 */
-                    permission: string;
-                };
-                header?: never;
-                path: {
-                    /** @description リソースタイプ (files, folders) */
-                    resourceType: string;
-                    /** @description リソースID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerCheckPermissionResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
-                    };
-                };
-            };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerBreadcrumbResponse'];
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
     };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/folders/{id}/contents': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * フォルダ内容一覧取得
+     * @description 指定したフォルダ内のフォルダとファイルの一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerFolderContentsResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/folders/{id}/move': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * フォルダ移動
+     * @description 指定したフォルダを別のフォルダに移動します
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description 移動先フォルダ情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFolderRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerFolderResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  '/folders/{id}/permissions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * フォルダ権限一覧取得
+     * @description 指定したフォルダに付与されている権限の一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerPermissionGrantListResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * フォルダ権限付与
+     * @description 指定したフォルダにユーザーまたはグループの権限を付与します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody: components['requestBodies']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest'];
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerPermissionGrantResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/folders/{id}/rename': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * フォルダ名変更
+     * @description 指定したフォルダの名前を変更します
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description 新しいフォルダ名 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFolderRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerFolderResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  '/folders/{id}/share': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * フォルダ共有リンク一覧取得
+     * @description 指定したフォルダの共有リンク一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerShareLinkListResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * フォルダ共有リンク作成
+     * @description 指定したフォルダの共有リンクを作成します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description フォルダID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody: components['requestBodies']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest'];
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerShareLinkResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/groups': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 所属グループ一覧取得
+     * @description 認証ユーザーが所属するグループの一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerGroupListResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * グループ作成
+     * @description 新しいグループを作成します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description グループ情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateGroupRequest'];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerGroupWithMembershipResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/groups/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * グループ取得
+     * @description 指定されたグループの詳細情報を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerGroupWithMembershipResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    /**
+     * グループ削除
+     * @description 指定されたグループを削除します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    /**
+     * グループ更新
+     * @description グループの名前や説明を更新します
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description 更新情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateGroupRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerGroupResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  '/groups/{id}/invitations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 招待一覧取得
+     * @description グループの招待一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerInvitationListResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * メンバー招待
+     * @description グループにメンバーを招待します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description 招待情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InviteMemberRequest'];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerInvitationResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/groups/{id}/invitations/{invitationId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * 招待キャンセル
+     * @description グループへの招待をキャンセルします
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+          /** @description 招待ID */
+          invitationId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/groups/{id}/leave': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * グループ退出
+     * @description 認証ユーザーがグループから退出します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/groups/{id}/members': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * メンバー一覧取得
+     * @description グループのメンバー一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerMemberListResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/groups/{id}/members/{userId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * メンバー削除
+     * @description グループからメンバーを削除します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+          /** @description ユーザーID */
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/groups/{id}/members/{userId}/role': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * ロール変更
+     * @description グループメンバーのロールを変更します
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+          /** @description ユーザーID */
+          userId: string;
+        };
+        cookie?: never;
+      };
+      /** @description ロール情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangeRoleRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerMembershipResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  '/groups/{id}/transfer': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * 所有権譲渡
+     * @description グループの所有権を他のメンバーに譲渡します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description グループID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description 譲渡先情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.TransferOwnershipRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerGroupResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/invitations/pending': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 保留中招待一覧取得
+     * @description 認証ユーザー宛の保留中招待一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerPendingInvitationListResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/invitations/{token}/accept': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * 招待承諾
+     * @description 招待トークンを使用して招待を承諾します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description 招待トークン */
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerGroupWithMembershipResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/invitations/{token}/decline': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * 招待辞退
+     * @description 招待トークンを使用して招待を辞退します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description 招待トークン */
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 現在のユーザー情報取得
+     * @description 認証済みユーザーの情報を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerUserResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/profile': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * プロファイル取得
+     * @description 現在のユーザーのプロファイル情報を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerProfileResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    /**
+     * プロファイル更新
+     * @description 現在のユーザーのプロファイル情報を更新します
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description プロファイル更新情報 */
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateProfileRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerUpdateProfileResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/permissions/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * 権限取り消し
+     * @description 指定した権限付与を取り消します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description 権限付与ID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            '*/*': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            '*/*': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            '*/*': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/share-links/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * 共有リンク無効化
+     * @description 指定した共有リンクを無効化します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description 共有リンクID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            '*/*': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            '*/*': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            '*/*': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/share/{token}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 共有リンク情報取得
+     * @description トークンを使用して共有リンクの情報を取得します（認証不要）
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description 共有リンクトークン */
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerShareLinkInfoResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/share/{token}/access': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * 共有リンクアクセス
+     * @description 共有リンクにアクセスしてリソース情報を取得します（認証不要）
+     */
+    post: {
+      parameters: {
+        query?: {
+          /** @description アクション (view, download) */
+          action?: string;
+        };
+        header?: never;
+        path: {
+          /** @description 共有リンクトークン */
+          token: string;
+        };
+        cookie?: never;
+      };
+      /** @description パスワード（パスワード保護されている場合） */
+      requestBody?: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.AccessShareLinkRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerShareLinkAccessResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/trash': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * ゴミ箱一覧取得
+     * @description ゴミ箱に入っているファイルの一覧を取得します
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerTrashListResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    /**
+     * ゴミ箱を空にする
+     * @description ゴミ箱の全ファイルを完全に削除します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerEmptyTrashResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/trash/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * ファイル完全削除
+     * @description ゴミ箱のファイルを完全に削除します
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description アーカイブファイルID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerDeletedResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/trash/{id}/restore': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * ファイル復元
+     * @description ゴミ箱からファイルを復元します
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          /** @description アーカイブファイルID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description 復元先フォルダ情報 */
+      requestBody?: {
+        content: {
+          'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RestoreFileRequest'];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerRestoreFileResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/{resourceType}/{id}/permissions/check': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 権限チェック
+     * @description 指定したリソースに対する権限を確認します
+     */
+    get: {
+      parameters: {
+        query: {
+          /** @description 確認する権限 */
+          permission: string;
+        };
+        header?: never;
+        path: {
+          /** @description リソースタイプ (files, folders) */
+          resourceType: string;
+          /** @description リソースID */
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerCheckPermissionResponse'];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['internal_interface_handler.SwaggerErrorResponse'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.AccessShareLinkRequest": {
-            password?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangePasswordRequest": {
-            current_password: string;
-            new_password: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangeRoleRequest": {
-            /** @enum {string} */
-            role: "viewer" | "contributor";
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CompleteUploadRequest": {
-            etag: string;
-            minioVersionId?: string;
-            size: number;
-            storageKey: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateFolderRequest": {
-            name: string;
-            parentId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateGroupRequest": {
-            description?: string;
-            name: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest": {
-            /** @description RFC3339 format */
-            expiresAt?: string;
-            maxAccessCount?: number;
-            password?: string;
-            /** @enum {string} */
-            permission: "read" | "write";
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ForgotPasswordRequest": {
-            email: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest": {
-            granteeId: string;
-            /** @enum {string} */
-            granteeType: "user" | "group";
-            /** @enum {string} */
-            role: "viewer" | "contributor" | "content_manager";
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InitiateUploadRequest": {
-            fileName: string;
-            folderId?: string;
-            mimeType: string;
-            size: number;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InviteMemberRequest": {
-            email: string;
-            /** @enum {string} */
-            role: "viewer" | "contributor";
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.LoginRequest": {
-            email: string;
-            password: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFileRequest": {
-            newFolderId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFolderRequest": {
-            newParentId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.NotificationPreferencesRequest": {
-            email_enabled?: boolean;
-            push_enabled?: boolean;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.OAuthLoginRequest": {
-            code: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RegisterRequest": {
-            email: string;
-            name: string;
-            password: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFileRequest": {
-            name: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFolderRequest": {
-            name: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResendEmailVerificationRequest": {
-            email: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResetPasswordRequest": {
-            password: string;
-            token: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RestoreFileRequest": {
-            restoreFolderId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.SetPasswordRequest": {
-            password: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.TransferOwnershipRequest": {
-            newOwnerId: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateGroupRequest": {
-            description?: string;
-            name?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateProfileRequest": {
-            avatar_url?: string;
-            bio?: string;
-            display_name?: string;
-            locale?: string;
-            notification_preferences?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.NotificationPreferencesRequest"];
-            /** @enum {string} */
-            theme?: "system" | "light" | "dark";
-            timezone?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse": {
-            aborted?: boolean;
-            sessionId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbItem": {
-            id?: string;
-            name?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbResponse": {
-            items?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbItem"][];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ChangePasswordResponse": {
-            message?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CheckPermissionResponse": {
-            effectiveRole?: string;
-            hasPermission?: boolean;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CompleteUploadResponse": {
-            completed?: boolean;
-            fileId?: string;
-            sessionId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.DownloadURLResponse": {
-            downloadUrl?: string;
-            expiresAt?: string;
-            fileId?: string;
-            fileName?: string;
-            mimeType?: string;
-            size?: number;
-            versionNumber?: number;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse": {
-            deletedCount?: number;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileResponse": {
-            createdAt?: string;
-            currentVersion?: number;
-            folderId?: string;
-            id?: string;
-            mimeType?: string;
-            name?: string;
-            ownerId?: string;
-            size?: number;
-            status?: string;
-            updatedAt?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionResponse": {
-            checksum?: string;
-            createdAt?: string;
-            id?: string;
-            isLatest?: boolean;
-            size?: number;
-            uploadedBy?: string;
-            versionNumber?: number;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionsResponse": {
-            fileId?: string;
-            fileName?: string;
-            versions?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionResponse"][];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderContentsResponse": {
-            files?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileResponse"][];
-            folder?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse"];
-            folders?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse"][];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse": {
-            createdAt?: string;
-            depth?: number;
-            id?: string;
-            name?: string;
-            ownerId?: string;
-            parentId?: string;
-            status?: string;
-            updatedAt?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ForgotPasswordResponse": {
-            message?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse": {
-            createdAt?: string;
-            description?: string;
-            id?: string;
-            name?: string;
-            ownerId?: string;
-            updatedAt?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupWithMembershipResponse": {
-            group?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse"];
-            memberCount?: number;
-            myRole?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InitiateUploadResponse": {
-            expiresAt?: string;
-            fileId?: string;
-            isMultipart?: boolean;
-            sessionId?: string;
-            uploadUrls?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadURLResponse"][];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse": {
-            createdAt?: string;
-            email?: string;
-            expiresAt?: string;
-            groupId?: string;
-            id?: string;
-            role?: string;
-            status?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LoginResponse": {
-            user?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse"];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LogoutResponse": {
-            message?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MemberResponse": {
-            email?: string;
-            id?: string;
-            joinedAt?: string;
-            name?: string;
-            role?: string;
-            status?: string;
-            userId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MembershipResponse": {
-            groupId?: string;
-            id?: string;
-            joinedAt?: string;
-            role?: string;
-            userId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MoveFileResponse": {
-            fileId?: string;
-            folderId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.NotificationPrefsResponse": {
-            email_enabled?: boolean;
-            push_enabled?: boolean;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.OAuthLoginResponse": {
-            is_new_user?: boolean;
-            user?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse"];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PendingInvitationResponse": {
-            group?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse"];
-            invitation?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse"];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PermissionGrantResponse": {
-            grantedAt?: string;
-            grantedBy?: string;
-            granteeId?: string;
-            granteeType?: string;
-            id?: string;
-            resourceId?: string;
-            resourceType?: string;
-            role?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ProfileResponse": {
-            avatar_url?: string;
-            bio?: string;
-            email?: string;
-            locale?: string;
-            name?: string;
-            notification_preferences?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.NotificationPrefsResponse"];
-            theme?: string;
-            timezone?: string;
-            updated_at?: string;
-            user_id?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RenameFileResponse": {
-            fileId?: string;
-            name?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResendEmailVerificationResponse": {
-            message?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResetPasswordResponse": {
-            message?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RestoreFileResponse": {
-            fileId?: string;
-            folderId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.SetPasswordResponse": {
-            message?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkAccessResponse": {
-            permission?: string;
-            resourceId?: string;
-            resourceType?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkInfoResponse": {
-            hasPassword?: boolean;
-            permission?: string;
-            resourceType?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkResponse": {
-            accessCount?: number;
-            createdAt?: string;
-            expiresAt?: string;
-            hasPassword?: boolean;
-            id?: string;
-            maxAccessCount?: number;
-            permission?: string;
-            resourceId?: string;
-            resourceType?: string;
-            status?: string;
-            token?: string;
-            url?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashFileResponse": {
-            archivedFileId?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashItemResponse": {
-            archivedAt?: string;
-            daysUntilExpiry?: number;
-            expiresAt?: string;
-            id?: string;
-            mimeType?: string;
-            name?: string;
-            originalFileId?: string;
-            originalFolderId?: string;
-            originalPath?: string;
-            size?: number;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashListResponse": {
-            items?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashItemResponse"][];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UpdateProfileResponse": {
-            message?: string;
-            profile?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ProfileResponse"];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadStatusResponse": {
-            expiresAt?: string;
-            fileId?: string;
-            isExpired?: boolean;
-            isMultipart?: boolean;
-            sessionId?: string;
-            status?: string;
-            totalParts?: number;
-            uploadedParts?: number;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadURLResponse": {
-            expiresAt?: string;
-            partNumber?: number;
-            url?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse": {
-            created_at?: string;
-            email?: string;
-            email_verified?: boolean;
-            id?: string;
-            name?: string;
-            status?: string;
-            updated_at?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.VerifyEmailResponse": {
-            message?: string;
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta": {
-            message?: string;
-            pagination?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Pagination"];
-        };
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Pagination": {
-            has_next?: boolean;
-            has_prev?: boolean;
-            page?: number;
-            per_page?: number;
-            total_items?: number;
-            total_pages?: number;
-        };
-        "internal_interface_handler.SwaggerAbortUploadResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerBreadcrumbResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerChangePasswordResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ChangePasswordResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerCheckPermissionResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CheckPermissionResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerCompleteUploadResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CompleteUploadResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerDeletedResponse": {
-            data?: Record<string, never>;
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerDownloadURLResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.DownloadURLResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerEmptyTrashResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerErrorDetail": {
-            code?: string;
-            details?: components["schemas"]["internal_interface_handler.SwaggerFieldError"][];
-            message?: string;
-        };
-        "internal_interface_handler.SwaggerErrorResponse": {
-            error?: components["schemas"]["internal_interface_handler.SwaggerErrorDetail"];
-        };
-        "internal_interface_handler.SwaggerFieldError": {
-            field?: string;
-            message?: string;
-        };
-        "internal_interface_handler.SwaggerFileVersionsResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionsResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerFolderContentsResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderContentsResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerFolderResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerForgotPasswordResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ForgotPasswordResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerGroupListResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupWithMembershipResponse"][];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerGroupResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerGroupWithMembershipResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupWithMembershipResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerInitiateUploadResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InitiateUploadResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerInvitationListResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse"][];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerInvitationResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerLoginResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LoginResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerLogoutResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LogoutResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerMemberListResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MemberResponse"][];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerMembershipResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MembershipResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerMoveFileResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MoveFileResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerOAuthLoginResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.OAuthLoginResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerPendingInvitationListResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PendingInvitationResponse"][];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerPermissionGrantListResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PermissionGrantResponse"][];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerPermissionGrantResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PermissionGrantResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerProfileResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ProfileResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerRegisterResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LoginResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerRenameFileResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RenameFileResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerResendEmailVerificationResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResendEmailVerificationResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerResetPasswordResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResetPasswordResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerRestoreFileResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RestoreFileResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerSetPasswordResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.SetPasswordResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerShareLinkAccessResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkAccessResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerShareLinkInfoResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkInfoResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerShareLinkListResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkResponse"][];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerShareLinkResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerTrashFileResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashFileResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerTrashListResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashListResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerUpdateProfileResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UpdateProfileResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerUploadStatusResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadStatusResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerUserResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
-        "internal_interface_handler.SwaggerVerifyEmailResponse": {
-            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.VerifyEmailResponse"];
-            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
-        };
+  schemas: {
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.AccessShareLinkRequest': {
+      password?: string;
     };
-    responses: never;
-    parameters: never;
-    requestBodies: {
-        /** @description 共有リンク作成情報 */
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest": {
-            content: {
-                "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest"];
-            };
-        };
-        /** @description 権限付与情報 */
-        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest": {
-            content: {
-                "application/json": components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest"];
-            };
-        };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangePasswordRequest': {
+      current_password: string;
+      new_password: string;
     };
-    headers: never;
-    pathItems: never;
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ChangeRoleRequest': {
+      /** @enum {string} */
+      role: 'viewer' | 'contributor';
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CompleteUploadRequest': {
+      etag: string;
+      minioVersionId?: string;
+      size: number;
+      storageKey: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateFolderRequest': {
+      name: string;
+      parentId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateGroupRequest': {
+      description?: string;
+      name: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest': {
+      /** @description RFC3339 format */
+      expiresAt?: string;
+      maxAccessCount?: number;
+      password?: string;
+      /** @enum {string} */
+      permission: 'read' | 'write';
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ForgotPasswordRequest': {
+      email: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest': {
+      granteeId: string;
+      /** @enum {string} */
+      granteeType: 'user' | 'group';
+      /** @enum {string} */
+      role: 'viewer' | 'contributor' | 'content_manager';
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InitiateUploadRequest': {
+      fileName: string;
+      folderId?: string;
+      mimeType: string;
+      size: number;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.InviteMemberRequest': {
+      email: string;
+      /** @enum {string} */
+      role: 'viewer' | 'contributor';
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.LoginRequest': {
+      email: string;
+      password: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFileRequest': {
+      newFolderId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.MoveFolderRequest': {
+      newParentId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.NotificationPreferencesRequest': {
+      email_enabled?: boolean;
+      push_enabled?: boolean;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.OAuthLoginRequest': {
+      code: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RegisterRequest': {
+      email: string;
+      name: string;
+      password: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFileRequest': {
+      name: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RenameFolderRequest': {
+      name: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResendEmailVerificationRequest': {
+      email: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.ResetPasswordRequest': {
+      password: string;
+      token: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.RestoreFileRequest': {
+      restoreFolderId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.SetPasswordRequest': {
+      password: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.TransferOwnershipRequest': {
+      newOwnerId: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateGroupRequest': {
+      description?: string;
+      name?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.UpdateProfileRequest': {
+      avatar_url?: string;
+      bio?: string;
+      display_name?: string;
+      locale?: string;
+      notification_preferences?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.NotificationPreferencesRequest'];
+      /** @enum {string} */
+      theme?: 'system' | 'light' | 'dark';
+      timezone?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse': {
+      aborted?: boolean;
+      sessionId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbItem': {
+      id?: string;
+      name?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbResponse': {
+      items?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbItem'][];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ChangePasswordResponse': {
+      message?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CheckPermissionResponse': {
+      effectiveRole?: string;
+      hasPermission?: boolean;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CompleteUploadResponse': {
+      completed?: boolean;
+      fileId?: string;
+      sessionId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.DownloadURLResponse': {
+      downloadUrl?: string;
+      expiresAt?: string;
+      fileId?: string;
+      fileName?: string;
+      mimeType?: string;
+      size?: number;
+      versionNumber?: number;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse': {
+      deletedCount?: number;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileResponse': {
+      createdAt?: string;
+      currentVersion?: number;
+      folderId?: string;
+      id?: string;
+      mimeType?: string;
+      name?: string;
+      ownerId?: string;
+      size?: number;
+      status?: string;
+      updatedAt?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionResponse': {
+      checksum?: string;
+      createdAt?: string;
+      id?: string;
+      isLatest?: boolean;
+      size?: number;
+      uploadedBy?: string;
+      versionNumber?: number;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionsResponse': {
+      fileId?: string;
+      fileName?: string;
+      versions?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionResponse'][];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderContentsResponse': {
+      files?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileResponse'][];
+      folder?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse'];
+      folders?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse'][];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse': {
+      createdAt?: string;
+      depth?: number;
+      id?: string;
+      name?: string;
+      ownerId?: string;
+      parentId?: string;
+      status?: string;
+      updatedAt?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ForgotPasswordResponse': {
+      message?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse': {
+      createdAt?: string;
+      description?: string;
+      id?: string;
+      name?: string;
+      ownerId?: string;
+      updatedAt?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupWithMembershipResponse': {
+      group?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse'];
+      memberCount?: number;
+      myRole?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InitiateUploadResponse': {
+      expiresAt?: string;
+      fileId?: string;
+      isMultipart?: boolean;
+      sessionId?: string;
+      uploadUrls?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadURLResponse'][];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse': {
+      createdAt?: string;
+      email?: string;
+      expiresAt?: string;
+      groupId?: string;
+      id?: string;
+      role?: string;
+      status?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LoginResponse': {
+      user?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse'];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LogoutResponse': {
+      message?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MemberResponse': {
+      email?: string;
+      id?: string;
+      joinedAt?: string;
+      name?: string;
+      role?: string;
+      status?: string;
+      userId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MembershipResponse': {
+      groupId?: string;
+      id?: string;
+      joinedAt?: string;
+      role?: string;
+      userId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MoveFileResponse': {
+      fileId?: string;
+      folderId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.NotificationPrefsResponse': {
+      email_enabled?: boolean;
+      push_enabled?: boolean;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.OAuthLoginResponse': {
+      is_new_user?: boolean;
+      user?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse'];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PendingInvitationResponse': {
+      group?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse'];
+      invitation?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse'];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PermissionGrantResponse': {
+      grantedAt?: string;
+      grantedBy?: string;
+      granteeId?: string;
+      granteeType?: string;
+      id?: string;
+      resourceId?: string;
+      resourceType?: string;
+      role?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ProfileResponse': {
+      avatar_url?: string;
+      bio?: string;
+      email?: string;
+      locale?: string;
+      name?: string;
+      notification_preferences?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.NotificationPrefsResponse'];
+      theme?: string;
+      timezone?: string;
+      updated_at?: string;
+      user_id?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RenameFileResponse': {
+      fileId?: string;
+      name?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResendEmailVerificationResponse': {
+      message?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResetPasswordResponse': {
+      message?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RestoreFileResponse': {
+      fileId?: string;
+      folderId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.SetPasswordResponse': {
+      message?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkAccessResponse': {
+      permission?: string;
+      resourceId?: string;
+      resourceType?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkInfoResponse': {
+      hasPassword?: boolean;
+      permission?: string;
+      resourceType?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkResponse': {
+      accessCount?: number;
+      createdAt?: string;
+      expiresAt?: string;
+      hasPassword?: boolean;
+      id?: string;
+      maxAccessCount?: number;
+      permission?: string;
+      resourceId?: string;
+      resourceType?: string;
+      status?: string;
+      token?: string;
+      url?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashFileResponse': {
+      archivedFileId?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashItemResponse': {
+      archivedAt?: string;
+      daysUntilExpiry?: number;
+      expiresAt?: string;
+      id?: string;
+      mimeType?: string;
+      name?: string;
+      originalFileId?: string;
+      originalFolderId?: string;
+      originalPath?: string;
+      size?: number;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashListResponse': {
+      items?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashItemResponse'][];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UpdateProfileResponse': {
+      message?: string;
+      profile?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ProfileResponse'];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadStatusResponse': {
+      expiresAt?: string;
+      fileId?: string;
+      isExpired?: boolean;
+      isMultipart?: boolean;
+      sessionId?: string;
+      status?: string;
+      totalParts?: number;
+      uploadedParts?: number;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadURLResponse': {
+      expiresAt?: string;
+      partNumber?: number;
+      url?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse': {
+      created_at?: string;
+      email?: string;
+      email_verified?: boolean;
+      id?: string;
+      name?: string;
+      status?: string;
+      updated_at?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.VerifyEmailResponse': {
+      message?: string;
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta': {
+      message?: string;
+      pagination?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Pagination'];
+    };
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Pagination': {
+      has_next?: boolean;
+      has_prev?: boolean;
+      page?: number;
+      per_page?: number;
+      total_items?: number;
+      total_pages?: number;
+    };
+    'internal_interface_handler.SwaggerAbortUploadResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerBreadcrumbResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerChangePasswordResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ChangePasswordResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerCheckPermissionResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CheckPermissionResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerCompleteUploadResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CompleteUploadResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerDeletedResponse': {
+      data?: Record<string, never>;
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerDownloadURLResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.DownloadURLResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerEmptyTrashResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerErrorDetail': {
+      code?: string;
+      details?: components['schemas']['internal_interface_handler.SwaggerFieldError'][];
+      message?: string;
+    };
+    'internal_interface_handler.SwaggerErrorResponse': {
+      error?: components['schemas']['internal_interface_handler.SwaggerErrorDetail'];
+    };
+    'internal_interface_handler.SwaggerFieldError': {
+      field?: string;
+      message?: string;
+    };
+    'internal_interface_handler.SwaggerFileVersionsResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionsResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerFolderContentsResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderContentsResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerFolderResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FolderResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerForgotPasswordResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ForgotPasswordResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerGroupListResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupWithMembershipResponse'][];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerGroupResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerGroupWithMembershipResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.GroupWithMembershipResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerInitiateUploadResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InitiateUploadResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerInvitationListResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse'][];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerInvitationResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.InvitationResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerLoginResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LoginResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerLogoutResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LogoutResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerMemberListResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MemberResponse'][];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerMembershipResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MembershipResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerMoveFileResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.MoveFileResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerOAuthLoginResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.OAuthLoginResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerPendingInvitationListResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PendingInvitationResponse'][];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerPermissionGrantListResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PermissionGrantResponse'][];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerPermissionGrantResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.PermissionGrantResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerProfileResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ProfileResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerRegisterResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.LoginResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerRenameFileResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RenameFileResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerResendEmailVerificationResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResendEmailVerificationResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerResetPasswordResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ResetPasswordResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerRestoreFileResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.RestoreFileResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerSetPasswordResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.SetPasswordResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerShareLinkAccessResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkAccessResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerShareLinkInfoResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkInfoResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerShareLinkListResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkResponse'][];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerShareLinkResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.ShareLinkResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerTrashFileResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashFileResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerTrashListResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.TrashListResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerUpdateProfileResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UpdateProfileResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerUploadStatusResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UploadStatusResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerUserResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+    'internal_interface_handler.SwaggerVerifyEmailResponse': {
+      data?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.VerifyEmailResponse'];
+      meta?: components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta'];
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: {
+    /** @description 共有リンク作成情報 */
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest': {
+      content: {
+        'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CreateShareLinkRequest'];
+      };
+    };
+    /** @description 権限付与情報 */
+    'github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest': {
+      content: {
+        'application/json': components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.GrantRoleRequest'];
+      };
+    };
+  };
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export type operations = Record<string, never>;

@@ -1,32 +1,32 @@
-import { useState } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useRegisterMutation } from '@/features/auth/api/mutations'
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useRegisterMutation } from '@/features/auth/api/mutations';
 
 export function RegisterPage() {
-  const navigate = useNavigate()
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const registerMutation = useRegisterMutation()
+  const registerMutation = useRegisterMutation();
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     registerMutation.mutate(
       { email, password, name },
       { onSuccess: () => navigate({ to: '/files' }) },
-    )
-  }
+    );
+  };
 
   return (
     <Card>
@@ -90,5 +90,5 @@ export function RegisterPage() {
         </CardFooter>
       </form>
     </Card>
-  )
+  );
 }

@@ -1,66 +1,68 @@
-import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api/client'
-import { folderKeys } from '@/lib/api/queries'
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
+import { folderKeys } from '@/lib/api/queries';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { toast } from 'sonner'
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 interface RenameDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  item: { id: string; name: string; type: 'file' | 'folder' } | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: { id: string; name: string; type: 'file' | 'folder' } | null;
 }
 
 export function RenameDialog({ open, onOpenChange, item }: RenameDialogProps) {
-  const [name, setName] = useState('')
-  const queryClient = useQueryClient()
+  const [name, setName] = useState('');
+  const queryClient = useQueryClient();
+  const [prevItem, setPrevItem] = useState(item);
 
-  useEffect(() => {
-    if (item) setName(item.name)
-  }, [item])
+  if (item !== prevItem) {
+    setPrevItem(item);
+    if (item) setName(item.name);
+  }
 
   const mutation = useMutation({
     mutationFn: async (newName: string) => {
-      if (!item) return
+      if (!item) return;
       if (item.type === 'folder') {
         const { error } = await api.PATCH('/folders/{id}/rename', {
           params: { path: { id: item.id } },
           body: { name: newName },
-        })
-        if (error) throw error
+        });
+        if (error) throw error;
       } else {
         const { error } = await api.PATCH('/files/{id}/rename', {
           params: { path: { id: item.id } },
           body: { name: newName },
-        })
-        if (error) throw error
+        });
+        if (error) throw error;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      toast.success(`${item?.type === 'folder' ? 'Folder' : 'File'} renamed`)
-      onOpenChange(false)
+      queryClient.invalidateQueries({ queryKey: folderKeys.lists() });
+      toast.success(`${item?.type === 'folder' ? 'Folder' : 'File'} renamed`);
+      onOpenChange(false);
     },
     onError: () => {
-      toast.error('Failed to rename')
+      toast.error('Failed to rename');
     },
-  })
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (name.trim() && name.trim() !== item?.name) {
-      mutation.mutate(name.trim())
+      mutation.mutate(name.trim());
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -91,9 +93,7 @@ export function RenameDialog({ open, onOpenChange, item }: RenameDialogProps) {
             <Button
               type="submit"
               disabled={
-                !name.trim() ||
-                name.trim() === item?.name ||
-                mutation.isPending
+                !name.trim() || name.trim() === item?.name || mutation.isPending
               }
             >
               {mutation.isPending ? 'Renaming...' : 'Rename'}
@@ -102,5 +102,5 @@ export function RenameDialog({ open, onOpenChange, item }: RenameDialogProps) {
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,13 +1,13 @@
-import { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useParams, Link } from '@tanstack/react-router'
-import { api } from '@/lib/api/client'
-import { folderKeys } from '@/lib/api/queries'
-import { useSelectionStore } from '@/stores/selection-store'
-import { useUIStore } from '@/stores/ui-store'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Checkbox } from '@/components/ui/checkbox'
+import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useParams, Link } from '@tanstack/react-router';
+import { api } from '@/lib/api/client';
+import { folderKeys } from '@/lib/api/queries';
+import { useSelectionStore } from '@/stores/selection-store';
+import { useUIStore } from '@/stores/ui-store';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -15,102 +15,92 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { FileBreadcrumb } from '../components/file-breadcrumb'
-import { FileToolbar } from '../components/file-toolbar'
-import { CreateFolderDialog } from '../components/create-folder-dialog'
-import { UploadArea } from '../components/upload-area'
-import { RenameDialog } from '../components/rename-dialog'
-import { ShareDialog } from '../components/share-dialog'
-import { FileContextMenu } from '../components/file-context-menu'
-import { Folder, FileIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+} from '@/components/ui/table';
+import { FileBreadcrumb } from '../components/file-breadcrumb';
+import { FileToolbar } from '../components/file-toolbar';
+import { CreateFolderDialog } from '../components/create-folder-dialog';
+import { UploadArea } from '../components/upload-area';
+import { RenameDialog } from '../components/rename-dialog';
+import { ShareDialog } from '../components/share-dialog';
+import { FileContextMenu } from '../components/file-context-menu';
+import { Folder, FileIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function FileBrowserPage() {
-  const params = useParams({ strict: false })
-  const folderId = (params as { folderId?: string }).folderId ?? null
+  const params = useParams({ strict: false });
+  const folderId = (params as { folderId?: string }).folderId ?? null;
 
-  const { selectedIds, toggle, clear, isSelected, selectAll } =
-    useSelectionStore()
-  const { sortBy, sortOrder } = useUIStore()
+  const { toggle, clear, isSelected, selectAll } = useSelectionStore();
+  const { sortBy, sortOrder } = useUIStore();
 
-  const [createFolderOpen, setCreateFolderOpen] = useState(false)
-  const [uploadOpen, setUploadOpen] = useState(false)
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [renameItem, setRenameItem] = useState<{
-    id: string
-    name: string
-    type: 'file' | 'folder'
-  } | null>(null)
+    id: string;
+    name: string;
+    type: 'file' | 'folder';
+  } | null>(null);
   const [shareItem, setShareItem] = useState<{
-    id: string
-    name: string
-    type: 'file' | 'folder'
-  } | null>(null)
+    id: string;
+    name: string;
+    type: 'file' | 'folder';
+  } | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: folderKeys.contents(folderId),
     queryFn: async () => {
-      const id = folderId ?? 'root'
+      const id = folderId ?? 'root';
       const { data, error } = await api.GET('/folders/{id}/contents', {
         params: { path: { id } },
-      })
-      if (error) throw error
-      return data?.data
+      });
+      if (error) throw error;
+      return data?.data;
     },
-  })
+  });
 
   // Use actual folder ID from API response (resolves 'root' to personal folder UUID)
-  const effectiveFolderId = data?.folder?.id ?? folderId
+  const effectiveFolderId = data?.folder?.id ?? folderId;
 
-  const folders = data?.folders ?? []
-  const files = data?.files ?? []
+  const folders = data?.folders ?? [];
+  const files = data?.files ?? [];
 
   // Sort items
   const sortedFolders = [...folders].sort((a, b) => {
-    const dir = sortOrder === 'asc' ? 1 : -1
+    const dir = sortOrder === 'asc' ? 1 : -1;
     if (sortBy === 'name')
-      return dir * (a.name ?? '').localeCompare(b.name ?? '')
+      return dir * (a.name ?? '').localeCompare(b.name ?? '');
     if (sortBy === 'updatedAt')
-      return (
-        dir *
-        ((a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''))
-      )
-    return 0
-  })
+      return dir * (a.updatedAt ?? '').localeCompare(b.updatedAt ?? '');
+    return 0;
+  });
 
   const sortedFiles = [...files].sort((a, b) => {
-    const dir = sortOrder === 'asc' ? 1 : -1
+    const dir = sortOrder === 'asc' ? 1 : -1;
     if (sortBy === 'name')
-      return dir * (a.name ?? '').localeCompare(b.name ?? '')
+      return dir * (a.name ?? '').localeCompare(b.name ?? '');
     if (sortBy === 'updatedAt')
-      return (
-        dir *
-        ((a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''))
-      )
-    if (sortBy === 'size') return dir * ((a.size ?? 0) - (b.size ?? 0))
-    return 0
-  })
+      return dir * (a.updatedAt ?? '').localeCompare(b.updatedAt ?? '');
+    if (sortBy === 'size') return dir * ((a.size ?? 0) - (b.size ?? 0));
+    return 0;
+  });
 
   const allIds = [
     ...sortedFolders.map((f) => f.id ?? ''),
     ...sortedFiles.map((f) => f.id ?? ''),
-  ].filter(Boolean)
-  const isEmpty = folders.length === 0 && files.length === 0
-  const allSelected = allIds.length > 0 && allIds.every((id) => isSelected(id))
+  ].filter(Boolean);
+  const isEmpty = folders.length === 0 && files.length === 0;
+  const allSelected = allIds.length > 0 && allIds.every((id) => isSelected(id));
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-  }, [])
+    e.preventDefault();
+  }, []);
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      if (e.dataTransfer.files?.length) {
-        setUploadOpen(true)
-      }
-    },
-    []
-  )
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files?.length) {
+      setUploadOpen(true);
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -121,7 +111,7 @@ export function FileBrowserPage() {
           <Skeleton key={i} className="h-12 w-full" />
         ))}
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -129,12 +119,19 @@ export function FileBrowserPage() {
       <div className="flex flex-col items-center justify-center p-6 py-16 text-muted-foreground">
         <FileIcon className="h-12 w-12 mb-4" />
         <p>Could not load folder contents</p>
-        <p className="text-sm mt-1">Please check your connection and try again</p>
-        <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
+        <p className="text-sm mt-1">
+          Please check your connection and try again
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4"
+          onClick={() => refetch()}
+        >
           Retry
         </Button>
       </div>
-    )
+    );
   }
 
   return (
@@ -143,10 +140,7 @@ export function FileBrowserPage() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      <FileBreadcrumb
-        folderId={folderId}
-        folderName={data?.folder?.name}
-      />
+      <FileBreadcrumb folderId={folderId} folderName={data?.folder?.name} />
       <FileToolbar
         onUpload={() => setUploadOpen(true)}
         onCreateFolder={() => setCreateFolderOpen(true)}
@@ -156,7 +150,9 @@ export function FileBrowserPage() {
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <FileIcon className="h-12 w-12 mb-4" />
           <p>This folder is empty</p>
-          <p className="text-sm mt-1">Upload files or create a folder to get started</p>
+          <p className="text-sm mt-1">
+            Upload files or create a folder to get started
+          </p>
         </div>
       ) : (
         <Table>
@@ -167,9 +163,9 @@ export function FileBrowserPage() {
                   checked={allSelected}
                   onCheckedChange={(checked) => {
                     if (checked) {
-                      selectAll(allIds)
+                      selectAll(allIds);
                     } else {
-                      clear()
+                      clear();
                     }
                   }}
                 />
@@ -206,11 +202,11 @@ export function FileBrowserPage() {
                 <TableRow
                   className={cn(
                     'cursor-pointer',
-                    isSelected(folder.id ?? '') && 'bg-accent'
+                    isSelected(folder.id ?? '') && 'bg-accent',
                   )}
                   onClick={(e) => {
                     if (e.ctrlKey || e.metaKey) {
-                      toggle(folder.id ?? '')
+                      toggle(folder.id ?? '');
                     }
                   }}
                 >
@@ -269,11 +265,11 @@ export function FileBrowserPage() {
                 <TableRow
                   className={cn(
                     'cursor-pointer',
-                    isSelected(file.id ?? '') && 'bg-accent'
+                    isSelected(file.id ?? '') && 'bg-accent',
                   )}
                   onClick={(e) => {
                     if (e.ctrlKey || e.metaKey) {
-                      toggle(file.id ?? '')
+                      toggle(file.id ?? '');
                     }
                   }}
                 >
@@ -318,25 +314,25 @@ export function FileBrowserPage() {
       <RenameDialog
         open={!!renameItem}
         onOpenChange={(open) => {
-          if (!open) setRenameItem(null)
+          if (!open) setRenameItem(null);
         }}
         item={renameItem}
       />
       <ShareDialog
         open={!!shareItem}
         onOpenChange={(open) => {
-          if (!open) setShareItem(null)
+          if (!open) setShareItem(null);
         }}
         item={shareItem}
       />
     </div>
-  )
+  );
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }

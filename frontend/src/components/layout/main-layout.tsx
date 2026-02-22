@@ -1,56 +1,61 @@
-import { useEffect } from 'react'
-import { Outlet, Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
-import { useUIStore } from '@/stores/ui-store'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
+import { useEffect } from 'react';
+import {
+  Outlet,
+  Link,
+  useMatchRoute,
+  useNavigate,
+} from '@tanstack/react-router';
+import { useAuthStore } from '@/stores/auth-store';
+import { useUIStore } from '@/stores/ui-store';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Files, Trash2, Settings, Menu, LogOut, Users } from 'lucide-react'
-import { api } from '@/lib/api/client'
-import { cn } from '@/lib/utils'
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Files, Trash2, Settings, Menu, LogOut, Users } from 'lucide-react';
+import { api } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/files' as const, label: 'My Files', icon: Files },
   { to: '/groups' as const, label: 'Groups', icon: Users },
   { to: '/trash' as const, label: 'Trash', icon: Trash2 },
   { to: '/settings' as const, label: 'Settings', icon: Settings },
-]
+];
 
 export function MainLayout() {
-  const { user, clearAuth } = useAuthStore()
-  const { sidebarOpen, toggleSidebar, theme } = useUIStore()
-  const matchRoute = useMatchRoute()
-  const navigate = useNavigate()
+  const { user, clearAuth } = useAuthStore();
+  const { sidebarOpen, toggleSidebar, theme } = useUIStore();
+  const matchRoute = useMatchRoute();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const root = document.documentElement
+    const root = document.documentElement;
     if (theme === 'dark') {
-      root.classList.add('dark')
+      root.classList.add('dark');
     } else if (theme === 'light') {
-      root.classList.remove('dark')
+      root.classList.remove('dark');
     } else {
       // system
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
       const apply = () => {
-        root.classList.toggle('dark', mq.matches)
-      }
-      apply()
-      mq.addEventListener('change', apply)
-      return () => mq.removeEventListener('change', apply)
+        root.classList.toggle('dark', mq.matches);
+      };
+      apply();
+      mq.addEventListener('change', apply);
+      return () => mq.removeEventListener('change', apply);
     }
-  }, [theme])
+  }, [theme]);
 
   const handleLogout = async () => {
-    await api.POST('/auth/logout')
-    clearAuth()
-    navigate({ to: '/login' })
-  }
+    await api.POST('/auth/logout');
+    clearAuth();
+    navigate({ to: '/login' });
+  };
 
   const initials = user?.name
     ? user.name
@@ -59,7 +64,7 @@ export function MainLayout() {
         .join('')
         .toUpperCase()
         .slice(0, 2)
-    : '??'
+    : '??';
 
   return (
     <div className="flex h-screen bg-background">
@@ -67,7 +72,7 @@ export function MainLayout() {
       <aside
         className={cn(
           'flex flex-col border-r bg-muted/30 transition-all duration-200',
-          sidebarOpen ? 'w-60' : 'w-0 overflow-hidden'
+          sidebarOpen ? 'w-60' : 'w-0 overflow-hidden',
         )}
       >
         <div className="flex h-14 items-center px-4">
@@ -78,7 +83,7 @@ export function MainLayout() {
         <Separator />
         <nav className="flex-1 space-y-1 px-2 py-2">
           {navItems.map((item) => {
-            const isActive = matchRoute({ to: item.to, fuzzy: true })
+            const isActive = matchRoute({ to: item.to, fuzzy: true });
             return (
               <Link
                 key={item.to}
@@ -87,13 +92,13 @@ export function MainLayout() {
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                 )}
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
               </Link>
-            )
+            );
           })}
         </nav>
       </aside>
@@ -131,5 +136,5 @@ export function MainLayout() {
         </main>
       </div>
     </div>
-  )
+  );
 }

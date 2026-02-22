@@ -1,22 +1,21 @@
-import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
-import { api } from '@/lib/api/client'
-import { groupKeys } from '@/lib/api/queries'
-import { useAuthStore } from '@/stores/auth-store'
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { api } from '@/lib/api/client';
+import { groupKeys } from '@/lib/api/queries';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -24,156 +23,159 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  UserPlus,
-  MoreHorizontal,
-  Trash2,
-  LogOut,
-  Mail,
-} from 'lucide-react'
-import { toast } from 'sonner'
+} from '@/components/ui/dropdown-menu';
+import { UserPlus, MoreHorizontal, Trash2, LogOut, Mail } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function GroupDetailPage() {
-  const params = useParams({ strict: false }) as { groupId: string }
-  const groupId = params.groupId
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const { user } = useAuthStore()
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<'viewer' | 'contributor'>('viewer')
+  const params = useParams({ strict: false }) as { groupId: string };
+  const groupId = params.groupId;
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'viewer' | 'contributor'>(
+    'viewer',
+  );
 
   const { data: groupData, isLoading } = useQuery({
     queryKey: groupKeys.detail(groupId),
     queryFn: async () => {
       const { data, error } = await api.GET('/groups/{id}', {
         params: { path: { id: groupId } },
-      })
-      if (error) throw error
-      return data?.data
+      });
+      if (error) throw error;
+      return data?.data;
     },
-  })
+  });
 
   const { data: members } = useQuery({
     queryKey: groupKeys.members(groupId),
     queryFn: async () => {
       const { data, error } = await api.GET('/groups/{id}/members', {
         params: { path: { id: groupId } },
-      })
-      if (error) throw error
-      return data?.data ?? []
+      });
+      if (error) throw error;
+      return data?.data ?? [];
     },
-  })
+  });
 
   const { data: invitations } = useQuery({
     queryKey: groupKeys.invitations(groupId),
     queryFn: async () => {
       const { data, error } = await api.GET('/groups/{id}/invitations', {
         params: { path: { id: groupId } },
-      })
-      if (error) throw error
-      return data?.data ?? []
+      });
+      if (error) throw error;
+      return data?.data ?? [];
     },
-  })
+  });
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
       const { error } = await api.POST('/groups/{id}/invitations', {
         params: { path: { id: groupId } },
         body: { email: inviteEmail, role: inviteRole },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.invitations(groupId) })
-      toast.success('Invitation sent')
-      setInviteEmail('')
-      setInviteOpen(false)
+      queryClient.invalidateQueries({
+        queryKey: groupKeys.invitations(groupId),
+      });
+      toast.success('Invitation sent');
+      setInviteEmail('');
+      setInviteOpen(false);
     },
     onError: () => {
-      toast.error('Failed to send invitation')
+      toast.error('Failed to send invitation');
     },
-  })
+  });
 
   const removeMemberMutation = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await api.DELETE('/groups/{id}/members/{userId}', {
         params: { path: { id: groupId, userId } },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.members(groupId) })
-      toast.success('Member removed')
+      queryClient.invalidateQueries({ queryKey: groupKeys.members(groupId) });
+      toast.success('Member removed');
     },
     onError: () => {
-      toast.error('Failed to remove member')
+      toast.error('Failed to remove member');
     },
-  })
+  });
 
   const cancelInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const { error } = await api.DELETE('/groups/{id}/invitations/{invitationId}', {
-        params: { path: { id: groupId, invitationId } },
-      })
-      if (error) throw error
+      const { error } = await api.DELETE(
+        '/groups/{id}/invitations/{invitationId}',
+        {
+          params: { path: { id: groupId, invitationId } },
+        },
+      );
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.invitations(groupId) })
-      toast.success('Invitation cancelled')
+      queryClient.invalidateQueries({
+        queryKey: groupKeys.invitations(groupId),
+      });
+      toast.success('Invitation cancelled');
     },
     onError: () => {
-      toast.error('Failed to cancel invitation')
+      toast.error('Failed to cancel invitation');
     },
-  })
+  });
 
   const leaveMutation = useMutation({
     mutationFn: async () => {
       const { error } = await api.POST('/groups/{id}/leave', {
         params: { path: { id: groupId } },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all })
-      toast.success('Left group')
-      navigate({ to: '/groups' })
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Left group');
+      navigate({ to: '/groups' });
     },
     onError: () => {
-      toast.error('Failed to leave group')
+      toast.error('Failed to leave group');
     },
-  })
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const { error } = await api.DELETE('/groups/{id}', {
         params: { path: { id: groupId } },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all })
-      toast.success('Group deleted')
-      navigate({ to: '/groups' })
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Group deleted');
+      navigate({ to: '/groups' });
     },
     onError: () => {
-      toast.error('Failed to delete group')
+      toast.error('Failed to delete group');
     },
-  })
+  });
 
   if (isLoading) {
     return (
@@ -181,12 +183,12 @@ export function GroupDetailPage() {
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
-    )
+    );
   }
 
-  const group = groupData?.group
-  const myRole = groupData?.myRole
-  const isOwner = group?.ownerId === user?.id
+  const group = groupData?.group;
+  const myRole = groupData?.myRole;
+  const isOwner = group?.ownerId === user?.id;
 
   return (
     <div className="p-6 max-w-3xl space-y-6">
@@ -216,7 +218,7 @@ export function GroupDetailPage() {
               size="sm"
               onClick={() => {
                 if (confirm('Delete this group? This cannot be undone.')) {
-                  deleteMutation.mutate()
+                  deleteMutation.mutate();
                 }
               }}
               disabled={deleteMutation.isPending}
@@ -233,7 +235,8 @@ export function GroupDetailPage() {
           <div>
             <CardTitle>Members</CardTitle>
             <CardDescription>
-              {(members ?? []).length} member{(members ?? []).length !== 1 ? 's' : ''}
+              {(members ?? []).length} member
+              {(members ?? []).length !== 1 ? 's' : ''}
             </CardDescription>
           </div>
           {(isOwner || myRole === 'admin') && (
@@ -274,7 +277,11 @@ export function GroupDetailPage() {
                       {member.userId !== user?.id && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -359,8 +366,8 @@ export function GroupDetailPage() {
           </DialogHeader>
           <form
             onSubmit={(e) => {
-              e.preventDefault()
-              if (inviteEmail.trim()) inviteMutation.mutate()
+              e.preventDefault();
+              if (inviteEmail.trim()) inviteMutation.mutate();
             }}
           >
             <div className="space-y-4 py-4">
@@ -389,7 +396,9 @@ export function GroupDetailPage() {
                   <Button
                     type="button"
                     size="sm"
-                    variant={inviteRole === 'contributor' ? 'default' : 'outline'}
+                    variant={
+                      inviteRole === 'contributor' ? 'default' : 'outline'
+                    }
                     onClick={() => setInviteRole('contributor')}
                   >
                     Contributor
@@ -416,5 +425,5 @@ export function GroupDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

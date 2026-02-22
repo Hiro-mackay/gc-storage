@@ -1,33 +1,33 @@
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { useUIStore } from '@/stores/ui-store'
+} from '@/components/ui/dropdown-menu';
+import { useUIStore } from '@/stores/ui-store';
 import {
   Upload,
   FolderPlus,
   LayoutGrid,
   LayoutList,
   ArrowUpDown,
-} from 'lucide-react'
+} from 'lucide-react';
 
 interface FileToolbarProps {
-  onUpload: () => void
-  onCreateFolder: () => void
+  onUpload: () => void;
+  onCreateFolder: () => void;
 }
 
 export function FileToolbar({ onUpload, onCreateFolder }: FileToolbarProps) {
   const { viewMode, setViewMode, sortBy, setSortBy, sortOrder, setSortOrder } =
-    useUIStore()
+    useUIStore();
 
   const sortOptions = [
     { value: 'name' as const, label: 'Name' },
     { value: 'updatedAt' as const, label: 'Modified' },
     { value: 'size' as const, label: 'Size' },
-  ]
+  ];
 
   return (
     <div className="flex items-center gap-2">
@@ -53,10 +53,10 @@ export function FileToolbar({ onUpload, onCreateFolder }: FileToolbarProps) {
               key={opt.value}
               onClick={() => {
                 if (sortBy === opt.value) {
-                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                 } else {
-                  setSortBy(opt.value)
-                  setSortOrder('asc')
+                  setSortBy(opt.value);
+                  setSortOrder('asc');
                 }
               }}
             >
@@ -78,5 +78,5 @@ export function FileToolbar({ onUpload, onCreateFolder }: FileToolbarProps) {
         )}
       </Button>
     </div>
-  )
+  );
 }

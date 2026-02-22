@@ -1,101 +1,105 @@
-import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api/client'
-import { shareKeys } from '@/lib/api/queries'
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
+import { shareKeys } from '@/lib/api/queries';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Copy, Link2, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Copy, Link2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ShareDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  item: { id: string; name: string; type: 'file' | 'folder' } | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: { id: string; name: string; type: 'file' | 'folder' } | null;
 }
 
 export function ShareDialog({ open, onOpenChange, item }: ShareDialogProps) {
-  const [permission, setPermission] = useState<'read' | 'write'>('read')
-  const queryClient = useQueryClient()
+  const [permission, setPermission] = useState<'read' | 'write'>('read');
+  const queryClient = useQueryClient();
 
   const sharesQuery = useQuery({
     queryKey: shareKeys.list(item?.type ?? '', item?.id ?? ''),
     queryFn: async () => {
-      if (!item) return []
+      if (!item) return [];
       if (item.type === 'file') {
         const { data, error } = await api.GET('/files/{id}/share', {
           params: { path: { id: item.id } },
-        })
-        if (error) throw error
-        return data?.data ?? []
+        });
+        if (error) throw error;
+        return data?.data ?? [];
       } else {
         const { data, error } = await api.GET('/folders/{id}/share', {
           params: { path: { id: item.id } },
-        })
-        if (error) throw error
-        return data?.data ?? []
+        });
+        if (error) throw error;
+        return data?.data ?? [];
       }
     },
     enabled: !!item && open,
-  })
+  });
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!item) return
+      if (!item) return;
       if (item.type === 'file') {
         const { data, error } = await api.POST('/files/{id}/share', {
           params: { path: { id: item.id } },
           body: { permission },
-        })
-        if (error) throw error
-        return data?.data
+        });
+        if (error) throw error;
+        return data?.data;
       } else {
         const { data, error } = await api.POST('/folders/{id}/share', {
           params: { path: { id: item.id } },
           body: { permission },
-        })
-        if (error) throw error
-        return data?.data
+        });
+        if (error) throw error;
+        return data?.data;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: shareKeys.list(item?.type ?? '', item?.id ?? '') })
-      toast.success('Share link created')
+      queryClient.invalidateQueries({
+        queryKey: shareKeys.list(item?.type ?? '', item?.id ?? ''),
+      });
+      toast.success('Share link created');
     },
     onError: () => {
-      toast.error('Failed to create share link')
+      toast.error('Failed to create share link');
     },
-  })
+  });
 
   const revokeMutation = useMutation({
     mutationFn: async (linkId: string) => {
       const { error } = await api.DELETE('/share-links/{id}', {
         params: { path: { id: linkId } },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: shareKeys.list(item?.type ?? '', item?.id ?? '') })
-      toast.success('Share link revoked')
+      queryClient.invalidateQueries({
+        queryKey: shareKeys.list(item?.type ?? '', item?.id ?? ''),
+      });
+      toast.success('Share link revoked');
     },
     onError: () => {
-      toast.error('Failed to revoke share link')
+      toast.error('Failed to revoke share link');
     },
-  })
+  });
 
   const copyLink = (url: string) => {
-    navigator.clipboard.writeText(url)
-    toast.success('Link copied to clipboard')
-  }
+    navigator.clipboard.writeText(url);
+    toast.success('Link copied to clipboard');
+  };
 
-  const shares = sharesQuery.data ?? []
+  const shares = sharesQuery.data ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -175,5 +179,5 @@ export function ShareDialog({ open, onOpenChange, item }: ShareDialogProps) {
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

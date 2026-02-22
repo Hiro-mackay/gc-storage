@@ -1,42 +1,49 @@
-import { useCallback, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api/client'
-import { folderKeys } from '@/lib/api/queries'
-import { useUploadStore } from '@/stores/upload-store'
+import { useCallback, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
+import { folderKeys } from '@/lib/api/queries';
+import { useUploadStore } from '@/stores/upload-store';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Upload, X, FileIcon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import {
+  Upload,
+  X,
+  FileIcon,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 interface UploadAreaProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  folderId: string | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  folderId: string | null;
 }
 
 export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [dragActive, setDragActive] = useState(false)
-  const [stagedFiles, setStagedFiles] = useState<File[]>([])
-  const [isUploading, setIsUploading] = useState(false)
-  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const queryClient = useQueryClient();
   const { uploads, addUpload, updateProgress, setStatus, removeUpload } =
-    useUploadStore()
+    useUploadStore();
 
   const uploadFile = useCallback(
     async (file: File) => {
-      const id = crypto.randomUUID()
-      addUpload({ id, fileName: file.name, fileSize: file.size })
+      const id = crypto.randomUUID();
+      addUpload({ id, fileName: file.name, fileSize: file.size });
 
       try {
         if (!folderId) {
-          throw new Error('No folder selected')
+          throw new Error('No folder selected');
         }
 
         // Initiate upload to get presigned URL
@@ -47,44 +54,47 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
             mimeType: file.type || 'application/octet-stream',
             size: file.size,
           },
-        })
+        });
 
         if (error) {
           const msg =
             error &&
             typeof error === 'object' &&
             'error' in error &&
-            (error as { error?: { message?: string } }).error?.message
-          throw new Error(msg || 'Failed to initiate upload')
+            (error as { error?: { message?: string } }).error?.message;
+          throw new Error(msg || 'Failed to initiate upload');
         }
 
-        const uploadData = data?.data
+        const uploadData = data?.data;
         if (!uploadData?.uploadUrls?.[0]?.url) {
-          throw new Error('No upload URL received')
+          throw new Error('No upload URL received');
         }
 
         // Upload directly to MinIO via presigned URL
-        const xhr = new XMLHttpRequest()
-        xhr.open('PUT', uploadData.uploadUrls[0].url)
-        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadData.uploadUrls[0].url);
+        xhr.setRequestHeader(
+          'Content-Type',
+          file.type || 'application/octet-stream',
+        );
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            updateProgress(id, Math.round((e.loaded / e.total) * 95))
+            updateProgress(id, Math.round((e.loaded / e.total) * 95));
           }
-        }
+        };
 
         const etag = await new Promise<string>((resolve, reject) => {
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(xhr.getResponseHeader('ETag') ?? '')
+              resolve(xhr.getResponseHeader('ETag') ?? '');
             } else {
-              reject(new Error(`Storage upload failed: ${xhr.status}`))
+              reject(new Error(`Storage upload failed: ${xhr.status}`));
             }
-          }
-          xhr.onerror = () => reject(new Error('Network error during upload'))
-          xhr.send(file)
-        })
+          };
+          xhr.onerror = () => reject(new Error('Network error during upload'));
+          xhr.send(file);
+        });
 
         // Complete upload
         const { error: completeError } = await api.POST(
@@ -96,78 +106,78 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
               size: file.size,
               minioVersionId: '',
             },
-          }
-        )
+          },
+        );
 
         if (completeError) {
-          throw new Error('Failed to finalize upload')
+          throw new Error('Failed to finalize upload');
         }
 
-        updateProgress(id, 100)
-        setStatus(id, 'completed')
-        queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
+        updateProgress(id, 100);
+        setStatus(id, 'completed');
+        queryClient.invalidateQueries({ queryKey: folderKeys.lists() });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Upload failed'
-        setStatus(id, 'failed', message)
-        toast.error(`${file.name}: ${message}`)
+        const message = err instanceof Error ? err.message : 'Upload failed';
+        setStatus(id, 'failed', message);
+        toast.error(`${file.name}: ${message}`);
       }
     },
-    [folderId, addUpload, updateProgress, setStatus, queryClient]
-  )
+    [folderId, addUpload, updateProgress, setStatus, queryClient],
+  );
 
   const addFiles = useCallback((files: FileList | File[]) => {
-    setStagedFiles((prev) => [...prev, ...Array.from(files)])
-  }, [])
+    setStagedFiles((prev) => [...prev, ...Array.from(files)]);
+  }, []);
 
   const removeStagedFile = useCallback((index: number) => {
-    setStagedFiles((prev) => prev.filter((_, i) => i !== index))
-  }, [])
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const handleUpload = useCallback(async () => {
-    if (stagedFiles.length === 0) return
-    setIsUploading(true)
-    const filesToUpload = [...stagedFiles]
-    setStagedFiles([])
-    await Promise.all(filesToUpload.map(uploadFile))
-    setIsUploading(false)
-  }, [stagedFiles, uploadFile])
+    if (stagedFiles.length === 0) return;
+    setIsUploading(true);
+    const filesToUpload = [...stagedFiles];
+    setStagedFiles([]);
+    await Promise.all(filesToUpload.map(uploadFile));
+    setIsUploading(false);
+  }, [stagedFiles, uploadFile]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation();
     if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
+      setDragActive(true);
     } else if (e.type === 'dragleave') {
-      setDragActive(false)
+      setDragActive(false);
     }
-  }, [])
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDragActive(false)
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
       if (e.dataTransfer.files?.length) {
-        addFiles(e.dataTransfer.files)
+        addFiles(e.dataTransfer.files);
       }
     },
-    [addFiles]
-  )
+    [addFiles],
+  );
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen && !isUploading) {
-      setStagedFiles([])
+      setStagedFiles([]);
     }
-    onOpenChange(nextOpen)
-  }
+    onOpenChange(nextOpen);
+  };
 
   const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
-  const uploadItems = Array.from(uploads.values())
+  const uploadItems = Array.from(uploads.values());
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -204,8 +214,8 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.length) {
-                addFiles(e.target.files)
-                e.target.value = ''
+                addFiles(e.target.files);
+                e.target.value = '';
               }
             }}
           />
@@ -222,7 +232,9 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
                 <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{formatSize(file.size)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatSize(file.size)}
+                  </p>
                 </div>
                 <Button
                   variant="ghost"
@@ -268,7 +280,8 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
                   {item.status === 'failed' && (
                     <AlertCircle className="h-4 w-4 text-destructive" />
                   )}
-                  {(item.status === 'pending' || item.status === 'uploading') && (
+                  {(item.status === 'pending' ||
+                    item.status === 'uploading') && (
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   )}
                 </div>
@@ -313,5 +326,5 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

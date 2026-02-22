@@ -1,19 +1,20 @@
-import { create } from 'zustand'
-import type { components } from '@/lib/api/schema'
+import { create } from 'zustand';
+import type { components } from '@/lib/api/schema';
 
-type User = components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse']
+type User =
+  components['schemas']['github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.UserResponse'];
 
-type AuthStatus = 'initializing' | 'authenticated' | 'unauthenticated'
+type AuthStatus = 'initializing' | 'authenticated' | 'unauthenticated';
 
 interface AuthState {
-  status: AuthStatus
-  user: User | null
+  status: AuthStatus;
+  user: User | null;
 }
 
 interface AuthActions {
-  setUser: (user: User) => void
-  clearAuth: () => void
-  setInitializing: () => void
+  setUser: (user: User) => void;
+  clearAuth: () => void;
+  setInitializing: () => void;
 }
 
 export const useAuthStore = create<AuthState & AuthActions>((set) => ({
@@ -22,4 +23,4 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
   setUser: (user) => set({ status: 'authenticated', user }),
   clearAuth: () => set({ status: 'unauthenticated', user: null }),
   setInitializing: () => set({ status: 'initializing' }),
-}))
+}));

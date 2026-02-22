@@ -1,25 +1,25 @@
-import { Link, useParams, useSearch } from '@tanstack/react-router'
-import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Link, useParams, useSearch } from '@tanstack/react-router';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { useOAuthCallback } from '@/features/auth/hooks/use-oauth-callback'
+} from '@/components/ui/card';
+import { useOAuthCallback } from '@/features/auth/hooks/use-oauth-callback';
 
 export function OAuthCallbackPage() {
-  const { provider } = useParams({ strict: false }) as { provider: string }
+  const { provider } = useParams({ strict: false }) as { provider: string };
   const search = useSearch({ strict: false }) as {
-    code?: string
-    state?: string
-    error?: string
-    error_description?: string
-  }
+    code?: string;
+    state?: string;
+    error?: string;
+    error_description?: string;
+  };
 
-  const { error, isPending } = useOAuthCallback(provider, search)
+  const { error, isPending } = useOAuthCallback(provider, search);
 
   if (error) {
     return (
@@ -36,7 +36,7 @@ export function OAuthCallbackPage() {
           </Button>
         </CardFooter>
       </Card>
-    )
+    );
   }
 
   if (isPending) {
@@ -49,8 +49,8 @@ export function OAuthCallbackPage() {
           </p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
-  return null
+  return null;
 }

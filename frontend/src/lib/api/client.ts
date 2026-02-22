@@ -1,5 +1,5 @@
-import createClient from "openapi-fetch";
-import type { paths } from "./schema";
+import createClient from 'openapi-fetch';
+import type { paths } from './schema';
 
 /**
  * CookieからCSRFトークンを取得する
@@ -10,8 +10,8 @@ function getCSRFToken(): string | undefined {
 }
 
 export const api = createClient<paths>({
-  baseUrl: "/api/v1",
-  credentials: "include",
+  baseUrl: '/api/v1',
+  credentials: 'include',
   headers: {},
 });
 
@@ -19,10 +19,10 @@ export const api = createClient<paths>({
 api.use({
   onRequest({ request }) {
     const method = request.method.toUpperCase();
-    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
       const csrfToken = getCSRFToken();
       if (csrfToken) {
-        request.headers.set("X-CSRF-Token", csrfToken);
+        request.headers.set('X-CSRF-Token', csrfToken);
       }
     }
     return request;

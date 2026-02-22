@@ -1,23 +1,23 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api/client'
-import { folderKeys } from '@/lib/api/queries'
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
+import { folderKeys } from '@/lib/api/queries';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { toast } from 'sonner'
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 interface CreateFolderDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  parentId: string | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  parentId: string | null;
 }
 
 export function CreateFolderDialog({
@@ -25,8 +25,8 @@ export function CreateFolderDialog({
   onOpenChange,
   parentId,
 }: CreateFolderDialogProps) {
-  const [name, setName] = useState('')
-  const queryClient = useQueryClient()
+  const [name, setName] = useState('');
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: async (folderName: string) => {
@@ -35,31 +35,31 @@ export function CreateFolderDialog({
           name: folderName,
           parentId: parentId ?? undefined,
         },
-      })
-      if (error) throw error
-      return data
+      });
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      toast.success('Folder created')
-      setName('')
-      onOpenChange(false)
+      queryClient.invalidateQueries({ queryKey: folderKeys.lists() });
+      toast.success('Folder created');
+      setName('');
+      onOpenChange(false);
     },
     onError: (err: unknown) => {
       const message =
         err && typeof err === 'object' && 'error' in err
           ? (err as { error?: { message?: string } }).error?.message
-          : undefined
-      toast.error(message ?? 'Failed to create folder')
+          : undefined;
+      toast.error(message ?? 'Failed to create folder');
     },
-  })
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (name.trim()) {
-      mutation.mutate(name.trim())
+      mutation.mutate(name.trim());
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -88,15 +88,12 @@ export function CreateFolderDialog({
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={!name.trim() || mutation.isPending}
-            >
+            <Button type="submit" disabled={!name.trim() || mutation.isPending}>
               {mutation.isPending ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

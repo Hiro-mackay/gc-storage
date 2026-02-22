@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api/client'
-import { trashKeys, folderKeys } from '@/lib/api/queries'
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
+import { trashKeys, folderKeys } from '@/lib/api/queries';
 import {
   Table,
   TableBody,
@@ -9,7 +9,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -17,95 +17,98 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
-import { Trash2, RotateCcw, FileIcon, FolderIcon } from 'lucide-react'
-import { toast } from 'sonner'
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Trash2, RotateCcw, FileIcon, FolderIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
 function getCSRFToken(): string | undefined {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)
-  return match ? decodeURIComponent(match[1]) : undefined
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : undefined;
 }
 
 async function trashFetch(path: string, method: string) {
-  const headers: Record<string, string> = {}
-  const csrfToken = getCSRFToken()
+  const headers: Record<string, string> = {};
+  const csrfToken = getCSRFToken();
   if (csrfToken) {
-    headers['X-CSRF-Token'] = csrfToken
+    headers['X-CSRF-Token'] = csrfToken;
   }
   const res = await fetch(`/api/v1${path}`, {
     method,
     credentials: 'include',
     headers,
-  })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+  });
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
 }
 
 function isFolder(mimeType?: string): boolean {
-  return !mimeType || mimeType === 'application/x-directory'
+  return !mimeType || mimeType === 'application/x-directory';
 }
 
 export function TrashPage() {
-  const queryClient = useQueryClient()
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const [emptyConfirmOpen, setEmptyConfirmOpen] = useState(false)
+  const queryClient = useQueryClient();
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [emptyConfirmOpen, setEmptyConfirmOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: trashKeys.list(),
     queryFn: async () => {
-      const { data, error } = await api.GET('/trash')
-      if (error) throw error
-      return data?.data?.items ?? []
+      const { data, error } = await api.GET('/trash');
+      if (error) throw error;
+      return data?.data?.items ?? [];
     },
-  })
+  });
 
   const restoreMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await api.POST('/trash/{id}/restore', {
         params: { path: { id } },
         body: {},
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all })
-      queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      toast.success('File restored')
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
+      queryClient.invalidateQueries({ queryKey: folderKeys.lists() });
+      toast.success('File restored');
     },
     onError: () => {
-      toast.error('Failed to restore file')
+      toast.error('Failed to restore file');
     },
-  })
+  });
 
   const permanentDeleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await trashFetch(`/trash/${encodeURIComponent(id)}`, 'DELETE')
+      await trashFetch(`/trash/${encodeURIComponent(id)}`, 'DELETE');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all })
-      setDeleteTarget(null)
-      toast.success('Permanently deleted')
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
+      setDeleteTarget(null);
+      toast.success('Permanently deleted');
     },
     onError: () => {
-      toast.error('Failed to delete')
+      toast.error('Failed to delete');
     },
-  })
+  });
 
   const emptyTrashMutation = useMutation({
     mutationFn: async () => {
-      await trashFetch('/trash', 'DELETE')
+      await trashFetch('/trash', 'DELETE');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all })
-      setEmptyConfirmOpen(false)
-      toast.success('Trash emptied')
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
+      setEmptyConfirmOpen(false);
+      toast.success('Trash emptied');
     },
     onError: () => {
-      toast.error('Failed to empty trash')
+      toast.error('Failed to empty trash');
     },
-  })
+  });
 
   if (isLoading) {
     return (
@@ -115,7 +118,7 @@ export function TrashPage() {
           <Skeleton key={i} className="h-12 w-full" />
         ))}
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -124,10 +127,10 @@ export function TrashPage() {
         <h1 className="text-2xl font-bold mb-4">Trash</h1>
         <p className="text-destructive">Failed to load trash.</p>
       </div>
-    )
+    );
   }
 
-  const items = data ?? []
+  const items = data ?? [];
 
   return (
     <div className="p-6">
@@ -198,9 +201,7 @@ export function TrashPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() =>
-                        item.id && restoreMutation.mutate(item.id)
-                      }
+                      onClick={() => item.id && restoreMutation.mutate(item.id)}
                       disabled={restoreMutation.isPending}
                       title="Restore"
                     >
@@ -231,15 +232,15 @@ export function TrashPage() {
       <Dialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null)
+          if (!open) setDeleteTarget(null);
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Permanently Delete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to permanently delete "{deleteTarget?.name}"?
-              This action cannot be undone.
+              Are you sure you want to permanently delete "{deleteTarget?.name}
+              "? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -288,5 +289,5 @@ export function TrashPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

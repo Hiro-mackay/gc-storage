@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { api } from '@/lib/api/client'
-import { folderKeys } from '@/lib/api/queries'
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { api } from '@/lib/api/client';
+import { folderKeys } from '@/lib/api/queries';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,28 +9,28 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
-import { Home } from 'lucide-react'
-import { Fragment } from 'react'
+} from '@/components/ui/breadcrumb';
+import { Home } from 'lucide-react';
+import { Fragment } from 'react';
 
 interface FileBreadcrumbProps {
-  folderId: string | null
-  folderName?: string
+  folderId: string | null;
+  folderName?: string;
 }
 
 export function FileBreadcrumb({ folderId, folderName }: FileBreadcrumbProps) {
   const { data: ancestors } = useQuery({
     queryKey: folderKeys.ancestors(folderId ?? ''),
     queryFn: async () => {
-      if (!folderId) return []
+      if (!folderId) return [];
       const { data, error } = await api.GET('/folders/{id}/ancestors', {
         params: { path: { id: folderId } },
-      })
-      if (error) throw error
-      return data?.data?.items ?? []
+      });
+      if (error) throw error;
+      return data?.data?.items ?? [];
     },
     enabled: !!folderId,
-  })
+  });
 
   return (
     <Breadcrumb>
@@ -74,5 +74,5 @@ export function FileBreadcrumb({ folderId, folderName }: FileBreadcrumbProps) {
         )}
       </BreadcrumbList>
     </Breadcrumb>
-  )
+  );
 }

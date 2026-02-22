@@ -1,34 +1,34 @@
-import { useState } from 'react'
-import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { useState } from 'react';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { OAuthButtons } from '@/features/auth/components/oauth-buttons'
-import { useLoginMutation } from '@/features/auth/api/mutations'
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { OAuthButtons } from '@/features/auth/components/oauth-buttons';
+import { useLoginMutation } from '@/features/auth/api/mutations';
 
 export function LoginPage() {
-  const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as { redirect?: string }
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as { redirect?: string };
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const loginMutation = useLoginMutation()
+  const loginMutation = useLoginMutation();
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     loginMutation.mutate(
       { email, password },
       { onSuccess: () => navigate({ to: search.redirect ?? '/files' }) },
-    )
-  }
+    );
+  };
 
   return (
     <Card>
@@ -91,5 +91,5 @@ export function LoginPage() {
         </CardFooter>
       </form>
     </Card>
-  )
+  );
 }

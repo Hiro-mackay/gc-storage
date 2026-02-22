@@ -1,104 +1,104 @@
-import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { api } from '@/lib/api/client'
-import { groupKeys } from '@/lib/api/queries'
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { api } from '@/lib/api/client';
+import { groupKeys } from '@/lib/api/queries';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Users, Plus, Check, X } from 'lucide-react'
-import { toast } from 'sonner'
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Users, Plus, Check, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function GroupsPage() {
-  const queryClient = useQueryClient()
-  const [createOpen, setCreateOpen] = useState(false)
-  const [groupName, setGroupName] = useState('')
-  const [groupDesc, setGroupDesc] = useState('')
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [groupDesc, setGroupDesc] = useState('');
 
   const { data: groups, isLoading } = useQuery({
     queryKey: groupKeys.lists(),
     queryFn: async () => {
-      const { data, error } = await api.GET('/groups')
-      if (error) throw error
-      return data?.data ?? []
+      const { data, error } = await api.GET('/groups');
+      if (error) throw error;
+      return data?.data ?? [];
     },
-  })
+  });
 
   const { data: pendingInvitations } = useQuery({
     queryKey: groupKeys.pending(),
     queryFn: async () => {
-      const { data, error } = await api.GET('/invitations/pending')
-      if (error) throw error
-      return data?.data ?? []
+      const { data, error } = await api.GET('/invitations/pending');
+      if (error) throw error;
+      return data?.data ?? [];
     },
-  })
+  });
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const { error } = await api.POST('/groups', {
         body: { name: groupName, description: groupDesc || undefined },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all })
-      toast.success('Group created')
-      setGroupName('')
-      setGroupDesc('')
-      setCreateOpen(false)
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Group created');
+      setGroupName('');
+      setGroupDesc('');
+      setCreateOpen(false);
     },
     onError: () => {
-      toast.error('Failed to create group')
+      toast.error('Failed to create group');
     },
-  })
+  });
 
   const acceptMutation = useMutation({
     mutationFn: async (token: string) => {
       const { error } = await api.POST('/invitations/{token}/accept', {
         params: { path: { token } },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.all })
-      toast.success('Invitation accepted')
+      queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Invitation accepted');
     },
     onError: () => {
-      toast.error('Failed to accept invitation')
+      toast.error('Failed to accept invitation');
     },
-  })
+  });
 
   const declineMutation = useMutation({
     mutationFn: async (token: string) => {
       const { error } = await api.POST('/invitations/{token}/decline', {
         params: { path: { token } },
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: groupKeys.pending() })
-      toast.success('Invitation declined')
+      queryClient.invalidateQueries({ queryKey: groupKeys.pending() });
+      toast.success('Invitation declined');
     },
     onError: () => {
-      toast.error('Failed to decline invitation')
+      toast.error('Failed to decline invitation');
     },
-  })
+  });
 
   if (isLoading) {
     return (
@@ -108,10 +108,10 @@ export function GroupsPage() {
           <Skeleton key={i} className="h-24 w-full" />
         ))}
       </div>
-    )
+    );
   }
 
-  const invitations = pendingInvitations ?? []
+  const invitations = pendingInvitations ?? [];
 
   return (
     <div className="p-6 max-w-3xl space-y-6">
@@ -139,8 +139,8 @@ export function GroupsPage() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      const token = inv.invitation?.id
-                      if (token) acceptMutation.mutate(token)
+                      const token = inv.invitation?.id;
+                      if (token) acceptMutation.mutate(token);
                     }}
                     disabled={acceptMutation.isPending}
                   >
@@ -151,8 +151,8 @@ export function GroupsPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const token = inv.invitation?.id
-                      if (token) declineMutation.mutate(token)
+                      const token = inv.invitation?.id;
+                      if (token) declineMutation.mutate(token);
                     }}
                     disabled={declineMutation.isPending}
                   >
@@ -170,7 +170,9 @@ export function GroupsPage() {
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Users className="h-12 w-12 mb-4" />
           <p>No groups yet</p>
-          <p className="text-sm mt-1">Create a group to collaborate with your team</p>
+          <p className="text-sm mt-1">
+            Create a group to collaborate with your team
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -183,7 +185,9 @@ export function GroupsPage() {
                     params={{ groupId: item.group?.id ?? '' }}
                     className="hover:underline"
                   >
-                    <CardTitle className="text-lg">{item.group?.name}</CardTitle>
+                    <CardTitle className="text-lg">
+                      {item.group?.name}
+                    </CardTitle>
                   </Link>
                   <Badge variant="secondary">{item.myRole}</Badge>
                 </div>
@@ -208,8 +212,8 @@ export function GroupsPage() {
           </DialogHeader>
           <form
             onSubmit={(e) => {
-              e.preventDefault()
-              if (groupName.trim()) createMutation.mutate()
+              e.preventDefault();
+              if (groupName.trim()) createMutation.mutate();
             }}
           >
             <div className="space-y-4 py-4">
@@ -252,5 +256,5 @@ export function GroupsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
