@@ -540,9 +540,61 @@ func (s *PermissionTestSuite) TestContributorCannotGrantPermissions() {
 // =============================================================================
 
 func (s *PermissionTestSuite) TestMoveFolder_R_RL003_MoveOutRequiresContentManager() {
-	// R-RL003: move_out requires Content Manager+
-	// TODO: Move permission check (move_out requires Content Manager) is not implemented
-	s.T().Skip("Move permission check is not implemented")
+	// R-RL003: move_out requires Content Manager+ — contributor cannot move out
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	contributorSessionID := s.createUser("contributor@example.com", "Password123", "Contributor User")
+	contributorID := s.getUserID("contributor@example.com")
+
+	// Create source folder with contributor permission
+	sourceFolderID := s.createFolder(ownerSessionID, "Source Folder")
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + sourceFolderID + "/permissions",
+		SessionID: ownerSessionID,
+		Body: map[string]interface{}{
+			"granteeType": "user",
+			"granteeId":   contributorID,
+			"role":        "contributor",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Create subfolder under source
+	subfolderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
+		SessionID: contributorSessionID,
+		Body: map[string]interface{}{
+			"name":     "Subfolder",
+			"parentId": sourceFolderID,
+		},
+	})
+	subfolderResp.AssertStatus(http.StatusCreated)
+	subfolderID := subfolderResp.GetJSONData()["id"].(string)
+
+	// Create destination folder with contributor permission
+	destFolderID := s.createFolder(ownerSessionID, "Destination Folder")
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + destFolderID + "/permissions",
+		SessionID: ownerSessionID,
+		Body: map[string]interface{}{
+			"granteeType": "user",
+			"granteeId":   contributorID,
+			"role":        "contributor",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Contributor tries to move subfolder out (should fail — no move_out permission)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + subfolderID + "/move",
+		SessionID: contributorSessionID,
+		Body: map[string]interface{}{
+			"parentId": destFolderID,
+		},
+	})
+
+	resp.AssertStatus(http.StatusForbidden)
 }
 
 func (s *PermissionTestSuite) TestMoveFolder_R_RL003_ContentManagerCanMoveOut() {
@@ -604,9 +656,61 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL003_ContentManagerCanMoveOut() 
 }
 
 func (s *PermissionTestSuite) TestMoveFolder_R_RL004_MoveInRequiresContributor() {
-	// R-RL004: move_in requires Contributor+
-	// TODO: Move permission check (move_in requires Contributor) is not implemented
-	s.T().Skip("Move permission check is not implemented")
+	// R-RL004: move_in requires Contributor+ — viewer cannot move in
+	ownerSessionID := s.createUser("owner@example.com", "Password123", "Owner User")
+	managerSessionID := s.createUser("manager@example.com", "Password123", "Manager User")
+	managerID := s.getUserID("manager@example.com")
+
+	// Create source folder with content_manager permission
+	sourceFolderID := s.createFolder(ownerSessionID, "Source Folder")
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + sourceFolderID + "/permissions",
+		SessionID: ownerSessionID,
+		Body: map[string]interface{}{
+			"granteeType": "user",
+			"granteeId":   managerID,
+			"role":        "content_manager",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Create subfolder under source
+	subfolderResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders",
+		SessionID: managerSessionID,
+		Body: map[string]interface{}{
+			"name":     "Subfolder",
+			"parentId": sourceFolderID,
+		},
+	})
+	subfolderResp.AssertStatus(http.StatusCreated)
+	subfolderID := subfolderResp.GetJSONData()["id"].(string)
+
+	// Create destination folder with viewer-only permission
+	destFolderID := s.createFolder(ownerSessionID, "Destination Folder")
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/folders/" + destFolderID + "/permissions",
+		SessionID: ownerSessionID,
+		Body: map[string]interface{}{
+			"granteeType": "user",
+			"granteeId":   managerID,
+			"role":        "viewer",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Manager tries to move subfolder into destination (should fail — viewer has no move_in)
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPatch,
+		Path:      "/api/v1/folders/" + subfolderID + "/move",
+		SessionID: managerSessionID,
+		Body: map[string]interface{}{
+			"parentId": destFolderID,
+		},
+	})
+
+	resp.AssertStatus(http.StatusForbidden)
 }
 
 func (s *PermissionTestSuite) TestMoveFolder_R_RL004_ContributorCanMoveIn() {

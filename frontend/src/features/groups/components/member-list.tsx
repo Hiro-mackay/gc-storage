@@ -62,7 +62,7 @@ export function MemberListPanel({
         </TableHeader>
         <TableBody>
           {members.map((member) => (
-            <TableRow key={member.id}>
+            <TableRow key={member.id ?? member.userId}>
               <TableCell className="font-medium">{member.name}</TableCell>
               <TableCell className="text-muted-foreground">
                 {member.email}

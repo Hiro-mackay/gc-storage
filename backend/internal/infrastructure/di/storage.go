@@ -73,7 +73,7 @@ func NewStorageUseCases(repos *StorageRepositories, userRepo repository.UserRepo
 		// Folder Commands
 		CreateFolder: storagecmd.NewCreateFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, relationshipRepo, permissionResolver, txManager),
 		RenameFolder: storagecmd.NewRenameFolderCommand(repos.FolderRepo, userRepo),
-		MoveFolder:   storagecmd.NewMoveFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, txManager, userRepo),
+		MoveFolder:   storagecmd.NewMoveFolderCommand(repos.FolderRepo, repos.FolderClosureRepo, txManager, userRepo, permissionResolver),
 		DeleteFolder: storagecmd.NewDeleteFolderCommand(
 			repos.FolderRepo,
 			repos.FolderClosureRepo,
@@ -95,7 +95,7 @@ func NewStorageUseCases(repos *StorageRepositories, userRepo repository.UserRepo
 		CompleteUpload:        storagecmd.NewCompleteUploadCommand(repos.FileRepo, repos.FileVersionRepo, repos.UploadSessionRepo, repos.UploadPartRepo, txManager),
 		AbortUpload:           storagecmd.NewAbortUploadCommand(repos.UploadSessionRepo, repos.FileRepo, storageService, txManager),
 		RenameFile:            storagecmd.NewRenameFileCommand(repos.FileRepo),
-		MoveFile:              storagecmd.NewMoveFileCommand(repos.FileRepo, repos.FolderRepo),
+		MoveFile:              storagecmd.NewMoveFileCommand(repos.FileRepo, repos.FolderRepo, permissionResolver),
 		TrashFile:             storagecmd.NewTrashFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.FolderClosureRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
 		RestoreFile:           storagecmd.NewRestoreFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
 		PermanentlyDeleteFile: storagecmd.NewPermanentlyDeleteFileCommand(repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, storageService, txManager),

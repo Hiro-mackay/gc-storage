@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/usecase/storage/command"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
@@ -17,24 +18,26 @@ import (
 )
 
 type moveFolderTestDeps struct {
-	folderRepo        *mocks.MockFolderRepository
-	folderClosureRepo *mocks.MockFolderClosureRepository
-	txManager         *mocks.MockTransactionManager
-	userRepo          *mocks.MockUserRepository
+	folderRepo         *mocks.MockFolderRepository
+	folderClosureRepo  *mocks.MockFolderClosureRepository
+	txManager          *mocks.MockTransactionManager
+	userRepo           *mocks.MockUserRepository
+	permissionResolver *mocks.MockPermissionResolver
 }
 
 func newMoveFolderTestDeps(t *testing.T) *moveFolderTestDeps {
 	t.Helper()
 	return &moveFolderTestDeps{
-		folderRepo:        mocks.NewMockFolderRepository(t),
-		folderClosureRepo: mocks.NewMockFolderClosureRepository(t),
-		txManager:         mocks.NewMockTransactionManager(t),
-		userRepo:          mocks.NewMockUserRepository(t),
+		folderRepo:         mocks.NewMockFolderRepository(t),
+		folderClosureRepo:  mocks.NewMockFolderClosureRepository(t),
+		txManager:          mocks.NewMockTransactionManager(t),
+		userRepo:           mocks.NewMockUserRepository(t),
+		permissionResolver: mocks.NewMockPermissionResolver(t),
 	}
 }
 
 func (d *moveFolderTestDeps) newCommand() *command.MoveFolderCommand {
-	return command.NewMoveFolderCommand(d.folderRepo, d.folderClosureRepo, d.txManager, d.userRepo)
+	return command.NewMoveFolderCommand(d.folderRepo, d.folderClosureRepo, d.txManager, d.userRepo, d.permissionResolver)
 }
 
 func newMoveFolderUserWithoutPersonalFolder(ownerID uuid.UUID) *entity.User {
@@ -62,7 +65,10 @@ func TestMoveFolderCommand_Execute_MoveToNewParent_ReturnsFolder(t *testing.T) {
 	}
 
 	deps.folderRepo.On("FindByID", ctx, folder.ID).Return(folder, nil)
+	// Root folder: owner check via IsOwnedBy (no permission resolver call for move_out)
 	deps.userRepo.On("FindByID", ctx, ownerID).Return(user, nil)
+	// Destination: folder:move_in permission check
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, newParentID, authz.PermFolderMoveIn).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, newParentID).Return(newParent, nil)
 	deps.folderClosureRepo.On("FindDescendantIDs", ctx, folder.ID).Return([]uuid.UUID{}, nil)
 	deps.folderRepo.On("ExistsByNameAndParent", ctx, mock.AnythingOfType("valueobject.FolderName"), &newParentID, ownerID).Return(false, nil)
@@ -93,7 +99,10 @@ func TestMoveFolderCommand_Execute_MoveToRoot_ReturnsFolder(t *testing.T) {
 	}
 
 	deps.folderRepo.On("FindByID", ctx, folder.ID).Return(folder, nil)
+	// Child folder: folder:move_out permission check on parent
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, parentID, authz.PermFolderMoveOut).Return(true, nil)
 	deps.userRepo.On("FindByID", ctx, ownerID).Return(user, nil)
+	// Moving to root: owner check via IsOwnedBy (no move_in call)
 	deps.folderClosureRepo.On("FindDescendantIDs", ctx, folder.ID).Return([]uuid.UUID{}, nil)
 	deps.folderRepo.On("ExistsByNameAndOwnerRoot", ctx, mock.AnythingOfType("valueobject.FolderName"), ownerID).Return(false, nil)
 	deps.folderClosureRepo.On("FindAncestorPaths", ctx, mock.Anything).Return([]*entity.FolderPath{}, nil).Maybe()
@@ -206,15 +215,14 @@ func TestMoveFolderCommand_Execute_PersonalFolder_ReturnsForbidden(t *testing.T)
 	require.True(t, errors.As(err, &appErr))
 	assert.Equal(t, apperror.CodeForbidden, appErr.Code)
 }
-func TestMoveFolderCommand_Execute_NewParentNotOwned_ReturnsForbidden(t *testing.T) {
+func TestMoveFolderCommand_Execute_NewParentNoPermission_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	deps := newMoveFolderTestDeps(t)
 
 	ownerID := uuid.New()
-	anotherOwnerID := uuid.New()
 	newParentID := uuid.New()
 	folder := newRootFolderEntity(ownerID)
-	newParent := newRootFolderEntity(anotherOwnerID)
+	newParent := newRootFolderEntity(uuid.New())
 	newParent.ID = newParentID
 	user := newMoveFolderUserWithoutPersonalFolder(ownerID)
 
@@ -225,7 +233,10 @@ func TestMoveFolderCommand_Execute_NewParentNotOwned_ReturnsForbidden(t *testing
 	}
 
 	deps.folderRepo.On("FindByID", ctx, folder.ID).Return(folder, nil)
+	// Root folder: owner check passes
 	deps.userRepo.On("FindByID", ctx, ownerID).Return(user, nil)
+	// Destination: no move_in permission
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, newParentID, authz.PermFolderMoveIn).Return(false, nil)
 	deps.folderRepo.On("FindByID", ctx, newParentID).Return(newParent, nil)
 
 	cmd := deps.newCommand()
@@ -253,7 +264,10 @@ func TestMoveFolderCommand_Execute_CircularMove_ReturnsValidationError(t *testin
 	}
 
 	deps.folderRepo.On("FindByID", ctx, folder.ID).Return(folder, nil)
+	// Root folder: owner check passes
 	deps.userRepo.On("FindByID", ctx, ownerID).Return(user, nil)
+	// Destination: move_in permission passes
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, selfID, authz.PermFolderMoveIn).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, selfID).Return(folder, nil)
 	deps.folderClosureRepo.On("FindDescendantIDs", ctx, folder.ID).Return([]uuid.UUID{}, nil)
 
@@ -284,7 +298,10 @@ func TestMoveFolderCommand_Execute_DuplicateNameInDestination_ReturnsConflict(t 
 	}
 
 	deps.folderRepo.On("FindByID", ctx, folder.ID).Return(folder, nil)
+	// Root folder: owner check passes
 	deps.userRepo.On("FindByID", ctx, ownerID).Return(user, nil)
+	// Destination: move_in permission passes
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, newParentID, authz.PermFolderMoveIn).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, newParentID).Return(newParent, nil)
 	deps.folderClosureRepo.On("FindDescendantIDs", ctx, folder.ID).Return([]uuid.UUID{}, nil)
 	deps.folderRepo.On("ExistsByNameAndParent", ctx, mock.AnythingOfType("valueobject.FolderName"), &newParentID, ownerID).Return(true, nil)

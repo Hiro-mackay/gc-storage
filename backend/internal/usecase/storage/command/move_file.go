@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
@@ -25,18 +26,21 @@ type MoveFileOutput struct {
 
 // MoveFileCommand はファイルを別フォルダに移動するコマンドです
 type MoveFileCommand struct {
-	fileRepo   repository.FileRepository
-	folderRepo repository.FolderRepository
+	fileRepo           repository.FileRepository
+	folderRepo         repository.FolderRepository
+	permissionResolver authz.PermissionResolver
 }
 
 // NewMoveFileCommand は新しいMoveFileCommandを作成します
 func NewMoveFileCommand(
 	fileRepo repository.FileRepository,
 	folderRepo repository.FolderRepository,
+	permissionResolver authz.PermissionResolver,
 ) *MoveFileCommand {
 	return &MoveFileCommand{
-		fileRepo:   fileRepo,
-		folderRepo: folderRepo,
+		fileRepo:           fileRepo,
+		folderRepo:         folderRepo,
+		permissionResolver: permissionResolver,
 	}
 }
 
@@ -48,8 +52,12 @@ func (c *MoveFileCommand) Execute(ctx context.Context, input MoveFileInput) (*Mo
 		return nil, err
 	}
 
-	// 2. 所有者チェック
-	if !file.IsOwnedBy(input.UserID) {
+	// 2. 移動元の権限チェック (AC-50: file:move_out)
+	hasMoveOut, err := c.permissionResolver.HasPermission(ctx, input.UserID, authz.ResourceTypeFolder, file.FolderID, authz.PermFileMoveOut)
+	if err != nil {
+		return nil, err
+	}
+	if !hasMoveOut {
 		return nil, apperror.NewForbiddenError("not authorized to move this file")
 	}
 
@@ -61,14 +69,18 @@ func (c *MoveFileCommand) Execute(ctx context.Context, input MoveFileInput) (*Mo
 		}, nil
 	}
 
-	// 4. 移動先フォルダの存在と権限チェック
-	folder, err := c.folderRepo.FindByID(ctx, input.NewFolderID)
+	// 4. 移動先フォルダの存在と権限チェック (AC-51: file:move_in)
+	_, err = c.folderRepo.FindByID(ctx, input.NewFolderID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 移動先フォルダの所有者チェック（リクエストユーザーが所有者であること）
-	if !folder.IsOwnedBy(input.UserID) {
+	// 移動先フォルダに対するfile:move_in権限チェック
+	hasMoveIn, err := c.permissionResolver.HasPermission(ctx, input.UserID, authz.ResourceTypeFolder, input.NewFolderID, authz.PermFileMoveIn)
+	if err != nil {
+		return nil, err
+	}
+	if !hasMoveIn {
 		return nil, apperror.NewForbiddenError("not authorized to move to this folder")
 	}
 

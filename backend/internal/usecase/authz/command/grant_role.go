@@ -66,6 +66,11 @@ func (c *GrantRoleCommand) Execute(ctx context.Context, input GrantRoleInput) (*
 		return nil, apperror.NewValidationError("owner role cannot be granted directly. Use transfer ownership instead.", nil)
 	}
 
+	// 4.5. 自分自身への付与は不可
+	if granteeType.IsUser() && input.GranteeID == input.GrantedBy {
+		return nil, apperror.NewValidationError("cannot grant a role to yourself", nil)
+	}
+
 	// 5. 付与者が指定されたロールを付与可能か確認
 	canGrant, err := c.permissionResolver.CanGrantRole(ctx, input.GrantedBy, resourceType, input.ResourceID, role)
 	if err != nil {

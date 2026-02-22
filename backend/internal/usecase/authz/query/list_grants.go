@@ -47,7 +47,7 @@ func (q *ListGrantsQuery) Execute(ctx context.Context, input ListGrantsInput) (*
 	}
 
 	// 2. ユーザーがこのリソースの権限を閲覧できるか確認
-	hasPermission, err := q.permissionResolver.HasPermission(ctx, input.UserID, resourceType, input.ResourceID, authz.PermManageAccess)
+	hasPermission, err := q.permissionResolver.HasPermission(ctx, input.UserID, resourceType, input.ResourceID, authz.PermPermissionRead)
 	if err != nil {
 		return nil, err
 	}

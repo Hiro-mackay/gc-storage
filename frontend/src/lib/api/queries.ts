@@ -50,3 +50,9 @@ export const shareKeys = {
 export const profileKeys = {
   all: ['profile'] as const,
 };
+
+export const permissionKeys = {
+  all: ['permissions'] as const,
+  resource: (resourceType: string, resourceId: string) =>
+    [...permissionKeys.all, resourceType, resourceId] as const,
+};

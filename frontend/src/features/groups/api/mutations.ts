@@ -144,6 +144,7 @@ export function useUpdateGroupMutation(groupId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: groupKeys.detail(groupId) });
       queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+      toast.success('Group updated');
     },
     onError: (err) => {
       toast.error(err.message);
@@ -242,6 +243,7 @@ export function useTransferOwnershipMutation(groupId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: groupKeys.all });
+      toast.success('Ownership transferred');
     },
     onError: (err) => {
       toast.error(err.message);

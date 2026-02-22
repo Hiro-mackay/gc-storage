@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/usecase/storage/command"
@@ -19,20 +20,22 @@ import (
 )
 
 type moveFileTestDeps struct {
-	fileRepo   *mocks.MockFileRepository
-	folderRepo *mocks.MockFolderRepository
+	fileRepo           *mocks.MockFileRepository
+	folderRepo         *mocks.MockFolderRepository
+	permissionResolver *mocks.MockPermissionResolver
 }
 
 func newMoveFileTestDeps(t *testing.T) *moveFileTestDeps {
 	t.Helper()
 	return &moveFileTestDeps{
-		fileRepo:   mocks.NewMockFileRepository(t),
-		folderRepo: mocks.NewMockFolderRepository(t),
+		fileRepo:           mocks.NewMockFileRepository(t),
+		folderRepo:         mocks.NewMockFolderRepository(t),
+		permissionResolver: mocks.NewMockPermissionResolver(t),
 	}
 }
 
 func (d *moveFileTestDeps) newCommand() *command.MoveFileCommand {
-	return command.NewMoveFileCommand(d.fileRepo, d.folderRepo)
+	return command.NewMoveFileCommand(d.fileRepo, d.folderRepo, d.permissionResolver)
 }
 
 func newFolderEntity(ownerID uuid.UUID) *entity.Folder {
@@ -53,6 +56,10 @@ func TestMoveFileCommand_Execute_ValidInput_ReturnsOutput(t *testing.T) {
 	destFolder := newFolderEntity(ownerID)
 
 	deps.fileRepo.On("FindByID", ctx, file.ID).Return(file, nil)
+	// Source: file:move_out on source folder
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, sourceFolderID, authz.PermFileMoveOut).Return(true, nil)
+	// Destination: file:move_in on dest folder
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, destFolder.ID, authz.PermFileMoveIn).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, destFolder.ID).Return(destFolder, nil)
 	deps.fileRepo.On("ExistsByNameAndFolder", ctx, file.Name, destFolder.ID).Return(false, nil)
 	deps.fileRepo.On("Update", ctx, mock.AnythingOfType("*entity.File")).Return(nil)
@@ -79,6 +86,8 @@ func TestMoveFileCommand_Execute_SameFolder_ReturnsCurrentState(t *testing.T) {
 	file := newActiveFileEntity(ownerID, folderID)
 
 	deps.fileRepo.On("FindByID", ctx, file.ID).Return(file, nil)
+	// move_out check happens before same-folder early return
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, folderID, authz.PermFileMoveOut).Return(true, nil)
 
 	cmd := deps.newCommand()
 	output, err := cmd.Execute(ctx, command.MoveFileInput{
@@ -114,7 +123,7 @@ func TestMoveFileCommand_Execute_FileNotFound_PropagatesError(t *testing.T) {
 	assert.Equal(t, repoErr, err)
 }
 
-func TestMoveFileCommand_Execute_NotOwner_ReturnsForbidden(t *testing.T) {
+func TestMoveFileCommand_Execute_NoMoveOutPermission_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	deps := newMoveFileTestDeps(t)
 
@@ -124,6 +133,7 @@ func TestMoveFileCommand_Execute_NotOwner_ReturnsForbidden(t *testing.T) {
 	file := newActiveFileEntity(ownerID, folderID)
 
 	deps.fileRepo.On("FindByID", ctx, file.ID).Return(file, nil)
+	deps.permissionResolver.On("HasPermission", ctx, differentUserID, authz.ResourceTypeFolder, folderID, authz.PermFileMoveOut).Return(false, nil)
 
 	cmd := deps.newCommand()
 	output, err := cmd.Execute(ctx, command.MoveFileInput{
@@ -150,6 +160,7 @@ func TestMoveFileCommand_Execute_DestinationFolderNotFound_PropagatesError(t *te
 	repoErr := errors.New("folder not found")
 
 	deps.fileRepo.On("FindByID", ctx, file.ID).Return(file, nil)
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, sourceFolderID, authz.PermFileMoveOut).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, destFolderID).Return(nil, repoErr)
 
 	cmd := deps.newCommand()
@@ -164,18 +175,19 @@ func TestMoveFileCommand_Execute_DestinationFolderNotFound_PropagatesError(t *te
 	assert.Equal(t, repoErr, err)
 }
 
-func TestMoveFileCommand_Execute_DestinationNotOwned_ReturnsForbidden(t *testing.T) {
+func TestMoveFileCommand_Execute_NoMoveInPermission_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	deps := newMoveFileTestDeps(t)
 
 	ownerID := uuid.New()
-	differentOwnerID := uuid.New()
 	sourceFolderID := uuid.New()
 	file := newActiveFileEntity(ownerID, sourceFolderID)
-	destFolder := newFolderEntity(differentOwnerID)
+	destFolder := newFolderEntity(uuid.New())
 
 	deps.fileRepo.On("FindByID", ctx, file.ID).Return(file, nil)
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, sourceFolderID, authz.PermFileMoveOut).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, destFolder.ID).Return(destFolder, nil)
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, destFolder.ID, authz.PermFileMoveIn).Return(false, nil)
 
 	cmd := deps.newCommand()
 	output, err := cmd.Execute(ctx, command.MoveFileInput{
@@ -201,7 +213,9 @@ func TestMoveFileCommand_Execute_DuplicateNameInDestination_ReturnsConflict(t *t
 	destFolder := newFolderEntity(ownerID)
 
 	deps.fileRepo.On("FindByID", ctx, file.ID).Return(file, nil)
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, sourceFolderID, authz.PermFileMoveOut).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, destFolder.ID).Return(destFolder, nil)
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, destFolder.ID, authz.PermFileMoveIn).Return(true, nil)
 	deps.fileRepo.On("ExistsByNameAndFolder", ctx, file.Name, destFolder.ID).Return(true, nil)
 
 	cmd := deps.newCommand()
@@ -247,7 +261,9 @@ func TestMoveFileCommand_Execute_UploadingFile_ReturnsError(t *testing.T) {
 	destFolder := newFolderEntity(ownerID)
 
 	deps.fileRepo.On("FindByID", ctx, uploadingFile.ID).Return(uploadingFile, nil)
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, sourceFolderID, authz.PermFileMoveOut).Return(true, nil)
 	deps.folderRepo.On("FindByID", ctx, destFolder.ID).Return(destFolder, nil)
+	deps.permissionResolver.On("HasPermission", ctx, ownerID, authz.ResourceTypeFolder, destFolder.ID, authz.PermFileMoveIn).Return(true, nil)
 	deps.fileRepo.On("ExistsByNameAndFolder", ctx, uploadingFile.Name, destFolder.ID).Return(false, nil)
 
 	cmd := deps.newCommand()

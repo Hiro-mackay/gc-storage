@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
@@ -24,10 +25,11 @@ type MoveFolderOutput struct {
 
 // MoveFolderCommand はフォルダ移動コマンドです
 type MoveFolderCommand struct {
-	folderRepo        repository.FolderRepository
-	folderClosureRepo repository.FolderClosureRepository
-	txManager         repository.TransactionManager
-	userRepo          repository.UserRepository
+	folderRepo         repository.FolderRepository
+	folderClosureRepo  repository.FolderClosureRepository
+	txManager          repository.TransactionManager
+	userRepo           repository.UserRepository
+	permissionResolver authz.PermissionResolver
 }
 
 // NewMoveFolderCommand は新しいMoveFolderCommandを作成します
@@ -36,12 +38,14 @@ func NewMoveFolderCommand(
 	folderClosureRepo repository.FolderClosureRepository,
 	txManager repository.TransactionManager,
 	userRepo repository.UserRepository,
+	permissionResolver authz.PermissionResolver,
 ) *MoveFolderCommand {
 	return &MoveFolderCommand{
-		folderRepo:        folderRepo,
-		folderClosureRepo: folderClosureRepo,
-		txManager:         txManager,
-		userRepo:          userRepo,
+		folderRepo:         folderRepo,
+		folderClosureRepo:  folderClosureRepo,
+		txManager:          txManager,
+		userRepo:           userRepo,
+		permissionResolver: permissionResolver,
 	}
 }
 
@@ -53,9 +57,20 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 		return nil, err
 	}
 
-	// 2. 所有者チェック
-	if !folder.IsOwnedBy(input.UserID) {
-		return nil, apperror.NewForbiddenError("not authorized to move this folder")
+	// 2. 移動元の権限チェック (AC-50: folder:move_out)
+	if folder.ParentID != nil {
+		hasMoveOut, err := c.permissionResolver.HasPermission(ctx, input.UserID, authz.ResourceTypeFolder, *folder.ParentID, authz.PermFolderMoveOut)
+		if err != nil {
+			return nil, err
+		}
+		if !hasMoveOut {
+			return nil, apperror.NewForbiddenError("not authorized to move this folder")
+		}
+	} else {
+		// ルートレベルのフォルダは所有者のみ移動可能
+		if !folder.IsOwnedBy(input.UserID) {
+			return nil, apperror.NewForbiddenError("not authorized to move this folder")
+		}
 	}
 
 	// 3. パーソナルフォルダチェック (R-FD009)
@@ -73,7 +88,7 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 		return &MoveFolderOutput{Folder: folder}, nil
 	}
 
-	// 4. 移動先の検証
+	// 5. 移動先の検証 (AC-51: folder:move_in)
 	var newParent *entity.Folder
 	newDepth := 0
 	if input.NewParentID != nil {
@@ -82,21 +97,30 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 			return nil, err
 		}
 
-		// 移動先フォルダの所有者チェック
-		if !newParent.IsOwnedBy(folder.OwnerID) {
+		// 移動先フォルダに対するfolder:move_in権限チェック
+		hasMoveIn, err := c.permissionResolver.HasPermission(ctx, input.UserID, authz.ResourceTypeFolder, *input.NewParentID, authz.PermFolderMoveIn)
+		if err != nil {
+			return nil, err
+		}
+		if !hasMoveIn {
 			return nil, apperror.NewForbiddenError("not authorized to move to this folder")
 		}
 
 		newDepth = newParent.Depth + 1
+	} else {
+		// ルートへの移動は所有者のみ
+		if !folder.IsOwnedBy(input.UserID) {
+			return nil, apperror.NewForbiddenError("not authorized to move to root")
+		}
 	}
 
-	// 5. 子孫フォルダIDを取得（循環参照チェック用）
+	// 6. 子孫フォルダIDを取得（循環参照チェック用）
 	descendantIDs, err := c.folderClosureRepo.FindDescendantIDs(ctx, folder.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 6. 移動可能性のバリデーション（エンティティメソッド）
+	// 7. 移動可能性のバリデーション（エンティティメソッド）
 	// 子孫の最大深さを計算
 	maxDescendantDepth := 0
 	if len(descendantIDs) > 0 {
@@ -116,7 +140,7 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 		return nil, apperror.NewValidationError(err.Error(), nil)
 	}
 
-	// 7. 同名フォルダの存在チェック
+	// 8. 同名フォルダの存在チェック
 	var exists bool
 	if input.NewParentID != nil {
 		exists, err = c.folderRepo.ExistsByNameAndParent(ctx, folder.Name, input.NewParentID, folder.OwnerID)
@@ -130,7 +154,7 @@ func (c *MoveFolderCommand) Execute(ctx context.Context, input MoveFolderInput) 
 		return nil, apperror.NewConflictError("folder with same name already exists in destination")
 	}
 
-	// 8. トランザクションでフォルダと閉包テーブルを更新
+	// 9. トランザクションでフォルダと閉包テーブルを更新
 	err = c.txManager.WithTransaction(ctx, func(ctx context.Context) error {
 		// 新しい親のパスを取得
 		var newParentPaths []*entity.FolderPath

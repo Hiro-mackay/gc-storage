@@ -87,23 +87,33 @@ func (r Role) Permissions() []Permission {
 	switch r {
 	case RoleOwner:
 		return []Permission{
-			PermFileRead, PermFileWrite, PermFileDelete, PermFileShare, PermFileMove, PermFileDownload,
-			PermFolderRead, PermFolderWrite, PermFolderCreate, PermFolderDelete, PermFolderShare, PermFolderMoveIn, PermFolderMoveOut,
-			PermManageAccess,
+			PermFileRead, PermFileWrite, PermFileRename, PermFileDelete, PermFileRestore,
+			PermFileMoveIn, PermFileMoveOut, PermFileShare,
+			PermFilePermanentDelete,
+			PermFolderRead, PermFolderCreate, PermFolderRename, PermFolderDelete,
+			PermFolderMoveIn, PermFolderMoveOut, PermFolderShare,
+			PermPermissionRead, PermPermissionGrant, PermPermissionRevoke,
+			PermRootDelete,
 		}
 	case RoleContentManager:
 		return []Permission{
-			PermFileRead, PermFileWrite, PermFileDelete, PermFileShare, PermFileMove, PermFileDownload,
-			PermFolderRead, PermFolderWrite, PermFolderCreate, PermFolderDelete, PermFolderShare, PermFolderMoveIn, PermFolderMoveOut,
+			PermFileRead, PermFileWrite, PermFileRename, PermFileDelete, PermFileRestore,
+			PermFileMoveIn, PermFileMoveOut, PermFileShare,
+			PermFolderRead, PermFolderCreate, PermFolderRename, PermFolderDelete,
+			PermFolderMoveIn, PermFolderMoveOut, PermFolderShare,
+			PermPermissionRead, PermPermissionGrant, PermPermissionRevoke,
 		}
 	case RoleContributor:
 		return []Permission{
-			PermFileRead, PermFileWrite, PermFileDownload,
-			PermFolderRead, PermFolderWrite, PermFolderCreate, PermFolderMoveIn,
+			PermFileRead, PermFileWrite, PermFileRename, PermFileDelete, PermFileRestore,
+			PermFileMoveIn, PermFileShare,
+			PermFolderRead, PermFolderCreate, PermFolderRename, PermFolderDelete,
+			PermFolderMoveIn, PermFolderShare,
+			PermPermissionRead, PermPermissionGrant, PermPermissionRevoke,
 		}
 	case RoleViewer:
 		return []Permission{
-			PermFileRead, PermFileDownload,
+			PermFileRead,
 			PermFolderRead,
 		}
 	default:

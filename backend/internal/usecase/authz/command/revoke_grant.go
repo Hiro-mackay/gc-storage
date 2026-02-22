@@ -45,7 +45,12 @@ func (c *RevokeGrantCommand) Execute(ctx context.Context, input RevokeGrantInput
 		return nil, err
 	}
 
-	// 2. 取り消し者が取り消し可能か確認
+	// 2. オーナーロールの取り消しは不可（所有権譲渡を使用）
+	if grant.Role == authz.RoleOwner {
+		return nil, apperror.NewValidationError("owner role cannot be revoked. Use transfer ownership instead.", nil)
+	}
+
+	// 3. 取り消し者が取り消し可能か確認
 	// 取り消し者がこのロールを付与可能な権限を持っているか確認
 	canGrant, err := c.permissionResolver.CanGrantRole(ctx, input.RevokedBy, grant.ResourceType, grant.ResourceID, grant.Role)
 	if err != nil {
@@ -55,7 +60,7 @@ func (c *RevokeGrantCommand) Execute(ctx context.Context, input RevokeGrantInput
 		return nil, apperror.NewForbiddenError("you do not have permission to revoke this grant")
 	}
 
-	// 3. 権限付与を削除
+	// 4. 権限付与を削除
 	if err := c.permissionGrantRepo.Delete(ctx, input.GrantID); err != nil {
 		return nil, err
 	}
