@@ -115,97 +115,62 @@ gc-storage/
 
 ## タスクコマンド
 
-### クイックリファレンス
+### 日常ワークフロー
 
 ```bash
-task                     # 利用可能なタスク一覧
-task dev                 # 全環境をワンコマンド起動
-task check               # lint + test (クイック検証)
-task doctor              # ツールのインストール確認
+task dev                 # 全環境起動 (infra + migrate + backend + frontend)
+task dev:backend         # infra + backend のみ起動
+task dev:frontend        # frontend のみ起動 (backend が起動済み前提)
+task check               # lint + test (コミット前の検証)
+task fmt                 # 全コードフォーマット
 ```
 
-### 開発環境
+### コード生成
 
 ```bash
-task dev                 # 全環境起動 (infra + backend + frontend)
-task dev:backend         # バックエンドのみ起動 (infra + backend)
-task dev:frontend        # フロントエンドのみ起動
-task infra:up            # インフラのみ起動
-task infra:down          # インフラ停止（データ保持）
-task infra:destroy       # インフラ停止・ボリューム削除（データ削除）
-task infra:logs          # ログ確認
-task infra:status        # ステータス確認
+task generate            # 全生成 (API types + sqlc + mocks)
+task generate:api        # swagger -> openapi -> TypeScript 型生成
+task generate:sqlc       # SQL -> Go コード生成
+task generate:mocks      # Go モック生成
 ```
 
-### Backend (Go)
-
-```bash
-task backend:dev         # Air で Hot Reload 起動
-task backend:run         # Hot Reload なしで起動
-task backend:build       # バイナリビルド
-task backend:test        # ユニットテスト実行
-task backend:test-integration  # 統合テスト実行
-task backend:test-coverage     # カバレッジレポート生成
-task backend:lint        # golangci-lint
-task backend:lint-fix    # golangci-lint (自動修正)
-task backend:fmt         # コードフォーマット
-task backend:sqlc        # SQL → Go コード生成
-task backend:mocks       # モック生成
-```
-
-### Frontend (React)
-
-```bash
-task frontend:dev        # Vite dev server
-task frontend:build      # プロダクションビルド
-task frontend:preview    # ビルドプレビュー
-task frontend:test       # Vitest 実行
-task frontend:test-watch # ウォッチモード
-task frontend:test-coverage    # カバレッジ
-task frontend:lint       # ESLint
-task frontend:fmt        # Prettier フォーマット
-```
+> `task dev` 実行中は `generate:api` が自動ウォッチされます。
+> `backend/internal/interface/**/*.go` の変更を検知し、TypeScript 型を自動再生成します。
 
 ### テスト
 
 ```bash
-task test                # 全テスト (unit + integration)
-task test:unit           # ユニットテストのみ
-task test:integration    # 統合テストのみ
-task check               # lint + test (クイック検証)
-task ci                  # CI パイプライン (lint + test + build)
-task ci:full             # フル CI (統合テスト含む)
+task test                # ユニットテスト (backend + frontend)
+task test:integration    # 統合テスト (infra 自動起動)
+task test:coverage       # カバレッジレポート生成
 ```
 
-### Database
+### データベース
 
 ```bash
-task migrate:up          # マイグレーション適用
-task migrate:down        # ロールバック（1つ）
-task migrate:reset       # 全ロールバック（危険）
-task migrate:create NAME=xxx  # 新規マイグレーション作成
-task migrate:version     # 現在のバージョン確認
+task db:migrate          # マイグレーション適用
+task db:rollback         # ロールバック（1つ）
+task db:reset            # DB リセット (drop + create + migrate)
+task db:create-migration NAME=xxx  # 新規マイグレーション作成
 task db:connect          # psql でDB接続
-task db:reset            # DB リセット（drop + create + migrate）
+task db:version          # 現在のバージョン確認
 ```
 
-### セットアップ
+### インフラ / セットアップ
 
 ```bash
+task infra:up            # インフラ起動
+task infra:down          # インフラ停止
+task infra:destroy       # インフラ停止 + ボリューム削除
 task setup               # ツール + 依存関係インストール
-task setup:tools         # Go ツールインストール
-task setup:deps          # 依存関係インストール
 task doctor              # ツールインストール確認
-task clean               # ビルド成果物削除
 ```
 
-### ブラウザで開く
+### CI / ビルド
 
 ```bash
-task open:frontend       # フロントエンド
-task open:api            # API
-task open:minio          # MinIO コンソール
-task open:mailhog        # MailHog UI
+task build               # backend + frontend プロダクションビルド
+task ci                  # フル CI (lint + test + integration + build)
 ```
 
 ---

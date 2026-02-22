@@ -171,6 +171,24 @@ type SwaggerRestoreFileResponse struct {
 	Meta *presenter.Meta              `json:"meta"`
 }
 
+// SwaggerDeletedResponse は削除成功レスポンス (data=null)
+type SwaggerDeletedResponse struct {
+	Data *struct{} `json:"data"`
+	Meta *presenter.Meta `json:"meta"`
+}
+
+// SwaggerEmptyTrashResponse は EmptyTrashResponse のラッパー
+type SwaggerEmptyTrashResponse struct {
+	Data response.EmptyTrashResponse `json:"data"`
+	Meta *presenter.Meta             `json:"meta"`
+}
+
+// SwaggerAbortUploadResponse は AbortUploadResponse のラッパー
+type SwaggerAbortUploadResponse struct {
+	Data response.AbortUploadResponse `json:"data"`
+	Meta *presenter.Meta              `json:"meta"`
+}
+
 // ---- Group ----
 
 // SwaggerGroupWithMembershipResponse は GroupWithMembershipResponse のラッパー

@@ -17,398 +17,211 @@ tasks:
       - task --list
 
   dev:
-    desc: Start full development environment (infra + backend + frontend)
+    desc: Start full dev environment (infra + migrate + backend + frontend + api watch)
     cmds:
       - task: infra:up
-      - task: migrate:up
-      - task: dev:services
-
-  dev:services:
-    desc: Start backend and frontend in parallel (requires infra running)
-    deps: [backend:dev, frontend:dev]
+      - task: db:migrate
+      - defer: { task: infra:down }
+      - task: generate:api
+      - task: _dev:services
 
   dev:backend:
-    desc: Start infrastructure and backend only (no frontend)
+    desc: Start infra + backend only (no frontend)
     cmds:
       - task: infra:up
-      - task: migrate:up
-      - task: backend:dev
+      - task: db:migrate
+      - task: _backend:dev
 
   dev:frontend:
     desc: Start frontend only (assumes backend is running)
     cmds:
-      - task: frontend:dev
+      - task: _frontend:dev
 
   # =============================================================================
   # Infrastructure
   # =============================================================================
   infra:up:
-    desc: Start infrastructure services (PostgreSQL, Redis, MinIO, MailHog)
+    desc: Start infrastructure (PostgreSQL, Redis, MinIO, MailHog)
     cmds:
       - docker compose up -d
-      - task: infra:wait
+      - task: _infra:wait
 
   infra:down:
-    desc: Stop infrastructure services
+    desc: Stop infrastructure
     cmds:
       - docker compose down
 
   infra:destroy:
-    desc: Stop infrastructure and remove all volumes (WARNING - deletes data)
+    desc: Stop infrastructure and delete all volumes
     prompt: This will delete all data. Are you sure?
     cmds:
       - docker compose down -v
 
-  infra:restart:
-    desc: Restart infrastructure services
-    cmds:
-      - docker compose restart
-
-  infra:wait:
-    desc: Wait for all infrastructure services to be healthy
-    cmds:
-      - |
-        echo "Waiting for PostgreSQL..."
-        until docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1; do
-          sleep 1
-        done
-        echo "PostgreSQL is ready"
-      - |
-        echo "Waiting for Redis..."
-        until docker compose exec -T redis redis-cli ping > /dev/null 2>&1; do
-          sleep 1
-        done
-        echo "Redis is ready"
-      - |
-        echo "Waiting for MinIO..."
-        until curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; do
-          sleep 1
-        done
-        echo "MinIO is ready"
-      - echo "All services are ready!"
-
   infra:logs:
-    desc: View infrastructure logs (follow mode)
+    desc: View infrastructure logs
     cmds:
       - docker compose logs -f {{.CLI_ARGS}}
 
-  infra:status:
-    desc: Show infrastructure status
-    cmds:
-      - docker compose ps
-
   # =============================================================================
-  # Backend
+  # Code Generation
   # =============================================================================
-  backend:dev:
-    desc: Start backend with hot reload (Air)
-    dir: "{{.BACKEND_DIR}}"
+  generate:
+    desc: Generate all (API types + sqlc + mocks)
     cmds:
-      - air
+      - task: generate:api
+      - task: generate:sqlc
+      - task: generate:mocks
 
-  backend:run:
-    desc: Run backend without hot reload
-    dir: "{{.BACKEND_DIR}}"
+  generate:api:
+    desc: Generate OpenAPI spec and TypeScript types
+    sources:
+      - "{{.BACKEND_DIR}}/internal/interface/**/*.go"
+    generates:
+      - "{{.FRONTEND_DIR}}/src/lib/api/schema.d.ts"
     cmds:
-      - go run ./cmd/api
+      - task: _generate:api:swag
+      - task: _generate:api:types
 
-  backend:build:
-    desc: Build backend binary
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - go build -o bin/api cmd/api/main.go
-
-  backend:test:
-    desc: Run backend unit tests
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - go test -v ./internal/...
-
-  backend:test-coverage:
-    desc: Run backend tests with coverage report
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - go test -coverprofile=coverage.out ./internal/...
-      - go tool cover -html=coverage.out -o coverage.html
-      - echo "Coverage report generated at {{.BACKEND_DIR}}/coverage.html"
-
-  backend:test-integration:
-    desc: Run backend integration tests (requires infra running)
-    dir: "{{.BACKEND_DIR}}"
-    env:
-      INTEGRATION_TEST: "true"
-    cmds:
-      - go test -v -count=1 ./tests/integration/...
-
-  backend:lint:
-    desc: Run golangci-lint
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - golangci-lint run ./...
-
-  backend:lint-fix:
-    desc: Run golangci-lint with auto-fix
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - golangci-lint run --fix ./...
-
-  backend:fmt:
-    desc: Format Go code
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - go fmt ./...
-      - goimports -w .
-    ignore_error: true
-
-  backend:sqlc:
+  generate:sqlc:
     desc: Generate Go code from SQL queries
     dir: "{{.BACKEND_DIR}}"
     cmds:
       - sqlc generate
 
-  backend:mocks:
-    desc: Generate mocks using go generate
+  generate:mocks:
+    desc: Generate mocks via go generate
     dir: "{{.BACKEND_DIR}}"
     cmds:
       - go generate ./...
 
-  backend:swagger:
-    desc: Generate Swagger/OpenAPI spec from handler annotations
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
-
   # =============================================================================
-  # Frontend
+  # Database
   # =============================================================================
-  frontend:dev:
-    desc: Start frontend development server
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm dev
-
-  frontend:build:
-    desc: Build frontend for production
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm build
-
-  frontend:preview:
-    desc: Preview production build locally
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm preview
-
-  frontend:test:
-    desc: Run frontend tests
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm test
-
-  frontend:test-watch:
-    desc: Run frontend tests in watch mode
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm test:watch
-
-  frontend:test-coverage:
-    desc: Run frontend tests with coverage
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm test:coverage
-
-  frontend:lint:
-    desc: Run ESLint
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm lint
-
-  frontend:fmt:
-    desc: Format code with Prettier
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm format
-
-  frontend:generate-types:
-    desc: Generate TypeScript types from OpenAPI spec
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm exec swagger2openapi ../backend/docs/swagger.json -o src/lib/api/openapi.json
-      - pnpm exec openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts
-
-  # =============================================================================
-  # API Type Generation
-  # =============================================================================
-  api:generate:
-    desc: Generate OpenAPI spec and TypeScript types (full pipeline)
-    cmds:
-      - task: backend:swagger
-      - task: frontend:generate-types
-
-  # =============================================================================
-  # Testing (All-in-one)
-  # =============================================================================
-  test:
-    desc: Run all tests (unit + integration, starts infra if needed)
-    cmds:
-      - task: infra:up
-      - task: db:setup-test
-      - task: backend:test
-      - task: backend:test-integration
-
-  test:unit:
-    desc: Run unit tests only (no infra needed)
-    cmds:
-      - task: backend:test
-      - task: frontend:test
-
-  test:integration:
-    desc: Run integration tests only (starts infra if needed)
-    cmds:
-      - task: infra:up
-      - task: db:setup-test
-      - task: backend:test-integration
-
-  # =============================================================================
-  # Database Migrations
-  # =============================================================================
-  migrate:up:
+  db:migrate:
     desc: Apply all pending migrations
     cmds:
       - migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" up
 
-  migrate:down:
+  db:rollback:
     desc: Rollback the last migration
     cmds:
       - migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" down 1
 
-  migrate:reset:
-    desc: Rollback all migrations
-    prompt: This will rollback ALL migrations. Are you sure?
-    cmds:
-      - migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" down -all
-
-  migrate:create:
-    desc: Create a new migration file
-    cmds:
-      - |
-        if [ -z "{{.NAME}}" ]; then
-          echo "Usage: task migrate:create NAME=migration_name"
-          exit 1
-        fi
-        migrate create -ext sql -dir {{.MIGRATIONS_DIR}} -seq {{.NAME}}
-
-  migrate:version:
-    desc: Show current migration version
-    cmds:
-      - migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" version
-
-  migrate:force:
-    desc: Force set migration version (use with caution)
-    cmds:
-      - |
-        if [ -z "{{.VERSION}}" ]; then
-          echo "Usage: task migrate:force VERSION=1"
-          exit 1
-        fi
-        migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" force {{.VERSION}}
-
-  # =============================================================================
-  # Database Utilities
-  # =============================================================================
-  db:connect:
-    desc: Connect to PostgreSQL database via psql
-    cmds:
-      - docker compose exec postgres psql -U postgres -d gc_storage
-
   db:reset:
-    desc: Reset database (drop + recreate + migrate)
-    prompt: This will delete all data in the database. Are you sure?
+    desc: Drop + recreate + migrate database
+    prompt: This will delete all data. Are you sure?
     cmds:
       - docker compose exec -T postgres psql -U postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'gc_storage' AND pid <> pg_backend_pid();" || true
       - docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS gc_storage;"
       - docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE gc_storage;"
-      - task: migrate:up
+      - task: db:migrate
 
-  db:seed:
-    desc: Seed database with test data
-    dir: "{{.BACKEND_DIR}}"
+  db:create-migration:
+    desc: "Create a new migration (usage: task db:create-migration NAME=xxx)"
     cmds:
-      - echo "No seed data configured yet"
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "Usage: task db:create-migration NAME=migration_name"
+          exit 1
+        fi
+        migrate create -ext sql -dir {{.MIGRATIONS_DIR}} -seq {{.NAME}}
 
-  db:setup-test:
-    desc: Setup test database (create + migrate)
+  db:connect:
+    desc: Connect to PostgreSQL via psql
     cmds:
-      - docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE gc_storage_test;" 2>/dev/null || true
-      - migrate -path {{.MIGRATIONS_DIR}} -database "postgres://postgres:postgres@localhost:5432/gc_storage_test?sslmode=disable" up
+      - docker compose exec postgres psql -U postgres -d gc_storage
+
+  db:version:
+    desc: Show current migration version
+    cmds:
+      - migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" version
+
+  # =============================================================================
+  # Testing
+  # =============================================================================
+  test:
+    desc: Run all unit tests (backend + frontend)
+    cmds:
+      - task: _test:backend
+      - task: _test:frontend
+
+  test:integration:
+    desc: Run integration tests (starts infra if needed)
+    cmds:
+      - task: infra:up
+      - task: _db:setup-test
+      - task: _test:integration:run
+
+  test:coverage:
+    desc: Run tests with coverage reports
+    cmds:
+      - task: _test:coverage:backend
+      - task: _test:coverage:frontend
 
   # =============================================================================
   # Code Quality
   # =============================================================================
   check:
-    desc: Run all checks (lint + test) - quick validation
+    desc: Lint + test (quick validation before commit)
     cmds:
-      - task: backend:fmt
-      - task: backend:lint
-      - task: frontend:lint
-      - task: backend:test
-      - task: frontend:test
+      - task: lint
+      - task: test
 
   lint:
     desc: Run all linters
     cmds:
-      - task: backend:lint
-      - task: frontend:lint
+      - task: _lint:backend
+      - task: _lint:frontend
 
   fmt:
     desc: Format all code
     cmds:
-      - task: backend:fmt
-      - task: frontend:fmt
+      - task: _fmt:backend
+      - task: _fmt:frontend
 
   # =============================================================================
-  # Setup & Installation
+  # Build
+  # =============================================================================
+  build:
+    desc: Build backend + frontend for production
+    cmds:
+      - task: _build:backend
+      - task: _build:frontend
+
+  # =============================================================================
+  # CI
+  # =============================================================================
+  ci:
+    desc: Full CI pipeline (lint + test + integration + build)
+    cmds:
+      - task: lint
+      - task: test
+      - task: test:integration
+      - task: build
+
+  # =============================================================================
+  # Setup
   # =============================================================================
   setup:
-    desc: Initial project setup (install tools + dependencies)
+    desc: Install all tools and dependencies
     cmds:
       - task: setup:tools
-      - task: setup:deps
+      - cd {{.BACKEND_DIR}} && go mod tidy
+      - cd {{.FRONTEND_DIR}} && pnpm install
 
   setup:tools:
-    desc: Install required development tools
+    desc: Install required Go development tools
     cmds:
-      - echo "Installing Go tools..."
-      - go install github.com/air-verse/air@latest
-      - go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-      - go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-      - go install golang.org/x/tools/cmd/goimports@latest
-      - echo "All tools installed!"
-      - task: doctor
+      - |
+        echo "Installing Go tools..."
+        go install github.com/air-verse/air@latest
+        go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        go install golang.org/x/tools/cmd/goimports@latest
+        go install github.com/swaggo/swag/cmd/swag@latest
+        echo "All tools installed!"
 
-  setup:deps:
-    desc: Install project dependencies
-    cmds:
-      - task: setup:backend
-      - task: setup:frontend
-
-  setup:backend:
-    desc: Install backend dependencies
-    dir: "{{.BACKEND_DIR}}"
-    cmds:
-      - go mod download
-      - go mod tidy
-
-  setup:frontend:
-    desc: Install frontend dependencies
-    dir: "{{.FRONTEND_DIR}}"
-    cmds:
-      - pnpm install
-
-  # =============================================================================
-  # Utilities
-  # =============================================================================
   doctor:
     desc: Check if all required tools are installed
     cmds:
@@ -416,76 +229,28 @@ tasks:
         echo "Checking required tools..."
         echo ""
         MISSING=""
-
-        # Check Go
-        if command -v go &> /dev/null; then
-          echo "✓ go $(go version | awk '{print $3}')"
-        else
-          echo "✗ go - not found"
-          MISSING="$MISSING go"
-        fi
-
-        # Check Node.js
-        if command -v node &> /dev/null; then
-          echo "✓ node $(node --version)"
-        else
-          echo "✗ node - not found"
-          MISSING="$MISSING node"
-        fi
-
-        # Check pnpm
-        if command -v pnpm &> /dev/null; then
-          echo "✓ pnpm $(pnpm --version)"
-        else
-          echo "✗ pnpm - not found"
-          MISSING="$MISSING pnpm"
-        fi
-
-        # Check Docker
-        if command -v docker &> /dev/null; then
-          echo "✓ docker $(docker --version | awk '{print $3}' | tr -d ',')"
-        else
-          echo "✗ docker - not found"
-          MISSING="$MISSING docker"
-        fi
-
-        # Check Air
-        if command -v air &> /dev/null; then
-          echo "✓ air (hot reload)"
-        else
-          echo "✗ air - not found (run: task setup:tools)"
-          MISSING="$MISSING air"
-        fi
-
-        # Check sqlc
-        if command -v sqlc &> /dev/null; then
-          echo "✓ sqlc $(sqlc version)"
-        else
-          echo "✗ sqlc - not found (run: task setup:tools)"
-          MISSING="$MISSING sqlc"
-        fi
-
-        # Check migrate
-        if command -v migrate &> /dev/null; then
-          echo "✓ migrate"
-        else
-          echo "✗ migrate - not found (run: task setup:tools)"
-          MISSING="$MISSING migrate"
-        fi
-
-        # Check golangci-lint
-        if command -v golangci-lint &> /dev/null; then
-          echo "✓ golangci-lint $(golangci-lint --version | head -1 | awk '{print $4}')"
-        else
-          echo "✗ golangci-lint - not found (run: task setup:tools)"
-          MISSING="$MISSING golangci-lint"
-        fi
-
+        check() {
+          if command -v "$1" &> /dev/null; then
+            echo "  ok  $1"
+          else
+            echo "  NG  $1 - not found"
+            MISSING="$MISSING $1"
+          fi
+        }
+        check go
+        check node
+        check pnpm
+        check docker
+        check air
+        check sqlc
+        check migrate
+        check golangci-lint
+        check swag
         echo ""
         if [ -z "$MISSING" ]; then
           echo "All tools are installed!"
         else
-          echo "Missing tools:$MISSING"
+          echo "Missing:$MISSING"
           echo "Run 'task setup:tools' to install Go tools"
           exit 1
         fi
@@ -493,49 +258,133 @@ tasks:
   clean:
     desc: Clean build artifacts and caches
     cmds:
-      - rm -rf {{.BACKEND_DIR}}/bin
-      - rm -rf {{.BACKEND_DIR}}/tmp
-      - rm -rf {{.BACKEND_DIR}}/coverage.out
-      - rm -rf {{.BACKEND_DIR}}/coverage.html
-      - rm -rf {{.FRONTEND_DIR}}/dist
-      - rm -rf {{.FRONTEND_DIR}}/coverage
-      - echo "Cleaned build artifacts"
-
-  open:api:
-    desc: Open API documentation in browser
-    cmds:
-      - open http://localhost:8080/api/v1 || xdg-open http://localhost:8080/api/v1
-
-  open:frontend:
-    desc: Open frontend in browser
-    cmds:
-      - open http://localhost:3000 || xdg-open http://localhost:3000
-
-  open:minio:
-    desc: Open MinIO console in browser
-    cmds:
-      - open http://localhost:9001 || xdg-open http://localhost:9001
-
-  open:mailhog:
-    desc: Open MailHog UI in browser
-    cmds:
-      - open http://localhost:8025 || xdg-open http://localhost:8025
+      - rm -rf {{.BACKEND_DIR}}/bin {{.BACKEND_DIR}}/tmp {{.BACKEND_DIR}}/coverage.*
+      - rm -rf {{.FRONTEND_DIR}}/dist {{.FRONTEND_DIR}}/coverage
 
   # =============================================================================
-  # CI/CD
+  # Internal tasks (not shown in task --list)
   # =============================================================================
-  ci:
-    desc: Run CI pipeline (lint + test + build)
-    cmds:
-      - task: lint
-      - task: test:unit
-      - task: backend:build
-      - task: frontend:build
+  _dev:services:
+    internal: true
+    deps:
+      - _backend:dev
+      - _frontend:dev
+      - _generate:api:watch
 
-  ci:full:
-    desc: Run full CI pipeline including integration tests
+  _backend:dev:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
     cmds:
-      - task: lint
-      - task: test
-      - task: backend:build
-      - task: frontend:build
+      - air
+
+  _frontend:dev:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm dev
+
+  _generate:api:swag:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+
+  _generate:api:types:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm exec swagger2openapi ../backend/docs/swagger.json -o src/lib/api/openapi.json
+      - pnpm exec openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts
+
+  _generate:api:watch:
+    internal: true
+    cmds:
+      - task --watch generate:api
+
+  _infra:wait:
+    internal: true
+    cmds:
+      - |
+        echo "Waiting for services..."
+        until docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1; do sleep 1; done
+        until docker compose exec -T redis redis-cli ping > /dev/null 2>&1; do sleep 1; done
+        until curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; do sleep 1; done
+        echo "All services ready!"
+
+  _db:setup-test:
+    internal: true
+    cmds:
+      - docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE gc_storage_test;" 2>/dev/null || true
+      - migrate -path {{.MIGRATIONS_DIR}} -database "postgres://postgres:postgres@localhost:5432/gc_storage_test?sslmode=disable" up
+
+  # ---- Test ----
+  _test:backend:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - go test ./internal/...
+
+  _test:frontend:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm test
+
+  _test:integration:run:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
+    env:
+      INTEGRATION_TEST: "true"
+    cmds:
+      - go test -v -count=1 ./tests/integration/...
+
+  _test:coverage:backend:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - go test -coverprofile=coverage.out ./internal/... && go tool cover -html=coverage.out -o coverage.html
+
+  _test:coverage:frontend:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm test:coverage
+
+  # ---- Lint / Fmt ----
+  _lint:backend:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - golangci-lint run ./...
+
+  _lint:frontend:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm lint
+
+  _fmt:backend:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
+    ignore_error: true
+    cmds:
+      - go fmt ./... && goimports -w .
+
+  _fmt:frontend:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm format
+
+  # ---- Build ----
+  _build:backend:
+    internal: true
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - go build -o bin/api cmd/api/main.go
+
+  _build:frontend:
+    internal: true
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - pnpm build

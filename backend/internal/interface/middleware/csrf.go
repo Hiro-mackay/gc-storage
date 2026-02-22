@@ -30,6 +30,10 @@ func GenerateCSRFToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// SecureCookies はCookieのSecureフラグを制御するグローバル設定です
+// ローカル開発（HTTP）では false、本番（HTTPS）では true に設定します
+var SecureCookies = false
+
 // SetCSRFCookie はCSRFトークンCookieを設定します（JavaScriptから読み取り可能）
 func SetCSRFCookie(c echo.Context, token string) {
 	c.SetCookie(&http.Cookie{
@@ -37,7 +41,7 @@ func SetCSRFCookie(c echo.Context, token string) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: false, // JSから読み取り可能にする（double-submit cookie pattern）
-		Secure:   true,
+		Secure:   SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   7 * 24 * 60 * 60, // 7日
 	})
@@ -50,7 +54,7 @@ func ClearCSRFCookie(c echo.Context) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: false,
-		Secure:   true,
+		Secure:   SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})

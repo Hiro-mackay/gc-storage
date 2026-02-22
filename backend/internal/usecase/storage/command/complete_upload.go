@@ -141,6 +141,11 @@ func (c *CompleteUploadCommand) Execute(ctx context.Context, input CompleteUploa
 			return err
 		}
 
+		// ステータスを永続化（UpdateFileクエリにstatusが含まれないため個別に更新）
+		if err := c.fileRepo.UpdateStatus(ctx, file.ID, file.Status); err != nil {
+			return err
+		}
+
 		// セッションを完了
 		if err := session.Complete(); err != nil {
 			return err

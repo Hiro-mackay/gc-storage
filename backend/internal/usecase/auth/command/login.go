@@ -67,18 +67,16 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
 		return nil, apperror.NewUnauthorizedError("invalid credentials")
 	}
 
-	// 3. ユーザー状態チェック
-	if user.Status != entity.UserStatusActive {
-		switch user.Status {
-		case entity.UserStatusPending:
-			return nil, apperror.NewUnauthorizedError("please verify your email first")
-		case entity.UserStatusSuspended:
-			return nil, apperror.NewUnauthorizedError("account suspended")
-		case entity.UserStatusDeactivated:
-			return nil, apperror.NewUnauthorizedError("account deactivated")
-		default:
-			return nil, apperror.NewUnauthorizedError("account is not active")
-		}
+	// 3. ユーザー状態チェック（pending は許可、メール認証は重要操作時にのみ要求）
+	switch user.Status {
+	case entity.UserStatusActive, entity.UserStatusPending:
+		// OK: ログイン許可
+	case entity.UserStatusSuspended:
+		return nil, apperror.NewUnauthorizedError("account suspended")
+	case entity.UserStatusDeactivated:
+		return nil, apperror.NewUnauthorizedError("account deactivated")
+	default:
+		return nil, apperror.NewUnauthorizedError("account is not active")
 	}
 
 	// 4. セッション制限チェック (R-SS002)

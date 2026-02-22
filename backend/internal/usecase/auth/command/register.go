@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
@@ -19,21 +20,27 @@ import (
 
 // RegisterInput は登録の入力を定義します
 type RegisterInput struct {
-	Email    string
-	Password string
-	Name     string
+	Email     string
+	Password  string
+	Name      string
+	UserAgent string
+	IPAddress string
 }
 
 // RegisterOutput は登録の出力を定義します
 type RegisterOutput struct {
-	UserID uuid.UUID
+	UserID    uuid.UUID
+	SessionID string
+	User      *entity.User
 }
 
 // RegisterCommand はユーザー登録コマンドです
 type RegisterCommand struct {
 	userRepo                   repository.UserRepository
+	sessionRepo                repository.SessionRepository
 	folderRepo                 repository.FolderRepository
 	folderClosureRepo          repository.FolderClosureRepository
+	relationshipRepo           authz.RelationshipRepository
 	emailVerificationTokenRepo repository.EmailVerificationTokenRepository
 	txManager                  repository.TransactionManager
 	emailSender                service.EmailSender
@@ -43,8 +50,10 @@ type RegisterCommand struct {
 // NewRegisterCommand は新しいRegisterCommandを作成します
 func NewRegisterCommand(
 	userRepo repository.UserRepository,
+	sessionRepo repository.SessionRepository,
 	folderRepo repository.FolderRepository,
 	folderClosureRepo repository.FolderClosureRepository,
+	relationshipRepo authz.RelationshipRepository,
 	emailVerificationTokenRepo repository.EmailVerificationTokenRepository,
 	txManager repository.TransactionManager,
 	emailSender service.EmailSender,
@@ -52,8 +61,10 @@ func NewRegisterCommand(
 ) *RegisterCommand {
 	return &RegisterCommand{
 		userRepo:                   userRepo,
+		sessionRepo:                sessionRepo,
 		folderRepo:                 folderRepo,
 		folderClosureRepo:          folderClosureRepo,
+		relationshipRepo:           relationshipRepo,
 		emailVerificationTokenRepo: emailVerificationTokenRepo,
 		txManager:                  txManager,
 		emailSender:                emailSender,
@@ -117,6 +128,12 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 			return fmt.Errorf("failed to insert folder closure: %w", err)
 		}
 
+		// オーナーリレーションシップを作成 (user --owner--> folder)
+		ownerRelation := authz.NewOwnerRelationship(user.ID, authz.ObjectTypeFolder, personalFolder.ID)
+		if err := c.relationshipRepo.Create(ctx, ownerRelation); err != nil {
+			return fmt.Errorf("failed to create owner relationship: %w", err)
+		}
+
 		// User に personal_folder_id を設定
 		if err := c.userRepo.SetPersonalFolderID(ctx, user.ID, personalFolder.ID); err != nil {
 			return fmt.Errorf("failed to update user with personal folder: %w", err)
@@ -146,7 +163,25 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 		return nil, apperror.NewInternalError(err)
 	}
 
-	// 5. 確認メール送信（トランザクション外で実行、失敗しても登録は成功扱い）
+	// 5. セッション作成（自動ログイン）
+	sessionID := uuid.New().String()
+	now := time.Now()
+
+	session := &entity.Session{
+		ID:         sessionID,
+		UserID:     user.ID,
+		UserAgent:  input.UserAgent,
+		IPAddress:  input.IPAddress,
+		ExpiresAt:  now.Add(entity.SessionTTL),
+		CreatedAt:  now,
+		LastUsedAt: now,
+	}
+
+	if err := c.sessionRepo.Save(ctx, session); err != nil {
+		return nil, apperror.NewInternalError(err)
+	}
+
+	// 6. 確認メール送信（トランザクション外で実行、失敗しても登録は成功扱い）
 	if c.emailSender != nil && verificationToken != nil {
 		verifyURL := fmt.Sprintf("%s/auth/verify-email?token=%s", c.appURL, verificationToken.Token)
 		if err := c.emailSender.SendEmailVerification(ctx, user.Email.String(), user.Name, verifyURL); err != nil {
@@ -155,7 +190,11 @@ func (c *RegisterCommand) Execute(ctx context.Context, input RegisterInput) (*Re
 		}
 	}
 
-	return &RegisterOutput{UserID: user.ID}, nil
+	return &RegisterOutput{
+		UserID:    user.ID,
+		SessionID: sessionID,
+		User:      user,
+	}, nil
 }
 
 // generateSecureToken はセキュアなトークンを生成します

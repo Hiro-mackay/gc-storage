@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/authz"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
@@ -36,6 +37,7 @@ type OAuthLoginCommand struct {
 	oauthAccountRepo  repository.OAuthAccountRepository
 	folderRepo        repository.FolderRepository
 	folderClosureRepo repository.FolderClosureRepository
+	relationshipRepo  authz.RelationshipRepository
 	oauthFactory      service.OAuthClientFactory
 	txManager         *database.TxManager
 	sessionRepo       repository.SessionRepository
@@ -48,6 +50,7 @@ func NewOAuthLoginCommand(
 	oauthAccountRepo repository.OAuthAccountRepository,
 	folderRepo repository.FolderRepository,
 	folderClosureRepo repository.FolderClosureRepository,
+	relationshipRepo authz.RelationshipRepository,
 	oauthFactory service.OAuthClientFactory,
 	txManager *database.TxManager,
 	sessionRepo repository.SessionRepository,
@@ -58,6 +61,7 @@ func NewOAuthLoginCommand(
 		oauthAccountRepo:  oauthAccountRepo,
 		folderRepo:        folderRepo,
 		folderClosureRepo: folderClosureRepo,
+		relationshipRepo:  relationshipRepo,
 		oauthFactory:      oauthFactory,
 		txManager:         txManager,
 		sessionRepo:       sessionRepo,
@@ -199,6 +203,12 @@ func (c *OAuthLoginCommand) Execute(ctx context.Context, input OAuthLoginInput) 
 
 		// Closure Table 自己参照
 		if txErr = c.folderClosureRepo.InsertSelfReference(ctx, personalFolder.ID); txErr != nil {
+			return txErr
+		}
+
+		// オーナーリレーションシップを作成 (user --owner--> folder)
+		ownerRelation := authz.NewOwnerRelationship(user.ID, authz.ObjectTypeFolder, personalFolder.ID)
+		if txErr = c.relationshipRepo.Create(ctx, ownerRelation); txErr != nil {
 			return txErr
 		}
 

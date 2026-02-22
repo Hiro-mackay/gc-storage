@@ -74,6 +74,9 @@ func main() {
 	storageService := storage.NewStorageServiceAdapter(storage.NewStorageService(minioClient))
 	slog.Info("connected to MinIO", "endpoint", cfg.Storage.Endpoint, "bucket", cfg.Storage.BucketName)
 
+	// Cookie security settings（ローカル開発ではHTTPなのでSecure=false）
+	middleware.SecureCookies = cfg.Security.SecureCookies
+
 	// Initialize UseCases, Handlers, and Middlewares
 	container.InitAuthUseCases()
 	container.InitProfileUseCases()

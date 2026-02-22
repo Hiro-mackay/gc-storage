@@ -30,12 +30,19 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 	folderRepo := infraRepo.NewFolderRepository(c.TxManager)
 	folderClosureRepo := infraRepo.NewFolderClosureRepository(c.TxManager)
 
+	// AuthzReposが未初期化の場合は初期化（RegisterCommand, OAuthLoginCommandで必要）
+	if c.AuthzRepos == nil {
+		c.AuthzRepos = NewAuthzRepositories(c.TxManager)
+	}
+
 	return &AuthUseCases{
 		// Commands
 		Register: authcmd.NewRegisterCommand(
 			c.UserRepo,
+			c.SessionRepo,
 			folderRepo,
 			folderClosureRepo,
+			c.AuthzRepos.RelationshipRepo,
 			c.EmailVerificationTokenRepo,
 			c.TxManager,
 			c.EmailService,
@@ -85,6 +92,7 @@ func NewAuthUseCases(c *Container, appURL string) *AuthUseCases {
 			c.OAuthAccountRepo,
 			folderRepo,
 			folderClosureRepo,
+			c.AuthzRepos.RelationshipRepo,
 			c.OAuthFactory,
 			c.TxManager,
 			c.SessionRepo,

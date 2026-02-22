@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api/client'
 import { folderKeys } from '@/lib/api/queries'
 import { useUploadStore } from '@/stores/upload-store'
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -22,6 +23,8 @@ interface UploadAreaProps {
 export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [stagedFiles, setStagedFiles] = useState<File[]>([])
+  const [isUploading, setIsUploading] = useState(false)
   const queryClient = useQueryClient()
   const { uploads, addUpload, updateProgress, setStatus, removeUpload } =
     useUploadStore()
@@ -32,17 +35,28 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
       addUpload({ id, fileName: file.name, fileSize: file.size })
 
       try {
+        if (!folderId) {
+          throw new Error('No folder selected')
+        }
+
         // Initiate upload to get presigned URL
         const { data, error } = await api.POST('/files/upload', {
           body: {
             fileName: file.name,
-            folderId: folderId ?? undefined,
+            folderId: folderId,
             mimeType: file.type || 'application/octet-stream',
             size: file.size,
           },
         })
 
-        if (error) throw new Error('Failed to initiate upload')
+        if (error) {
+          const msg =
+            error &&
+            typeof error === 'object' &&
+            'error' in error &&
+            (error as { error?: { message?: string } }).error?.message
+          throw new Error(msg || 'Failed to initiate upload')
+        }
 
         const uploadData = data?.data
         if (!uploadData?.uploadUrls?.[0]?.url) {
@@ -65,40 +79,58 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
             if (xhr.status >= 200 && xhr.status < 300) {
               resolve(xhr.getResponseHeader('ETag') ?? '')
             } else {
-              reject(new Error(`Upload failed: ${xhr.status}`))
+              reject(new Error(`Storage upload failed: ${xhr.status}`))
             }
           }
-          xhr.onerror = () => reject(new Error('Network error'))
+          xhr.onerror = () => reject(new Error('Network error during upload'))
           xhr.send(file)
         })
 
         // Complete upload
-        await api.POST('/files/upload/complete', {
-          body: {
-            storageKey: uploadData.fileId ?? '',
-            etag,
-            size: file.size,
-            minioVersionId: '',
-          },
-        })
+        const { error: completeError } = await api.POST(
+          '/files/upload/complete',
+          {
+            body: {
+              storageKey: uploadData.fileId ?? '',
+              etag,
+              size: file.size,
+              minioVersionId: '',
+            },
+          }
+        )
+
+        if (completeError) {
+          throw new Error('Failed to finalize upload')
+        }
 
         updateProgress(id, 100)
         setStatus(id, 'completed')
         queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      } catch {
-        setStatus(id, 'failed', 'Upload failed')
-        toast.error(`Failed to upload ${file.name}`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Upload failed'
+        setStatus(id, 'failed', message)
+        toast.error(`${file.name}: ${message}`)
       }
     },
     [folderId, addUpload, updateProgress, setStatus, queryClient]
   )
 
-  const handleFiles = useCallback(
-    (files: FileList | File[]) => {
-      Array.from(files).forEach(uploadFile)
-    },
-    [uploadFile]
-  )
+  const addFiles = useCallback((files: FileList | File[]) => {
+    setStagedFiles((prev) => [...prev, ...Array.from(files)])
+  }, [])
+
+  const removeStagedFile = useCallback((index: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleUpload = useCallback(async () => {
+    if (stagedFiles.length === 0) return
+    setIsUploading(true)
+    const filesToUpload = [...stagedFiles]
+    setStagedFiles([])
+    await Promise.all(filesToUpload.map(uploadFile))
+    setIsUploading(false)
+  }, [stagedFiles, uploadFile])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -116,16 +148,29 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
       e.stopPropagation()
       setDragActive(false)
       if (e.dataTransfer.files?.length) {
-        handleFiles(e.dataTransfer.files)
+        addFiles(e.dataTransfer.files)
       }
     },
-    [handleFiles]
+    [addFiles]
   )
+
+  const handleClose = (nextOpen: boolean) => {
+    if (!nextOpen && !isUploading) {
+      setStagedFiles([])
+    }
+    onOpenChange(nextOpen)
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
 
   const uploadItems = Array.from(uploads.values())
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Upload Files</DialogTitle>
@@ -148,6 +193,7 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
           >
             Browse Files
           </Button>
@@ -158,12 +204,40 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.length) {
-                handleFiles(e.target.files)
+                addFiles(e.target.files)
                 e.target.value = ''
               }
             }}
           />
         </div>
+
+        {/* Staged files (before upload) */}
+        {stagedFiles.length > 0 && (
+          <div className="mt-4 space-y-2 max-h-48 overflow-auto">
+            {stagedFiles.map((file, index) => (
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center gap-3 rounded-md border p-2"
+              >
+                <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatSize(file.size)}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0"
+                  onClick={() => removeStagedFile(index)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Upload progress */}
         {uploadItems.length > 0 && (
           <div className="mt-4 space-y-2 max-h-48 overflow-auto">
             {uploadItems.map((item) => (
@@ -210,6 +284,33 @@ export function UploadArea({ open, onOpenChange, folderId }: UploadAreaProps) {
             ))}
           </div>
         )}
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleClose(false)}
+            disabled={isUploading}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpload}
+            disabled={stagedFiles.length === 0 || isUploading}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload {stagedFiles.length > 0 && `(${stagedFiles.length})`}
+              </>
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

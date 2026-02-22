@@ -56,8 +56,9 @@ type OAuthConfig struct {
 
 // SecurityConfig はセキュリティ設定を定義します
 type SecurityConfig struct {
-	CORSOrigins []string
-	EnableHSTS  bool
+	CORSOrigins   []string
+	EnableHSTS    bool
+	SecureCookies bool // HTTPS環境でのみCookieを送信するか
 }
 
 // AppConfig はアプリケーション設定を定義します
@@ -112,8 +113,9 @@ func Load() (*Config, error) {
 			GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", appURL+"/auth/callback/github"),
 		},
 		Security: SecurityConfig{
-			CORSOrigins: parseCORSOrigins(getEnv("CORS_ALLOWED_ORIGINS", appURL)),
-			EnableHSTS:  os.Getenv("ENABLE_HSTS") == "true",
+			CORSOrigins:   parseCORSOrigins(getEnv("CORS_ALLOWED_ORIGINS", appURL)),
+			EnableHSTS:    os.Getenv("ENABLE_HSTS") == "true",
+			SecureCookies: os.Getenv("SECURE_COOKIES") == "true",
 		},
 		App: AppConfig{
 			URL: appURL,

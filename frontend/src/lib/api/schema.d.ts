@@ -753,7 +753,69 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * アップロード中断
+         * @description 進行中のアップロードセッションを中断します
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description セッションID */
+                    sessionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerAbortUploadResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3526,7 +3588,126 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * ゴミ箱を空にする
+         * @description ゴミ箱の全ファイルを完全に削除します
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerEmptyTrashResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trash/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * ファイル完全削除
+         * @description ゴミ箱のファイルを完全に削除します
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description アーカイブファイルID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerDeletedResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_interface_handler.SwaggerErrorResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3688,7 +3869,7 @@ export interface components {
         };
         "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_request.CompleteUploadRequest": {
             etag: string;
-            minioVersionId: string;
+            minioVersionId?: string;
             size: number;
             storageKey: string;
         };
@@ -3787,6 +3968,10 @@ export interface components {
             theme?: "system" | "light" | "dark";
             timezone?: string;
         };
+        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse": {
+            aborted?: boolean;
+            sessionId?: string;
+        };
         "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbItem": {
             id?: string;
             name?: string;
@@ -3814,6 +3999,9 @@ export interface components {
             mimeType?: string;
             size?: number;
             versionNumber?: number;
+        };
+        "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse": {
+            deletedCount?: number;
         };
         "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileResponse": {
             createdAt?: string;
@@ -4054,6 +4242,10 @@ export interface components {
             total_items?: number;
             total_pages?: number;
         };
+        "internal_interface_handler.SwaggerAbortUploadResponse": {
+            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse"];
+            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
+        };
         "internal_interface_handler.SwaggerBreadcrumbResponse": {
             data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbResponse"];
             meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
@@ -4070,16 +4262,29 @@ export interface components {
             data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.CompleteUploadResponse"];
             meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
         };
+        "internal_interface_handler.SwaggerDeletedResponse": {
+            data?: Record<string, never>;
+            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
+        };
         "internal_interface_handler.SwaggerDownloadURLResponse": {
             data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.DownloadURLResponse"];
             meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
         };
+        "internal_interface_handler.SwaggerEmptyTrashResponse": {
+            data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse"];
+            meta?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"];
+        };
         "internal_interface_handler.SwaggerErrorDetail": {
             code?: string;
+            details?: components["schemas"]["internal_interface_handler.SwaggerFieldError"][];
             message?: string;
         };
         "internal_interface_handler.SwaggerErrorResponse": {
             error?: components["schemas"]["internal_interface_handler.SwaggerErrorDetail"];
+        };
+        "internal_interface_handler.SwaggerFieldError": {
+            field?: string;
+            message?: string;
         };
         "internal_interface_handler.SwaggerFileVersionsResponse": {
             data?: components["schemas"]["github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.FileVersionsResponse"];

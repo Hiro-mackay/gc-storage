@@ -45,8 +45,12 @@ export function CreateFolderDialog({
       setName('')
       onOpenChange(false)
     },
-    onError: () => {
-      toast.error('Failed to create folder')
+    onError: (err: unknown) => {
+      const message =
+        err && typeof err === 'object' && 'error' in err
+          ? (err as { error?: { message?: string } }).error?.message
+          : undefined
+      toast.error(message ?? 'Failed to create folder')
     },
   })
 

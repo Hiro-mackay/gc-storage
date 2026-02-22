@@ -10,6 +10,7 @@ import { AuthLayout } from '@/components/layout/auth-layout'
 import { MainLayout } from '@/components/layout/main-layout'
 import { LoginPage } from '@/features/auth/pages/login-page'
 import { RegisterPage } from '@/features/auth/pages/register-page'
+import { VerifyEmailPage } from '@/features/auth/pages/verify-email-page'
 import { FileBrowserPage } from '@/features/files/pages/file-browser-page'
 import { TrashPage } from '@/features/trash/pages/trash-page'
 import { SettingsPage } from '@/features/settings/pages/settings-page'
@@ -54,6 +55,12 @@ const registerRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: '/register',
   component: RegisterPage,
+})
+
+const verifyEmailRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: '/auth/verify-email',
+  component: VerifyEmailPage,
 })
 
 // Authenticated layout route
@@ -119,7 +126,7 @@ const indexRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  authLayoutRoute.addChildren([loginRoute, registerRoute]),
+  authLayoutRoute.addChildren([loginRoute, registerRoute, verifyEmailRoute]),
   authenticatedLayoutRoute.addChildren([
     filesRoute,
     folderRoute,

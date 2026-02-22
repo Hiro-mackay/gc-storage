@@ -656,6 +656,81 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "進行中のアップロードセッションを中断します",
+                "tags": [
+                    "Files"
+                ],
+                "summary": "アップロード中断",
+                "parameters": [
+                    {
+                        "description": "セッションID",
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerAbortUploadResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/files/{id}/download": {
@@ -3481,6 +3556,127 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "ゴミ箱の全ファイルを完全に削除します",
+                "tags": [
+                    "Trash"
+                ],
+                "summary": "ゴミ箱を空にする",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerEmptyTrashResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/trash/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "ゴミ箱のファイルを完全に削除します",
+                "tags": [
+                    "Trash"
+                ],
+                "summary": "ファイル完全削除",
+                "parameters": [
+                    {
+                        "description": "アーカイブファイルID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerDeletedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/trash/{id}/restore": {
@@ -3719,7 +3915,6 @@
                 "type": "object",
                 "required": [
                     "etag",
-                    "minioVersionId",
                     "size",
                     "storageKey"
                 ],
@@ -4088,6 +4283,17 @@
                     }
                 }
             },
+            "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse": {
+                "type": "object",
+                "properties": {
+                    "aborted": {
+                        "type": "boolean"
+                    },
+                    "sessionId": {
+                        "type": "string"
+                    }
+                }
+            },
             "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.BreadcrumbItem": {
                 "type": "object",
                 "properties": {
@@ -4165,6 +4371,14 @@
                         "type": "integer"
                     },
                     "versionNumber": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse": {
+                "type": "object",
+                "properties": {
+                    "deletedCount": {
                         "type": "integer"
                     }
                 }
@@ -4862,6 +5076,17 @@
                     }
                 }
             },
+            "internal_interface_handler.SwaggerAbortUploadResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.AbortUploadResponse"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"
+                    }
+                }
+            },
             "internal_interface_handler.SwaggerBreadcrumbResponse": {
                 "type": "object",
                 "properties": {
@@ -4906,11 +5131,33 @@
                     }
                 }
             },
+            "internal_interface_handler.SwaggerDeletedResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"
+                    }
+                }
+            },
             "internal_interface_handler.SwaggerDownloadURLResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.DownloadURLResponse"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"
+                    }
+                }
+            },
+            "internal_interface_handler.SwaggerEmptyTrashResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/github_com_Hiro-mackay_gc-storage_backend_internal_interface_dto_response.EmptyTrashResponse"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/github_com_Hiro-mackay_gc-storage_backend_internal_interface_presenter.Meta"
@@ -4923,6 +5170,12 @@
                     "code": {
                         "type": "string"
                     },
+                    "details": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_interface_handler.SwaggerFieldError"
+                        }
+                    },
                     "message": {
                         "type": "string"
                     }
@@ -4933,6 +5186,17 @@
                 "properties": {
                     "error": {
                         "$ref": "#/components/schemas/internal_interface_handler.SwaggerErrorDetail"
+                    }
+                }
+            },
+            "internal_interface_handler.SwaggerFieldError": {
+                "type": "object",
+                "properties": {
+                    "field": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
                     }
                 }
             },

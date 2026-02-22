@@ -50,13 +50,13 @@ func (m *SessionAuthMiddleware) Authenticate() echo.MiddlewareFunc {
 				return apperror.NewUnauthorizedError("session expired")
 			}
 
-			// 4. ユーザーの状態をチェック
+			// 4. ユーザーの状態をチェック（pending も許可、メール認証は重要操作時にのみ要求）
 			user, err := m.userRepo.FindByID(c.Request().Context(), session.UserID)
 			if err != nil {
 				return apperror.NewUnauthorizedError("user not found")
 			}
 
-			if user.Status != entity.UserStatusActive {
+			if user.Status == entity.UserStatusSuspended || user.Status == entity.UserStatusDeactivated {
 				return apperror.NewUnauthorizedError("account is not active")
 			}
 
@@ -106,7 +106,7 @@ func (m *SessionAuthMiddleware) OptionalAuth() echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			if user.Status != entity.UserStatusActive {
+			if user.Status == entity.UserStatusSuspended || user.Status == entity.UserStatusDeactivated {
 				return next(c)
 			}
 

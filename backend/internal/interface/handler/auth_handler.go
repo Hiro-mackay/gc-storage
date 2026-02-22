@@ -76,17 +76,28 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	}
 
 	output, err := h.registerCommand.Execute(c.Request().Context(), authcmd.RegisterInput{
-		Email:    req.Email,
-		Password: req.Password,
-		Name:     req.Name,
+		Email:     req.Email,
+		Password:  req.Password,
+		Name:      req.Name,
+		UserAgent: c.Request().UserAgent(),
+		IPAddress: c.RealIP(),
 	})
 	if err != nil {
 		return err
 	}
 
-	return presenter.Created(c, response.RegisterResponse{
-		UserID:  output.UserID.String(),
-		Message: "Registration successful. Please check your email to verify your account.",
+	// Session IDをHttpOnly Cookieに設定（自動ログイン）
+	h.setSessionCookie(c, output.SessionID)
+
+	// CSRFトークンCookieを設定
+	csrfToken, err := middleware.GenerateCSRFToken()
+	if err != nil {
+		return apperror.NewInternalError(err)
+	}
+	middleware.SetCSRFCookie(c, csrfToken)
+
+	return presenter.Created(c, response.LoginResponse{
+		User: response.ToUserResponse(output.User),
 	})
 }
 
@@ -438,7 +449,7 @@ func (h *AuthHandler) setSessionCookie(c echo.Context, sessionID string) {
 		Value:    sessionID,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   middleware.SecureCookies,
 		SameSite: http.SameSiteLaxMode, // OAuthリダイレクト対応
 		MaxAge:   7 * 24 * 60 * 60,     // 7日
 	})
@@ -450,7 +461,7 @@ func (h *AuthHandler) clearSessionCookie(c echo.Context) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   middleware.SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})

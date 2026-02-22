@@ -11,9 +11,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api/client'
+import { useAuthStore } from '@/stores/auth-store'
 
 export function RegisterPage() {
   const navigate = useNavigate()
+  const { setUser } = useAuthStore()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,7 +28,7 @@ export function RegisterPage() {
     setLoading(true)
 
     try {
-      const { error: apiError } = await api.POST('/auth/register', {
+      const { data, error: apiError } = await api.POST('/auth/register', {
         body: { email, password, name },
       })
 
@@ -35,7 +37,10 @@ export function RegisterPage() {
         return
       }
 
-      navigate({ to: '/login' })
+      if (data?.data?.user) {
+        setUser(data.data.user)
+        navigate({ to: '/files' })
+      }
     } catch {
       setError('Network error. Please try again.')
     } finally {

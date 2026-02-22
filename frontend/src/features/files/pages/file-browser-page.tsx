@@ -5,6 +5,7 @@ import { api } from '@/lib/api/client'
 import { folderKeys } from '@/lib/api/queries'
 import { useSelectionStore } from '@/stores/selection-store'
 import { useUIStore } from '@/stores/ui-store'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -46,7 +47,7 @@ export function FileBrowserPage() {
     type: 'file' | 'folder'
   } | null>(null)
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: folderKeys.contents(folderId),
     queryFn: async () => {
       const id = folderId ?? 'root'
@@ -57,6 +58,9 @@ export function FileBrowserPage() {
       return data?.data
     },
   })
+
+  // Use actual folder ID from API response (resolves 'root' to personal folder UUID)
+  const effectiveFolderId = data?.folder?.id ?? folderId
 
   const folders = data?.folders ?? []
   const files = data?.files ?? []
@@ -122,8 +126,13 @@ export function FileBrowserPage() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <p className="text-destructive">Failed to load folder contents.</p>
+      <div className="flex flex-col items-center justify-center p-6 py-16 text-muted-foreground">
+        <FileIcon className="h-12 w-12 mb-4" />
+        <p>Could not load folder contents</p>
+        <p className="text-sm mt-1">Please check your connection and try again</p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
+          Retry
+        </Button>
       </div>
     )
   }
@@ -299,12 +308,12 @@ export function FileBrowserPage() {
       <CreateFolderDialog
         open={createFolderOpen}
         onOpenChange={setCreateFolderOpen}
-        parentId={folderId}
+        parentId={effectiveFolderId ?? null}
       />
       <UploadArea
         open={uploadOpen}
         onOpenChange={setUploadOpen}
-        folderId={folderId}
+        folderId={effectiveFolderId ?? null}
       />
       <RenameDialog
         open={!!renameItem}
