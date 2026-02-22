@@ -2,11 +2,14 @@ package command
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/entity"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/valueobject"
 	"github.com/Hiro-mackay/gc-storage/backend/pkg/apperror"
 )
@@ -30,6 +33,8 @@ type InviteMemberCommand struct {
 	membershipRepo repository.MembershipRepository
 	invitationRepo repository.InvitationRepository
 	userRepo       repository.UserRepository
+	emailSender    service.EmailSender
+	appURL         string
 }
 
 // NewInviteMemberCommand は新しいInviteMemberCommandを作成します
@@ -38,12 +43,16 @@ func NewInviteMemberCommand(
 	membershipRepo repository.MembershipRepository,
 	invitationRepo repository.InvitationRepository,
 	userRepo repository.UserRepository,
+	emailSender service.EmailSender,
+	appURL string,
 ) *InviteMemberCommand {
 	return &InviteMemberCommand{
 		groupRepo:      groupRepo,
 		membershipRepo: membershipRepo,
 		invitationRepo: invitationRepo,
 		userRepo:       userRepo,
+		emailSender:    emailSender,
+		appURL:         appURL,
 	}
 }
 
@@ -66,7 +75,7 @@ func (c *InviteMemberCommand) Execute(ctx context.Context, input InviteMemberInp
 	}
 
 	// 3. グループの存在確認
-	_, err = c.groupRepo.FindByID(ctx, input.GroupID)
+	group, err := c.groupRepo.FindByID(ctx, input.GroupID)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +120,28 @@ func (c *InviteMemberCommand) Execute(ctx context.Context, input InviteMemberInp
 	// 8. 招待を保存
 	if err := c.invitationRepo.Create(ctx, invitation); err != nil {
 		return nil, err
+	}
+
+	// 9. 招待メールを非同期で送信
+	inviter, _ := c.userRepo.FindByID(ctx, input.InvitedBy)
+	if inviter != nil {
+		recipientName := input.Email
+		if existingUser != nil {
+			recipientName = existingUser.Name
+		}
+		inviteURL := fmt.Sprintf("%s/invitations/%s", c.appURL, invitation.Token)
+		go func() {
+			if err := c.emailSender.SendGroupInvitation(
+				context.Background(),
+				input.Email,
+				recipientName,
+				inviter.Name,
+				group.Name.String(),
+				inviteURL,
+			); err != nil {
+				slog.Error("failed to send group invitation email", "email", input.Email, "error", err)
+			}
+		}()
 	}
 
 	return &InviteMemberOutput{Invitation: invitation}, nil

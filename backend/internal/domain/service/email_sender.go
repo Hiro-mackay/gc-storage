@@ -9,4 +9,7 @@ type EmailSender interface {
 
 	// SendPasswordReset はパスワードリセット用のメールを送信します
 	SendPasswordReset(ctx context.Context, to, userName, resetURL string) error
+
+	// SendGroupInvitation はグループ招待メールを送信します
+	SendGroupInvitation(ctx context.Context, to, userName, inviterName, groupName, inviteURL string) error
 }

@@ -19,6 +19,8 @@ import { TrashPage } from '@/features/trash/pages/trash-page';
 import { SettingsPage } from '@/features/settings/pages/settings-page';
 import { GroupsPage } from '@/features/groups/pages/groups-page';
 import { GroupDetailPage } from '@/features/groups/pages/group-detail-page';
+import { PendingInvitationsPage } from '@/features/groups/pages/pending-invitations-page';
+import { InvitationAcceptPage } from '@/features/groups/pages/invitation-accept-page';
 import { useAuthStore } from '@/stores/auth-store';
 
 export const queryClient = new QueryClient({
@@ -147,6 +149,18 @@ const groupDetailRoute = createRoute({
   component: GroupDetailPage,
 });
 
+const pendingInvitationsRoute = createRoute({
+  getParentRoute: () => authenticatedLayoutRoute,
+  path: '/invitations/pending',
+  component: PendingInvitationsPage,
+});
+
+const invitationAcceptRoute = createRoute({
+  getParentRoute: () => authenticatedLayoutRoute,
+  path: '/invitations/$token',
+  component: InvitationAcceptPage,
+});
+
 // Index route redirects to /files
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -173,6 +187,8 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     groupsRoute,
     groupDetailRoute,
+    pendingInvitationsRoute,
+    invitationAcceptRoute,
   ]),
 ]);
 

@@ -15,7 +15,7 @@ type UpdateGroupRequest struct {
 // InviteMemberRequest はメンバー招待リクエストです
 type InviteMemberRequest struct {
 	Email string `json:"email" validate:"required,email,max=255"`
-	Role  string `json:"role" validate:"required,oneof=viewer contributor"`
+	Role  string `json:"role" validate:"omitempty,oneof=viewer contributor"`
 }
 
 // ChangeRoleRequest はロール変更リクエストです

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -45,13 +46,13 @@ func (c *CancelInvitationCommand) Execute(ctx context.Context, input CancelInvit
 		return apperror.NewNotFoundError("group")
 	}
 
-	// 2. 操作者のメンバーシップ確認（contributor以上）
+	// 2. 操作者のメンバーシップ確認（owner only）
 	membership, err := c.membershipRepo.FindByGroupAndUser(ctx, input.GroupID, input.CancelledBy)
 	if err != nil {
 		return apperror.NewForbiddenError("not a member of this group")
 	}
-	if !membership.CanInvite() {
-		return apperror.NewForbiddenError("insufficient permission to cancel invitation")
+	if !membership.CanManageMembers() {
+		return apperror.NewForbiddenError("only owners can cancel invitations")
 	}
 
 	// 3. 招待の取得
@@ -67,7 +68,7 @@ func (c *CancelInvitationCommand) Execute(ctx context.Context, input CancelInvit
 
 	// 5. 招待のキャンセル
 	if err := invitation.Cancel(); err != nil {
-		if err == entity.ErrInvitationNotPending {
+		if errors.Is(err, entity.ErrInvitationNotPending) {
 			return apperror.NewValidationError("invitation is not pending", nil)
 		}
 		return err

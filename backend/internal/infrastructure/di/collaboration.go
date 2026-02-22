@@ -2,6 +2,7 @@ package di
 
 import (
 	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/repository"
+	"github.com/Hiro-mackay/gc-storage/backend/internal/domain/service"
 	"github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/database"
 	infraRepo "github.com/Hiro-mackay/gc-storage/backend/internal/infrastructure/repository"
 	collabcmd "github.com/Hiro-mackay/gc-storage/backend/internal/usecase/collaboration/command"
@@ -50,7 +51,7 @@ func NewCollaborationRepositories(txManager *database.TxManager) *CollaborationR
 }
 
 // NewCollaborationUseCases は新しいCollaborationUseCasesを作成します
-func NewCollaborationUseCases(repos *CollaborationRepositories, userRepo repository.UserRepository, txManager repository.TransactionManager) *CollaborationUseCases {
+func NewCollaborationUseCases(repos *CollaborationRepositories, userRepo repository.UserRepository, txManager repository.TransactionManager, emailSender service.EmailSender, appURL string) *CollaborationUseCases {
 	return &CollaborationUseCases{
 		// Group Commands
 		CreateGroup:       collabcmd.NewCreateGroupCommand(repos.GroupRepo, repos.MembershipRepo, txManager),
@@ -59,7 +60,7 @@ func NewCollaborationUseCases(repos *CollaborationRepositories, userRepo reposit
 		TransferOwnership: collabcmd.NewTransferOwnershipCommand(repos.GroupRepo, repos.MembershipRepo, txManager),
 
 		// Member Commands
-		InviteMember:      collabcmd.NewInviteMemberCommand(repos.GroupRepo, repos.MembershipRepo, repos.InvitationRepo, userRepo),
+		InviteMember:      collabcmd.NewInviteMemberCommand(repos.GroupRepo, repos.MembershipRepo, repos.InvitationRepo, userRepo, emailSender, appURL),
 		AcceptInvitation:  collabcmd.NewAcceptInvitationCommand(repos.InvitationRepo, repos.GroupRepo, repos.MembershipRepo, userRepo, txManager),
 		DeclineInvitation: collabcmd.NewDeclineInvitationCommand(repos.InvitationRepo, userRepo),
 		CancelInvitation:  collabcmd.NewCancelInvitationCommand(repos.InvitationRepo, repos.MembershipRepo, repos.GroupRepo),

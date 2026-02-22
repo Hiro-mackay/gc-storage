@@ -241,10 +241,15 @@ func (h *GroupHandler) InviteMember(c echo.Context) error {
 		return err
 	}
 
+	role := req.Role
+	if role == "" {
+		role = "viewer"
+	}
+
 	output, err := h.inviteMemberCmd.Execute(c.Request().Context(), collabcmd.InviteMemberInput{
 		GroupID:   groupID,
 		Email:     req.Email,
-		Role:      req.Role,
+		Role:      role,
 		InvitedBy: claims.UserID,
 	})
 	if err != nil {

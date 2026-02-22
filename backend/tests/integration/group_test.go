@@ -581,9 +581,203 @@ func (s *GroupTestSuite) TestInviteMember_R_I007_ViewerCannotInvite() {
 }
 
 func (s *GroupTestSuite) TestInviteMember_DefaultRoleIsViewer() {
-	// R-I006: Default invitation role is viewer
-	// TODO: Default role feature is not implemented - role field is required
-	s.T().Skip("Default role feature is not implemented - role field is required")
+	// FS-GI006: Omitting role field defaults to viewer
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	s.createUser("member@example.com", "Password123", "Member User")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Invite without specifying role
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"email": "member@example.com",
+		},
+	})
+	resp.AssertStatus(http.StatusCreated)
+
+	// Verify the invitation was created with viewer role in database
+	var role string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT role FROM invitations WHERE email = $1 AND group_id = $2::uuid",
+		"member@example.com", groupID,
+	).Scan(&role)
+	s.Require().NoError(err)
+	s.Equal("viewer", role)
+}
+
+// =============================================================================
+// Cancel Invitation Tests - FS-GI003, AC-06
+// =============================================================================
+
+func (s *GroupTestSuite) TestCancelInvitation_OwnerSuccess() {
+	// AC-06: Owner can cancel a pending invitation
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	s.createUser("member@example.com", "Password123", "Member User")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Create invitation
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"email": "member@example.com",
+			"role":  "viewer",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Get invitation ID
+	var invitationID string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT id FROM invitations WHERE email = $1 AND group_id = $2::uuid",
+		"member@example.com", groupID,
+	).Scan(&invitationID)
+	s.Require().NoError(err)
+
+	// Owner cancels the invitation
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/groups/" + groupID + "/invitations/" + invitationID,
+		SessionID: ownerToken,
+	})
+
+	resp.AssertStatus(http.StatusNoContent)
+}
+
+func (s *GroupTestSuite) TestCancelInvitation_ContributorForbidden() {
+	// FS-GI003: Only owners can cancel invitations (contributor is forbidden)
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	contributorToken := s.createUser("contributor@example.com", "Password123", "Contributor User")
+	s.createUser("invitee@example.com", "Password123", "Invitee User")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Add contributor to group
+	s.inviteAndAcceptMember(ownerToken, contributorToken, groupID, "contributor@example.com", "contributor")
+
+	// Owner creates invitation for invitee
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"email": "invitee@example.com",
+			"role":  "viewer",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Get invitation ID
+	var invitationID string
+	err := s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT id FROM invitations WHERE email = $1 AND group_id = $2::uuid",
+		"invitee@example.com", groupID,
+	).Scan(&invitationID)
+	s.Require().NoError(err)
+
+	// Contributor tries to cancel — should be forbidden
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodDelete,
+		Path:      "/api/v1/groups/" + groupID + "/invitations/" + invitationID,
+		SessionID: contributorToken,
+	})
+
+	resp.AssertStatus(http.StatusForbidden)
+}
+
+// =============================================================================
+// List Invitations Tests - AC-08
+// =============================================================================
+
+func (s *GroupTestSuite) TestListInvitations_OwnerCanSee() {
+	// AC-08: Owner can see all group invitations
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	s.createUser("member1@example.com", "Password123", "Member 1")
+	s.createUser("member2@example.com", "Password123", "Member 2")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Send two invitations
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"email": "member1@example.com",
+			"role":  "viewer",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"email": "member2@example.com",
+			"role":  "viewer",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Owner lists invitations
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodGet,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
+		SessionID: ownerToken,
+	})
+
+	resp.AssertStatus(http.StatusOK)
+	invitations := resp.GetJSONDataArray()
+	s.Len(invitations, 2)
+}
+
+// =============================================================================
+// Accept Expired Invitation Tests - AC-11
+// =============================================================================
+
+func (s *GroupTestSuite) TestAcceptInvitation_ExpiredToken_ValidationError() {
+	// AC-11: Accepting an expired invitation returns a validation error
+	ownerToken := s.createUser("owner@example.com", "Password123", "Owner User")
+	memberToken := s.createUser("member@example.com", "Password123", "Member User")
+	groupID, _ := s.createGroup(ownerToken, "Test Group", "Description")
+
+	// Owner sends invitation
+	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/groups/" + groupID + "/invitations",
+		SessionID: ownerToken,
+		Body: map[string]string{
+			"email": "member@example.com",
+			"role":  "viewer",
+		},
+	}).AssertStatus(http.StatusCreated)
+
+	// Expire the invitation directly in the database
+	_, err := s.server.Pool.Exec(
+		context.Background(),
+		"UPDATE invitations SET expires_at = NOW() - INTERVAL '1 hour' WHERE email = $1 AND group_id = $2::uuid",
+		"member@example.com", groupID,
+	)
+	s.Require().NoError(err)
+
+	// Get the token
+	var token string
+	err = s.server.Pool.QueryRow(
+		context.Background(),
+		"SELECT token FROM invitations WHERE email = $1",
+		"member@example.com",
+	).Scan(&token)
+	s.Require().NoError(err)
+
+	// Member tries to accept — should fail with validation error
+	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+		Method:    http.MethodPost,
+		Path:      "/api/v1/invitations/" + token + "/accept",
+		SessionID: memberToken,
+	})
+
+	resp.AssertStatus(http.StatusBadRequest)
 }
 
 // =============================================================================

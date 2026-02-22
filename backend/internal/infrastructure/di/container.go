@@ -206,7 +206,7 @@ func (c *Container) InitStorageUseCases(storageService service.StorageService) {
 // InitCollaborationUseCases はCollaboration UseCasesを初期化します
 func (c *Container) InitCollaborationUseCases() {
 	c.CollabRepos = NewCollaborationRepositories(c.TxManager)
-	c.Collaboration = NewCollaborationUseCases(c.CollabRepos, c.UserRepo, c.TxManager)
+	c.Collaboration = NewCollaborationUseCases(c.CollabRepos, c.UserRepo, c.TxManager, c.EmailService, c.config.App.URL)
 }
 
 // InitAuthzUseCases はAuthorization UseCasesを初期化します
