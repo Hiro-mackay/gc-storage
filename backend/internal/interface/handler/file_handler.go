@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -213,10 +213,14 @@ func (h *FileHandler) GetDownloadURL(c echo.Context) error {
 
 	var versionNumber *int
 	if versionParam := c.QueryParam("version"); versionParam != "" {
-		var v int
-		if _, err := fmt.Sscan(versionParam, &v); err == nil {
-			versionNumber = &v
+		v, err := strconv.Atoi(versionParam)
+		if err != nil {
+			return apperror.NewValidationError("version must be a positive integer", nil)
 		}
+		if v < 1 {
+			return apperror.NewValidationError("version number must be positive", nil)
+		}
+		versionNumber = &v
 	}
 
 	output, err := h.getDownloadURLQuery.Execute(c.Request().Context(), storageqry.GetDownloadURLInput{
