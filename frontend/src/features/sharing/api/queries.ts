@@ -21,14 +21,11 @@ export function useShareLinkHistory(shareLinkId: string) {
   return useQuery({
     queryKey: shareKeys.history(shareLinkId),
     queryFn: async () => {
-      const { data, error } = await api.GET(
-        '/share-links/{id}/history' as never,
-        {
-          params: { path: { id: shareLinkId } },
-        } as never,
-      );
+      const { data, error } = await api.GET('/share-links/{id}/history', {
+        params: { path: { id: shareLinkId } },
+      });
       if (error) throw error;
-      return (data as { data?: unknown })?.data ?? [];
+      return data?.data ?? [];
     },
     enabled: !!shareLinkId,
   });

@@ -7,14 +7,10 @@ export function useRestoreFileMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Route changed to /trash/files/{id}/restore (schema not regenerated yet)
-      const { data, error } = await api.POST(
-        '/trash/files/{id}/restore' as never,
-        {
-          params: { path: { id } },
-          body: {},
-        } as never,
-      );
+      const { data, error } = await api.POST('/trash/files/{id}/restore', {
+        params: { path: { id } },
+        body: {},
+      });
       if (error) throw error;
       return data;
     },
@@ -33,13 +29,9 @@ export function usePermanentDeleteMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Route changed to /trash/files/{id} (schema not regenerated yet)
-      const { data, error } = await api.DELETE(
-        '/trash/files/{id}' as never,
-        {
-          params: { path: { id } },
-        } as never,
-      );
+      const { data, error } = await api.DELETE('/trash/files/{id}', {
+        params: { path: { id } },
+      });
       if (error) throw error;
       return data;
     },
