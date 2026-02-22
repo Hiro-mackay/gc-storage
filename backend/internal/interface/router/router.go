@@ -85,11 +85,15 @@ func (r *Router) setupAuthRoutes(api *echo.Group) {
 	passwordGroup.POST("/reset", r.handlers.Auth.ResetPassword,
 		r.middlewares.RateLimit.ByIP(middleware.RateLimitAuthLogin))
 
-	// Password change route (authenticated)
-	passwordGroup.POST("/change", r.handlers.Auth.ChangePassword, r.middlewares.SessionAuth.Authenticate())
+	// Password change route (authenticated, rate-limited to prevent brute-force)
+	passwordGroup.POST("/change", r.handlers.Auth.ChangePassword,
+		r.middlewares.SessionAuth.Authenticate(),
+		r.middlewares.RateLimit.ByIP(middleware.RateLimitAuthLogin))
 
 	// Password set route (authenticated, for OAuth-only users)
-	passwordGroup.POST("/set", r.handlers.Auth.SetPassword, r.middlewares.SessionAuth.Authenticate())
+	passwordGroup.POST("/set", r.handlers.Auth.SetPassword,
+		r.middlewares.SessionAuth.Authenticate(),
+		r.middlewares.RateLimit.ByIP(middleware.RateLimitAuthLogin))
 
 	// Auth routes (authenticated)
 	authGroup.POST("/logout", r.handlers.Auth.Logout, r.middlewares.SessionAuth.Authenticate())
