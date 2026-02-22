@@ -1,114 +1,60 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
-import { trashKeys, folderKeys } from '@/lib/api/queries';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-import { Trash2, RotateCcw, FileIcon, FolderIcon } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-
-function getCSRFToken(): string | undefined {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : undefined;
-}
-
-async function trashFetch(path: string, method: string) {
-  const headers: Record<string, string> = {};
-  const csrfToken = getCSRFToken();
-  if (csrfToken) {
-    headers['X-CSRF-Token'] = csrfToken;
-  }
-  const res = await fetch(`/api/v1${path}`, {
-    method,
-    credentials: 'include',
-    headers,
-  });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-}
-
-function isFolder(mimeType?: string): boolean {
-  return !mimeType || mimeType === 'application/x-directory';
-}
+import { useTrashItems } from '../api/queries';
+import {
+  useRestoreFileMutation,
+  usePermanentDeleteMutation,
+  useEmptyTrashMutation,
+} from '../api/mutations';
+import { TrashList } from '../components/trash-list';
+import { TrashToolbar } from '../components/trash-toolbar';
+import { PermanentDeleteDialog } from '../components/permanent-delete-dialog';
+import { BulkDeleteDialog } from '../components/bulk-delete-dialog';
+import { EmptyTrashDialog } from '../components/empty-trash-dialog';
 
 export function TrashPage() {
-  const queryClient = useQueryClient();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
   } | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [emptyConfirmOpen, setEmptyConfirmOpen] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: trashKeys.list(),
-    queryFn: async () => {
-      const { data, error } = await api.GET('/trash');
-      if (error) throw error;
-      return data?.data?.items ?? [];
-    },
-  });
+  const { data, isLoading, error } = useTrashItems();
+  const restoreMutation = useRestoreFileMutation();
+  const permanentDeleteMutation = usePermanentDeleteMutation();
+  const emptyTrashMutation = useEmptyTrashMutation();
 
-  const restoreMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await api.POST('/trash/{id}/restore', {
-        params: { path: { id } },
-        body: {},
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      queryClient.invalidateQueries({ queryKey: folderKeys.lists() });
-      toast.success('File restored');
-    },
-    onError: () => {
-      toast.error('Failed to restore file');
-    },
-  });
+  const items = data?.items ?? [];
 
-  const permanentDeleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await trashFetch(`/trash/${encodeURIComponent(id)}`, 'DELETE');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      setDeleteTarget(null);
-      toast.success('Permanently deleted');
-    },
-    onError: () => {
-      toast.error('Failed to delete');
-    },
-  });
+  async function handleRestoreSelected() {
+    const ids = Array.from(selectedIds);
+    setSelectedIds(new Set());
+    const results = await Promise.allSettled(
+      ids.map((id) => restoreMutation.mutateAsync(id)),
+    );
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) {
+      toast.error(`Failed to restore ${failed} item(s)`);
+    }
+  }
 
-  const emptyTrashMutation = useMutation({
-    mutationFn: async () => {
-      await trashFetch('/trash', 'DELETE');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      setEmptyConfirmOpen(false);
-      toast.success('Trash emptied');
-    },
-    onError: () => {
-      toast.error('Failed to empty trash');
-    },
-  });
+  async function handleDeleteSelectedConfirmed() {
+    const ids = Array.from(selectedIds);
+    setBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+    const results = await Promise.allSettled(
+      ids.map((id) => permanentDeleteMutation.mutateAsync(id)),
+    );
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) {
+      toast.error(`Failed to delete ${failed} item(s)`);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -130,8 +76,6 @@ export function TrashPage() {
     );
   }
 
-  const items = data ?? [];
-
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
@@ -148,146 +92,69 @@ export function TrashPage() {
         )}
       </div>
 
+      <p className="text-sm text-muted-foreground mb-4">
+        Items in trash will be automatically deleted after 30 days.
+      </p>
+
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Trash2 className="h-12 w-12 mb-4" />
           <p>Trash is empty</p>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[40%]">Name</TableHead>
-              <TableHead>Original Location</TableHead>
-              <TableHead>Deleted</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead className="w-[140px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {isFolder(item.mimeType) ? (
-                      <FolderIcon className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <FileIcon className="h-4 w-4 text-gray-500" />
-                    )}
-                    {item.name}
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {item.originalPath ?? '/'}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {item.archivedAt
-                    ? new Date(item.archivedAt).toLocaleDateString()
-                    : '\u2014'}
-                </TableCell>
-                <TableCell>
-                  {item.daysUntilExpiry != null && (
-                    <Badge
-                      variant={
-                        item.daysUntilExpiry <= 3 ? 'destructive' : 'secondary'
-                      }
-                    >
-                      {item.daysUntilExpiry}d left
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => item.id && restoreMutation.mutate(item.id)}
-                      disabled={restoreMutation.isPending}
-                      title="Restore"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive"
-                      onClick={() =>
-                        item.id &&
-                        item.name &&
-                        setDeleteTarget({ id: item.id, name: item.name })
-                      }
-                      title="Permanently Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <>
+          <TrashToolbar
+            selectedCount={selectedIds.size}
+            onRestoreSelected={handleRestoreSelected}
+            onDeleteSelected={() => setBulkDeleteOpen(true)}
+            isRestoring={restoreMutation.isPending}
+            isDeleting={permanentDeleteMutation.isPending}
+          />
+          <TrashList
+            items={items}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            onRestore={(id) => restoreMutation.mutate(id)}
+            onDelete={setDeleteTarget}
+            isRestoring={restoreMutation.isPending}
+          />
+        </>
       )}
 
-      {/* Permanent Delete Confirmation */}
-      <Dialog
-        open={deleteTarget !== null}
+      <PermanentDeleteDialog
+        target={deleteTarget}
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Permanently Delete</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to permanently delete "{deleteTarget?.name}
-              "? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() =>
-                deleteTarget && permanentDeleteMutation.mutate(deleteTarget.id)
-              }
-              disabled={permanentDeleteMutation.isPending}
-            >
-              {permanentDeleteMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onConfirm={() => {
+          if (deleteTarget) {
+            permanentDeleteMutation.mutate(deleteTarget.id, {
+              onSuccess: () => setDeleteTarget(null),
+            });
+          }
+        }}
+        isPending={permanentDeleteMutation.isPending}
+      />
 
-      {/* Empty Trash Confirmation */}
-      <Dialog open={emptyConfirmOpen} onOpenChange={setEmptyConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Empty Trash</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to permanently delete all {items.length}{' '}
-              item{items.length !== 1 ? 's' : ''} in the trash? This action
-              cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setEmptyConfirmOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => emptyTrashMutation.mutate()}
-              disabled={emptyTrashMutation.isPending}
-            >
-              {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        itemCount={selectedIds.size}
+        onConfirm={handleDeleteSelectedConfirmed}
+        isPending={permanentDeleteMutation.isPending}
+      />
+
+      <EmptyTrashDialog
+        open={emptyConfirmOpen}
+        onOpenChange={setEmptyConfirmOpen}
+        itemCount={items.length}
+        onConfirm={() => {
+          emptyTrashMutation.mutate(undefined, {
+            onSuccess: () => setEmptyConfirmOpen(false),
+          });
+        }}
+        isPending={emptyTrashMutation.isPending}
+      />
     </div>
   );
 }

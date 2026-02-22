@@ -247,3 +247,27 @@ func TestFile_IsOwnedBy_DifferentOwner_ReturnsFalse(t *testing.T) {
 		t.Error("IsOwnedBy should return false for a different owner")
 	}
 }
+
+func TestFile_CanArchive_Active_ReturnsTrue(t *testing.T) {
+	file := newActiveFile()
+
+	if !file.CanArchive() {
+		t.Error("active file should be archivable")
+	}
+}
+
+func TestFile_CanArchive_Uploading_ReturnsFalse(t *testing.T) {
+	file := newUploadingFile()
+
+	if file.CanArchive() {
+		t.Error("uploading file should not be archivable")
+	}
+}
+
+func TestFile_CanArchive_UploadFailed_ReturnsFalse(t *testing.T) {
+	file := newUploadFailedFile()
+
+	if file.CanArchive() {
+		t.Error("upload-failed file should not be archivable")
+	}
+}

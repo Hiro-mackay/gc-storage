@@ -97,7 +97,7 @@ func NewStorageUseCases(repos *StorageRepositories, userRepo repository.UserRepo
 		RenameFile:            storagecmd.NewRenameFileCommand(repos.FileRepo),
 		MoveFile:              storagecmd.NewMoveFileCommand(repos.FileRepo, repos.FolderRepo, permissionResolver),
 		TrashFile:             storagecmd.NewTrashFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.FolderClosureRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
-		RestoreFile:           storagecmd.NewRestoreFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, txManager),
+		RestoreFile:           storagecmd.NewRestoreFileCommand(repos.FileRepo, repos.FileVersionRepo, repos.FolderRepo, repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, userRepo, txManager),
 		PermanentlyDeleteFile: storagecmd.NewPermanentlyDeleteFileCommand(repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, storageService, txManager),
 		EmptyTrash:            storagecmd.NewEmptyTrashCommand(repos.ArchivedFileRepo, repos.ArchivedFileVersionRepo, storageService, txManager),
 

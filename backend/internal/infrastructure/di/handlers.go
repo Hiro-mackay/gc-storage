@@ -11,6 +11,8 @@ type Handlers struct {
 	Profile    *handler.ProfileHandler
 	Folder     *handler.FolderHandler
 	File       *handler.FileHandler
+	Upload     *handler.UploadHandler
+	Trash      *handler.TrashHandler
 	Group      *handler.GroupHandler
 	Permission *handler.PermissionHandler
 	ShareLink  *handler.ShareLinkHandler
@@ -50,6 +52,8 @@ func NewHandlers(c *Container) *Handlers {
 	// Folder Handler (if Storage is initialized)
 	var folderHandler *handler.FolderHandler
 	var fileHandler *handler.FileHandler
+	var uploadHandler *handler.UploadHandler
+	var trashHandler *handler.TrashHandler
 	if c.Storage != nil {
 		folderHandler = handler.NewFolderHandler(
 			c.Storage.CreateFolder,
@@ -61,18 +65,22 @@ func NewHandlers(c *Container) *Handlers {
 			c.Storage.GetAncestors,
 		)
 		fileHandler = handler.NewFileHandler(
+			c.Storage.RenameFile,
+			c.Storage.MoveFile,
+			c.Storage.GetDownloadURL,
+			c.Storage.ListFileVersions,
+		)
+		uploadHandler = handler.NewUploadHandler(
 			c.Storage.InitiateUpload,
 			c.Storage.CompleteUpload,
 			c.Storage.AbortUpload,
-			c.Storage.RenameFile,
-			c.Storage.MoveFile,
+			c.Storage.GetUploadStatus,
+		)
+		trashHandler = handler.NewTrashHandler(
 			c.Storage.TrashFile,
 			c.Storage.RestoreFile,
 			c.Storage.PermanentlyDeleteFile,
 			c.Storage.EmptyTrash,
-			c.Storage.GetDownloadURL,
-			c.Storage.GetUploadStatus,
-			c.Storage.ListFileVersions,
 			c.Storage.ListTrash,
 		)
 	}
@@ -132,6 +140,8 @@ func NewHandlers(c *Container) *Handlers {
 		Profile:    profileHandler,
 		Folder:     folderHandler,
 		File:       fileHandler,
+		Upload:     uploadHandler,
+		Trash:      trashHandler,
 		Group:      groupHandler,
 		Permission: permissionHandler,
 		ShareLink:  shareLinkHandler,
@@ -161,6 +171,8 @@ func NewHandlersForTest(c *Container) *Handlers {
 	// Storage Handlers (if Storage is initialized)
 	var folderHandler *handler.FolderHandler
 	var fileHandler *handler.FileHandler
+	var uploadHandler *handler.UploadHandler
+	var trashHandler *handler.TrashHandler
 	if c.Storage != nil {
 		folderHandler = handler.NewFolderHandler(
 			c.Storage.CreateFolder,
@@ -172,18 +184,22 @@ func NewHandlersForTest(c *Container) *Handlers {
 			c.Storage.GetAncestors,
 		)
 		fileHandler = handler.NewFileHandler(
+			c.Storage.RenameFile,
+			c.Storage.MoveFile,
+			c.Storage.GetDownloadURL,
+			c.Storage.ListFileVersions,
+		)
+		uploadHandler = handler.NewUploadHandler(
 			c.Storage.InitiateUpload,
 			c.Storage.CompleteUpload,
 			c.Storage.AbortUpload,
-			c.Storage.RenameFile,
-			c.Storage.MoveFile,
+			c.Storage.GetUploadStatus,
+		)
+		trashHandler = handler.NewTrashHandler(
 			c.Storage.TrashFile,
 			c.Storage.RestoreFile,
 			c.Storage.PermanentlyDeleteFile,
 			c.Storage.EmptyTrash,
-			c.Storage.GetDownloadURL,
-			c.Storage.GetUploadStatus,
-			c.Storage.ListFileVersions,
 			c.Storage.ListTrash,
 		)
 	}
@@ -243,6 +259,8 @@ func NewHandlersForTest(c *Container) *Handlers {
 		Profile:    profileHandler,
 		Folder:     folderHandler,
 		File:       fileHandler,
+		Upload:     uploadHandler,
+		Trash:      trashHandler,
 		Group:      groupHandler,
 		Permission: permissionHandler,
 		ShareLink:  shareLinkHandler,

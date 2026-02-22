@@ -21,7 +21,9 @@ export const fileKeys = {
 
 export const trashKeys = {
   all: ['trash'] as const,
-  list: () => [...trashKeys.all, 'list'] as const,
+  lists: () => [...trashKeys.all, 'list'] as const,
+  list: (limit?: number, cursor?: string) =>
+    [...trashKeys.lists(), { limit, cursor }] as const,
 };
 
 export const groupKeys = {

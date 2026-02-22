@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -22,6 +23,7 @@ type RestoreFileInput struct {
 type RestoreFileOutput struct {
 	FileID   uuid.UUID
 	FolderID uuid.UUID // 必須 - 復元先フォルダID
+	Name     string
 }
 
 // RestoreFileCommand はファイルをゴミ箱から復元するコマンドです
@@ -31,6 +33,7 @@ type RestoreFileCommand struct {
 	folderRepo              repository.FolderRepository
 	archivedFileRepo        repository.ArchivedFileRepository
 	archivedFileVersionRepo repository.ArchivedFileVersionRepository
+	userRepo                repository.UserRepository
 	txManager               repository.TransactionManager
 }
 
@@ -41,6 +44,7 @@ func NewRestoreFileCommand(
 	folderRepo repository.FolderRepository,
 	archivedFileRepo repository.ArchivedFileRepository,
 	archivedFileVersionRepo repository.ArchivedFileVersionRepository,
+	userRepo repository.UserRepository,
 	txManager repository.TransactionManager,
 ) *RestoreFileCommand {
 	return &RestoreFileCommand{
@@ -49,6 +53,7 @@ func NewRestoreFileCommand(
 		folderRepo:              folderRepo,
 		archivedFileRepo:        archivedFileRepo,
 		archivedFileVersionRepo: archivedFileVersionRepo,
+		userRepo:                userRepo,
 		txManager:               txManager,
 	}
 }
@@ -140,6 +145,7 @@ func (c *RestoreFileCommand) Execute(ctx context.Context, input RestoreFileInput
 	return &RestoreFileOutput{
 		FileID:   file.ID,
 		FolderID: restoreFolderID,
+		Name:     archivedFile.Name.String(),
 	}, nil
 }
 
@@ -175,7 +181,13 @@ func (c *RestoreFileCommand) determineRestoreFolder(
 		return archivedFile.OriginalFolderID, nil
 	}
 
-	// 元のフォルダが存在しない場合はエラー
-	// Note: ファイルは必ずフォルダに所属するため、復元先フォルダを指定する必要がある
-	return uuid.Nil, apperror.NewValidationError("original folder no longer exists, please specify a restore folder", nil)
+	// 元のフォルダが存在しない場合はPersonal Folderにフォールバック (R-AF003)
+	user, err := c.userRepo.FindByID(ctx, archivedFile.OwnerID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if user.PersonalFolderID == nil {
+		return uuid.Nil, apperror.NewInternalError(errors.New("user has no personal folder"))
+	}
+	return *user.PersonalFolderID, nil
 }

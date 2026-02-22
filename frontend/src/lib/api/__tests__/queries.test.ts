@@ -72,8 +72,24 @@ describe('trashKeys', () => {
     expect(trashKeys.all).toEqual(['trash']);
   });
 
-  it('list() returns ["trash", "list"]', () => {
-    expect(trashKeys.list()).toEqual(['trash', 'list']);
+  it('lists() returns ["trash", "list"]', () => {
+    expect(trashKeys.lists()).toEqual(['trash', 'list']);
+  });
+
+  it('list() returns ["trash", "list", { limit, cursor }]', () => {
+    expect(trashKeys.list()).toEqual([
+      'trash',
+      'list',
+      { limit: undefined, cursor: undefined },
+    ]);
+  });
+
+  it('list(50, "abc") returns ["trash", "list", { limit: 50, cursor: "abc" }]', () => {
+    expect(trashKeys.list(50, 'abc')).toEqual([
+      'trash',
+      'list',
+      { limit: 50, cursor: 'abc' },
+    ]);
   });
 });
 

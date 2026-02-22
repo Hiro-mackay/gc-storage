@@ -77,12 +77,14 @@ export function useUpdateShareLinkMutation(shareLinkId: string) {
       expiresAt?: string;
       maxAccessCount?: number;
     }) => {
-      const { data, error } = await api.PATCH('/share-links/{id}', {
+      // PATCH route not yet in generated schema — cast needed until api:generate
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resp = await (api as any).PATCH('/share-links/{id}', {
         params: { path: { id: shareLinkId } },
         body: input,
       });
-      if (error) throw new Error('Failed to update share link');
-      return data?.data ?? null;
+      if (resp.error) throw new Error('Failed to update share link');
+      return (resp.data as Record<string, unknown>)?.data ?? null;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: shareKeys.all });

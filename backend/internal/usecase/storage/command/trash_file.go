@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -19,6 +20,7 @@ type TrashFileInput struct {
 // TrashFileOutput はファイルのゴミ箱移動出力を定義します
 type TrashFileOutput struct {
 	ArchivedFileID uuid.UUID
+	ExpiresAt      time.Time
 }
 
 // TrashFileCommand はファイルをゴミ箱に移動するコマンドです
@@ -67,7 +69,7 @@ func (c *TrashFileCommand) Execute(ctx context.Context, input TrashFileInput) (*
 	}
 
 	// 3. アクティブなファイルのみゴミ箱に移動可能
-	if !file.IsActive() {
+	if !file.CanArchive() {
 		return nil, apperror.NewValidationError("only active files can be trashed", nil)
 	}
 
@@ -119,6 +121,7 @@ func (c *TrashFileCommand) Execute(ctx context.Context, input TrashFileInput) (*
 
 	return &TrashFileOutput{
 		ArchivedFileID: archivedFile.ID,
+		ExpiresAt:      archivedFile.ExpiresAt,
 	}, nil
 }
 

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -105,7 +106,12 @@ func (c *EmptyTrashCommand) Execute(ctx context.Context, input EmptyTrashInput) 
 
 	// 4. MinIOからオブジェクト削除（トランザクション外）
 	for _, key := range storageKeysToDelete {
-		_ = c.storageService.DeleteObject(ctx, key)
+		if err := c.storageService.DeleteObject(ctx, key); err != nil {
+			slog.Error("failed to delete storage object",
+				"storage_key", key,
+				"error", err,
+			)
+		}
 	}
 
 	return &EmptyTrashOutput{DeletedCount: totalDeleted}, nil

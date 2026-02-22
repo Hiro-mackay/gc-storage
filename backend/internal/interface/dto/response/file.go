@@ -83,6 +83,7 @@ type FileVersionsResponse struct {
 // Note: OriginalFolderIDは必須。ファイルは必ずフォルダに所属。
 type TrashItemResponse struct {
 	ID               string    `json:"id"`
+	Type             string    `json:"type"`
 	OriginalFileID   string    `json:"originalFileId"`
 	OriginalFolderID string    `json:"originalFolderId"`
 	OriginalPath     string    `json:"originalPath"`
@@ -96,7 +97,8 @@ type TrashItemResponse struct {
 
 // TrashListResponse はゴミ箱一覧レスポンスです
 type TrashListResponse struct {
-	Items []TrashItemResponse `json:"items"`
+	Items      []TrashItemResponse `json:"items"`
+	NextCursor *string             `json:"nextCursor"`
 }
 
 // CompleteUploadResponse はアップロード完了レスポンスです
@@ -120,18 +122,21 @@ type MoveFileResponse struct {
 
 // TrashFileResponse はファイルゴミ箱移動レスポンスです
 type TrashFileResponse struct {
-	ArchivedFileID string `json:"archivedFileId"`
+	ArchivedFileID string    `json:"archivedFileId"`
+	ExpiresAt      time.Time `json:"expiresAt"`
 }
 
 // RestoreFileResponse はファイル復元レスポンスです
 type RestoreFileResponse struct {
 	FileID   string `json:"fileId"`
 	FolderID string `json:"folderId"`
+	Name     string `json:"name"`
 }
 
 // EmptyTrashResponse はゴミ箱空にするレスポンスです
 type EmptyTrashResponse struct {
-	DeletedCount int `json:"deletedCount"`
+	Message      string `json:"message"`
+	DeletedCount int    `json:"deletedCount"`
 }
 
 // AbortUploadResponse はアップロード中断レスポンスです
@@ -240,6 +245,7 @@ func ToTrashListResponse(output *storageqry.ListTrashOutput) TrashListResponse {
 	for i, item := range output.Items {
 		items[i] = TrashItemResponse{
 			ID:               item.ID.String(),
+			Type:             "file",
 			OriginalFileID:   item.OriginalFileID.String(),
 			OriginalFolderID: item.OriginalFolderID.String(),
 			OriginalPath:     item.OriginalPath,
@@ -252,5 +258,11 @@ func ToTrashListResponse(output *storageqry.ListTrashOutput) TrashListResponse {
 		}
 	}
 
-	return TrashListResponse{Items: items}
+	var nextCursor *string
+	if output.NextCursor != nil {
+		s := output.NextCursor.String()
+		nextCursor = &s
+	}
+
+	return TrashListResponse{Items: items, NextCursor: nextCursor}
 }

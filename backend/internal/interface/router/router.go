@@ -127,24 +127,34 @@ func (r *Router) setupStorageRoutes(api *echo.Group) {
 	// File routes (authenticated)
 	if r.handlers.File != nil {
 		filesGroup := api.Group("/files", r.middlewares.SessionAuth.Authenticate())
-		filesGroup.POST("/upload", r.handlers.File.InitiateUpload)
-		filesGroup.GET("/upload/:sessionId", r.handlers.File.GetUploadStatus)
-		filesGroup.DELETE("/upload/:sessionId", r.handlers.File.AbortUpload)
 		filesGroup.GET("/:id/download", r.handlers.File.GetDownloadURL)
 		filesGroup.GET("/:id/versions", r.handlers.File.ListFileVersions)
 		filesGroup.PATCH("/:id/rename", r.handlers.File.RenameFile)
 		filesGroup.PATCH("/:id/move", r.handlers.File.MoveFile)
-		filesGroup.POST("/:id/trash", r.handlers.File.TrashFile)
+	}
+
+	// Upload routes (authenticated + webhook)
+	if r.handlers.Upload != nil {
+		filesGroup := api.Group("/files", r.middlewares.SessionAuth.Authenticate())
+		filesGroup.POST("/upload", r.handlers.Upload.InitiateUpload)
+		filesGroup.GET("/upload/:sessionId", r.handlers.Upload.GetUploadStatus)
+		filesGroup.DELETE("/upload/:sessionId", r.handlers.Upload.AbortUpload)
 
 		// Upload completion webhook (unauthenticated for MinIO webhook)
-		api.POST("/files/upload/complete", r.handlers.File.CompleteUpload)
+		api.POST("/files/upload/complete", r.handlers.Upload.CompleteUpload)
+	}
 
-		// Trash routes (authenticated)
+	// Trash routes (authenticated)
+	if r.handlers.Trash != nil {
+		filesGroup := api.Group("/files", r.middlewares.SessionAuth.Authenticate())
+		filesGroup.POST("/:id/trash", r.handlers.Trash.TrashFile)
+
 		trashGroup := api.Group("/trash", r.middlewares.SessionAuth.Authenticate())
-		trashGroup.GET("", r.handlers.File.ListTrash)
-		trashGroup.DELETE("", r.handlers.File.EmptyTrash)
-		trashGroup.DELETE("/:id", r.handlers.File.PermanentlyDeleteFile)
-		trashGroup.POST("/:id/restore", r.handlers.File.RestoreFile)
+		trashGroup.GET("", r.handlers.Trash.ListTrash)
+		trashGroup.DELETE("", r.handlers.Trash.EmptyTrash)
+		trashFilesGroup := trashGroup.Group("/files")
+		trashFilesGroup.DELETE("/:id", r.handlers.Trash.PermanentlyDeleteFile)
+		trashFilesGroup.POST("/:id/restore", r.handlers.Trash.RestoreFile)
 	}
 }
 

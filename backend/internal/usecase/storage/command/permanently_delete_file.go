@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -70,7 +71,12 @@ func (c *PermanentlyDeleteFileCommand) Execute(ctx context.Context, input Perman
 	}
 
 	// 4. MinIOからオブジェクト削除（トランザクション外）
-	_ = c.storageService.DeleteObject(ctx, storageKey)
+	if err := c.storageService.DeleteObject(ctx, storageKey); err != nil {
+		slog.Error("failed to delete storage object",
+			"storage_key", storageKey,
+			"error", err,
+		)
+	}
 
 	return nil
 }

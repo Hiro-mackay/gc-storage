@@ -190,6 +190,11 @@ func (f *File) IsActive() bool {
 	return f.Status == FileStatusActive
 }
 
+// CanArchive はファイルをゴミ箱に移動できるかどうかを判定します
+func (f *File) CanArchive() bool {
+	return f.Status == FileStatusActive
+}
+
 // IsUploading はアップロード中かどうかを判定します
 func (f *File) IsUploading() bool {
 	return f.Status == FileStatusUploading

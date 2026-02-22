@@ -58,6 +58,14 @@ func NoContent(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// Accepted は受理レスポンスを返します
+func Accepted(c echo.Context, data interface{}) error {
+	return c.JSON(http.StatusAccepted, Response{
+		Data: data,
+		Meta: nil,
+	})
+}
+
 // Deleted は削除成功レスポンスを返します
 func Deleted(c echo.Context, message string) error {
 	return c.JSON(http.StatusOK, Response{

@@ -31,7 +31,7 @@ describe('PublicAccessPage', () => {
       isLoading: true,
       isError: false,
       error: null,
-    } as ReturnType<typeof useSharedResource>);
+    } as unknown as ReturnType<typeof useSharedResource>);
 
     renderPage();
 
@@ -48,7 +48,7 @@ describe('PublicAccessPage', () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof useSharedResource>);
+    } as unknown as ReturnType<typeof useSharedResource>);
 
     renderPage();
 
@@ -61,7 +61,7 @@ describe('PublicAccessPage', () => {
       isLoading: false,
       isError: true,
       error: { status: 410 },
-    } as ReturnType<typeof useSharedResource>);
+    } as unknown as ReturnType<typeof useSharedResource>);
 
     renderPage();
 
@@ -74,7 +74,7 @@ describe('PublicAccessPage', () => {
       isLoading: false,
       isError: true,
       error: { status: 500 },
-    } as ReturnType<typeof useSharedResource>);
+    } as unknown as ReturnType<typeof useSharedResource>);
 
     renderPage();
 
