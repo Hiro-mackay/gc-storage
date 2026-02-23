@@ -101,6 +101,9 @@ func NewTestServer(t *testing.T) *TestServer {
 	handlers := di.NewHandlersForTest(container)
 	middlewares := di.NewMiddlewares(container)
 
+	// Set SecureCookies to true to match production spec (Secure flag on cookies)
+	middleware.SecureCookies = true
+
 	// Echo instance
 	e := echo.New()
 	e.Validator = validator.NewCustomValidator()

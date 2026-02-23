@@ -132,7 +132,7 @@ func TestResetPasswordCommand_Execute_UsedToken_ReturnsValidationError(t *testin
 	var appErr *apperror.AppError
 	require.True(t, errors.As(err, &appErr))
 	assert.Equal(t, apperror.CodeValidationError, appErr.Code)
-	assert.Contains(t, appErr.Message, "invalid or expired token")
+	assert.Contains(t, appErr.Message, "token has already been used")
 }
 
 func TestResetPasswordCommand_Execute_ExpiredToken_ReturnsValidationError(t *testing.T) {
@@ -164,7 +164,7 @@ func TestResetPasswordCommand_Execute_ExpiredToken_ReturnsValidationError(t *tes
 	var appErr *apperror.AppError
 	require.True(t, errors.As(err, &appErr))
 	assert.Equal(t, apperror.CodeValidationError, appErr.Code)
-	assert.Contains(t, appErr.Message, "invalid or expired token")
+	assert.Contains(t, appErr.Message, "token has expired")
 }
 
 func TestResetPasswordCommand_Execute_UserNotFound_ReturnsNotFoundError(t *testing.T) {

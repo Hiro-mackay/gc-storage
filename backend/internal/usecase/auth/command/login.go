@@ -66,7 +66,7 @@ func (c *LoginCommand) Execute(ctx context.Context, input LoginInput) (*LoginOut
 		return nil, apperror.NewUnauthorizedError("invalid credentials")
 	}
 
-	// 3. ユーザー状態チェック（pending は許可、メール認証は重要操作時にのみ要求）
+	// 3. ユーザー状態チェック (FS-LOGIN-001: pendingはログイン許可)
 	switch user.Status {
 	case entity.UserStatusActive, entity.UserStatusPending:
 		// OK: ログイン許可

@@ -706,7 +706,7 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL004_MoveInRequiresContributor()
 		Path:      "/api/v1/folders/" + subfolderID + "/move",
 		SessionID: managerSessionID,
 		Body: map[string]interface{}{
-			"parentId": destFolderID,
+			"newParentId": destFolderID,
 		},
 	})
 
@@ -764,7 +764,7 @@ func (s *PermissionTestSuite) TestMoveFolder_R_RL004_ContributorCanMoveIn() {
 		Path:      "/api/v1/folders/" + subfolderID + "/move",
 		SessionID: managerSessionID,
 		Body: map[string]interface{}{
-			"parentId": destFolderID,
+			"newParentId": destFolderID,
 		},
 	})
 

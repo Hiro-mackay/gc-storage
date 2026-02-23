@@ -523,7 +523,7 @@ func (s *AuthTestSuite) TestLogin_WrongPassword() {
 }
 
 func (s *AuthTestSuite) TestLogin_PendingUser() {
-	// Register but don't activate
+	// Register but don't activate (FS-LOGIN-001: pending users can login)
 	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/register",
@@ -534,7 +534,7 @@ func (s *AuthTestSuite) TestLogin_PendingUser() {
 		},
 	}).AssertStatus(http.StatusCreated)
 
-	// Try to login (should fail because user is pending)
+	// Login should succeed for pending user
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/login",
@@ -544,8 +544,11 @@ func (s *AuthTestSuite) TestLogin_PendingUser() {
 		},
 	})
 
-	resp.AssertStatus(http.StatusUnauthorized).
-		AssertJSONError("UNAUTHORIZED", "please verify your email first")
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.user.status", "pending").
+		AssertJSONPath("data.user.email_verified", false)
+	cookie := resp.GetCookie("session_id")
+	s.Require().NotNil(cookie, "session_id cookie should be set")
 }
 
 // =============================================================================
@@ -907,16 +910,18 @@ func (s *AuthTestSuite) TestFullEmailVerificationFlow() {
 	})
 	registerResp.AssertStatus(http.StatusCreated)
 
-	// 2. Try to login (should fail - pending)
-	testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
+	// 2. Login should succeed even for pending user (FS-LOGIN-001)
+	pendingLoginResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/login",
 		Body: map[string]string{
 			"email":    "fullflow@example.com",
 			"password": "Password123",
 		},
-	}).AssertStatus(http.StatusUnauthorized).
-		AssertJSONError("UNAUTHORIZED", "please verify your email first")
+	})
+	pendingLoginResp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.user.status", "pending").
+		AssertJSONPath("data.user.email_verified", false)
 
 	// 3. Get verification token
 	token := s.getVerificationToken("fullflow@example.com")
@@ -1268,7 +1273,7 @@ func (s *AuthTestSuite) TestResetPassword_TokenAlreadyUsed() {
 	})
 
 	resp.AssertStatus(http.StatusBadRequest).
-		AssertJSONError("VALIDATION_ERROR", "invalid or expired token")
+		AssertJSONError("VALIDATION_ERROR", "token has already been used")
 }
 
 // =============================================================================
@@ -1932,7 +1937,7 @@ func (s *AuthTestSuite) TestFullOAuthToPasswordFlow() {
 			"password": "AnyPassword123",
 		},
 	}).AssertStatus(http.StatusUnauthorized).
-		AssertJSONError("UNAUTHORIZED", "please use OAuth to login")
+		AssertJSONError("UNAUTHORIZED", "invalid credentials")
 
 	// 3. Re-authenticate via OAuth to get a fresh session (FlushRedis cleared the previous one)
 	testutil.FlushRedis(s.T(), s.server.Redis)

@@ -57,9 +57,12 @@ func (c *ResetPasswordCommand) Execute(ctx context.Context, input ResetPasswordI
 		return nil, apperror.NewValidationError("invalid or expired token", nil)
 	}
 
-	// 3. トークンの有効性チェック（同じエラーメッセージで情報漏洩を防止）
-	if token.IsUsed() || token.IsExpired() {
-		return nil, apperror.NewValidationError("invalid or expired token", nil)
+	// 3. トークンの有効性チェック（AC-31/AC-32: expired/usedを区別）
+	if token.IsUsed() {
+		return nil, apperror.NewValidationError("token has already been used", nil)
+	}
+	if token.IsExpired() {
+		return nil, apperror.NewValidationError("token has expired", nil)
 	}
 
 	// 4. ユーザーを取得
