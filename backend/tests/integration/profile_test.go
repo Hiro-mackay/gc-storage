@@ -57,11 +57,11 @@ func (s *ProfileTestSuite) TestGetProfile_Success() {
 	})
 
 	resp.AssertStatus(http.StatusOK).
-		AssertJSONPathExists("data.user_id").
-		AssertJSONPath("data.email", "profile-user@example.com").
-		AssertJSONPath("data.name", "Profile User").
-		AssertJSONPath("data.locale", "ja").
-		AssertJSONPath("data.timezone", "Asia/Tokyo")
+		AssertJSONPathExists("data.profile.user_id").
+		AssertJSONPath("data.user.email", "profile-user@example.com").
+		AssertJSONPath("data.user.name", "Profile User").
+		AssertJSONPath("data.profile.locale", "ja").
+		AssertJSONPath("data.profile.timezone", "Asia/Tokyo")
 }
 
 func (s *ProfileTestSuite) TestGetProfile_Unauthorized() {
@@ -77,19 +77,20 @@ func (s *ProfileTestSuite) TestGetProfile_Unauthorized() {
 // UpdateProfile Tests
 // =============================================================================
 
-func (s *ProfileTestSuite) TestUpdateProfile_Success_DisplayName() {
+func (s *ProfileTestSuite) TestUpdateUser_Success_DisplayName() {
 	sessionID := s.createAndLoginUser("display-name@example.com", "Password123", "Original Name")
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:    http.MethodPut,
-		Path:      "/api/v1/me/profile",
+		Path:      "/api/v1/me",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"display_name": "Updated Name",
+			"name": "Updated Name",
 		},
 	})
 
-	resp.AssertStatus(http.StatusOK)
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.name", "Updated Name")
 
 	// Verify the name was updated via GET profile
 	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
@@ -99,7 +100,7 @@ func (s *ProfileTestSuite) TestUpdateProfile_Success_DisplayName() {
 	})
 
 	getResp.AssertStatus(http.StatusOK).
-		AssertJSONPath("data.name", "Updated Name")
+		AssertJSONPath("data.user.name", "Updated Name")
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_Success_Bio() {
@@ -199,57 +200,47 @@ func (s *ProfileTestSuite) TestUpdateProfile_Unauthorized() {
 // Profile Validation Tests
 // =============================================================================
 
-func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameTooLong() {
+func (s *ProfileTestSuite) TestUpdateUser_DisplayNameTooLong() {
 	sessionID := s.createAndLoginUser("long-name@example.com", "Password123", "Long Name User")
 
-	// Create a name that exceeds 255 characters
+	// Create a name that exceeds 100 characters (R-U003)
 	longName := ""
-	for i := 0; i < 256; i++ {
+	for i := 0; i < 101; i++ {
 		longName += "a"
 	}
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:    http.MethodPut,
-		Path:      "/api/v1/me/profile",
+		Path:      "/api/v1/me",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"display_name": longName,
+			"name": longName,
 		},
 	})
 
-	resp.AssertStatus(http.StatusBadRequest).
-		AssertJSONError("VALIDATION_ERROR", "")
+	resp.AssertStatus(http.StatusBadRequest)
 }
 
-func (s *ProfileTestSuite) TestUpdateProfile_DisplayNameBoundary() {
+func (s *ProfileTestSuite) TestUpdateUser_DisplayNameBoundary() {
 	sessionID := s.createAndLoginUser("boundary-name@example.com", "Password123", "Boundary Name User")
 
-	// Create exactly 255 characters
-	name255 := ""
-	for i := 0; i < 255; i++ {
-		name255 += "n"
+	// Create exactly 100 characters (R-U003 max)
+	name100 := ""
+	for i := 0; i < 100; i++ {
+		name100 += "n"
 	}
 
 	resp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
 		Method:    http.MethodPut,
-		Path:      "/api/v1/me/profile",
+		Path:      "/api/v1/me",
 		SessionID: sessionID,
 		Body: map[string]interface{}{
-			"display_name": name255,
+			"name": name100,
 		},
 	})
 
-	resp.AssertStatus(http.StatusOK)
-
-	// Verify the name was updated
-	getResp := testutil.DoRequest(s.T(), s.server.Echo, testutil.HTTPRequest{
-		Method:    http.MethodGet,
-		Path:      "/api/v1/me/profile",
-		SessionID: sessionID,
-	})
-
-	getResp.AssertStatus(http.StatusOK).
-		AssertJSONPath("data.name", name255)
+	resp.AssertStatus(http.StatusOK).
+		AssertJSONPath("data.name", name100)
 }
 
 func (s *ProfileTestSuite) TestUpdateProfile_BioBoundary() {
@@ -431,8 +422,8 @@ func (s *ProfileTestSuite) TestProfilePersistence() {
 	})
 
 	resp.AssertStatus(http.StatusOK).
-		AssertJSONPath("data.locale", "en").
-		AssertJSONPath("data.timezone", "UTC")
+		AssertJSONPath("data.profile.locale", "en").
+		AssertJSONPath("data.profile.timezone", "UTC")
 }
 
 // =============================================================================

@@ -170,8 +170,9 @@ tasks:
       - task: test
 
   lint:
-    desc: Run all linters
+    desc: Format + run all linters
     cmds:
+      - task: fmt
       - task: _lint:backend
       - task: _typecheck:frontend
       - task: _lint:frontend
